@@ -86,7 +86,7 @@ const viewOptions: { id: ViewType; label: string; icon: React.ReactNode }[] = [
 ];
 
 export default function ProjectsPage() {
-  const { projects, tasks: allTasks, showToast, teams } = useApp();
+  const { projects, tasks: allTasks, showToast, teams, currentProject: currentProjectId } = useApp();
   const [currentView, setCurrentView] = useState<ViewType>('kanban');
   const [filters, setFilters] = useState<FilterState>({ assignees: [], priorities: [], types: [] });
   const [filterOpen, setFilterOpen] = useState(false);
@@ -97,7 +97,7 @@ export default function ProjectsPage() {
   const [selectedBacklogTasks, setSelectedBacklogTasks] = useState<string[]>([]);
   const [localTasks, setLocalTasks] = useState(allTasks);
 
-  const currentProject = projects[0];
+  const currentProject = projects.find(p => p.id === currentProjectId) || projects[0];
   const activeSprint = sprints.find((s) => s.status === 'active');
   const calendarEvents = generateCalendarEvents().filter(e => e.projectId === currentProject?.id);
   const projectTeam = teams[0];

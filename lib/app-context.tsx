@@ -99,6 +99,8 @@ interface AppState {
   toasts: Toast[];
   searchOpen: boolean;
   aiCopilotOpen: boolean;
+  isAuthenticated: boolean;
+  token: string | null;
 }
 
 interface AppContextType extends AppState {
@@ -177,6 +179,11 @@ interface AppContextType extends AppState {
   getTeam: (id: string) => Team | undefined;
   getProgram: (id: string) => Program | undefined;
   getPortfolio: (id: string) => Portfolio | undefined;
+  
+  // Auth actions
+  loginAction: (email: string, password: string) => Promise<void>;
+  signupAction: (name: string, email: string, password: string) => Promise<void>;
+  logoutAction: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -205,7 +212,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     { id: 'ra-6', userId: 'user-4', projectId: 'proj-1', allocation: 50, startDate: '2026-01-01' },
     { id: 'ra-7', userId: 'user-5', projectId: 'proj-1', allocation: 100, startDate: '2026-01-01' },
   ]);
-  const [currentUser] = useState<UserWithRole>(currentUserWithRole);
+  const [currentUser, setCurrentUser] = useState<UserWithRole>(currentUserWithRole);
+  const [token, setToken] = useState<string | null>(typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!token);
   const [currentProject, setCurrentProject] = useState<string | null>(null);
   const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
   const [modal, setModal] = useState<ModalState>({ type: null });
@@ -215,6 +224,68 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Task counter for generating keys
   const [taskCounter, setTaskCounter] = useState(initialTasks.length + 1);
+
+  const loginAction = useCallback(async (email: string, password: string) => {
+    try {
+      const { login: authLogin } = await import('./auth');
+      const response = await authLogin(email, password);
+      localStorage.setItem('auth_token', response.access_token);
+      setToken(response.access_token);
+      setIsAuthenticated(true);
+      showToast({ title: 'Logged in successfully', type: 'success' });
+      // Reload page to refresh context and fetch data
+      window.location.href = '/';
+    } catch (error: any) {
+      showToast({ title: 'Login failed', description: error.message, type: 'error' });
+      throw error;
+    }
+  }, []);
+
+  const signupAction = useCallback(async (name: string, email: string, password: string) => {
+    try {
+      const { signup: authSignup } = await import('./auth');
+      await authSignup({ name, email, password });
+      showToast({ title: 'Account created', description: 'Please login to continue', type: 'success' });
+    } catch (error: any) {
+      showToast({ title: 'Signup failed', description: error.message, type: 'error' });
+      throw error;
+    }
+  }, []);
+
+  const logoutAction = useCallback(() => {
+    const { logout: authLogout } = require('./auth');
+    authLogout();
+    setToken(null);
+    setIsAuthenticated(false);
+  }, []);
+
+  React.useEffect(() => {
+    if (!token) return;
+
+    import('./api').then(({ fetchAPI, mapBackendProject, mapBackendTask, mapBackendTeam, mapBackendTimeEntry }) => {
+      // Load from the API
+      Promise.all([
+        fetchAPI('/projects').catch(() => null),
+        fetchAPI('/tasks').catch(() => null),
+        fetchAPI('/teams').catch(() => null),
+        fetchAPI('/time-entries').catch(() => null),
+      ]).then(([projectsData, tasksData, teamsData, timeEntriesData]) => {
+        if (projectsData && Array.isArray(projectsData)) {
+          setProjects(projectsData.map(mapBackendProject) as any);
+        }
+        if (tasksData && Array.isArray(tasksData)) {
+          setTasks(tasksData.map(mapBackendTask) as any);
+          setTaskCounter(tasksData.length + 1);
+        }
+        if (teamsData && Array.isArray(teamsData)) {
+          setTeams(teamsData.map(mapBackendTeam) as any);
+        }
+        if (timeEntriesData && Array.isArray(timeEntriesData)) {
+          setTimeEntries(timeEntriesData.map(mapBackendTimeEntry) as any);
+        }
+      });
+    });
+  }, [token]);
 
   // Toast action - defined first since other functions use it
   const showToast = useCallback((toast: Omit<Toast, 'id'>) => {
@@ -244,42 +315,125 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [hasPermission, currentUser.id]);
 
   // Task actions
-  const addTask = useCallback((task: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'key'>) => {
+  const addTask = useCallback(async (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'key'>) => {
     const project = projects.find(p => p.id === task.projectId);
+    const tempId = `task-${Date.now()}`;
     const newTask: Task = {
       ...task,
-      id: `task-${Date.now()}`,
+      id: tempId,
       key: `${project?.key || 'NXS'}-${100 + taskCounter}`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
     setTasks(prev => [newTask, ...prev]);
     setTaskCounter(prev => prev + 1);
-    showToast({ title: 'Task created', description: `${newTask.key} has been created`, type: 'success' });
+    
+    try {
+      const { fetchAPI, mapBackendTask } = await import('./api');
+      
+      const payload: any = {
+        title: task.title,
+        description: task.description || '',
+        project_id: task.projectId,
+        status: task.status === 'open' ? 'TODO' : 
+                task.status === 'in-progress' ? 'IN_PROGRESS' : 
+                task.status === 'pending-approval' ? 'IN_REVIEW' : 
+                task.status === 'closed' ? 'DONE' : 'TODO',
+        priority: task.priority === 'critical' ? 'URGENT' : task.priority.toUpperCase(),
+      };
+
+      if (task.assignee?.id) {
+        payload.assignee_id = task.assignee.id;
+      }
+
+      const savedTask = await fetchAPI('/tasks', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      
+      setTasks(prev => prev.map(t => t.id === tempId ? mapBackendTask(savedTask) : t));
+      showToast({ title: 'Task created', description: savedTask.task_code || savedTask.title, type: 'success' });
+    } catch (error) {
+      setTasks(prev => prev.filter(t => t.id !== tempId));
+      showToast({ title: 'Task creation failed', type: 'error' });
+    }
   }, [projects, taskCounter, showToast]);
 
-  const updateTask = useCallback((id: string, updates: Partial<Task>) => {
+  const updateTask = useCallback(async (id: string, updates: Partial<Task>) => {
     setTasks(prev => prev.map(task => 
       task.id === id ? { ...task, ...updates, updatedAt: new Date().toISOString() } : task
     ));
-    showToast({ title: 'Task updated', type: 'success' });
+
+    try {
+      const { fetchAPI } = await import('./api');
+      const payload: any = { ...updates };
+      
+      if (payload.status) {
+        payload.status = payload.status === 'open' ? 'TODO' : 
+                         payload.status === 'in-progress' ? 'IN_PROGRESS' : 
+                         payload.status === 'pending-approval' ? 'IN_REVIEW' : 
+                         payload.status === 'closed' ? 'DONE' : payload.status.toUpperCase();
+      }
+      
+      if (payload.priority) {
+        payload.priority = payload.priority === 'critical' ? 'URGENT' : payload.priority.toUpperCase();
+      }
+
+      if (payload.assignee) {
+        payload.assignee_id = payload.assignee.id;
+        delete payload.assignee;
+      }
+      
+      await fetchAPI(`/tasks/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload)
+      });
+      showToast({ title: 'Task updated', type: 'success' });
+    } catch(err) {
+      showToast({ title: 'Task update failed', type: 'error' });
+    }
   }, [showToast]);
 
-  const deleteTask = useCallback((id: string) => {
+  const deleteTask = useCallback(async (id: string) => {
     const task = tasks.find(t => t.id === id);
     setTasks(prev => prev.filter(t => t.id !== id));
-    showToast({ title: 'Task deleted', description: task?.key, type: 'success' });
+    
+    try {
+      const { fetchAPI } = await import('./api');
+      await fetchAPI(`/tasks/${id}`, { method: 'DELETE' });
+      showToast({ title: 'Task deleted', description: task?.key, type: 'success' });
+    } catch(err) {
+      if (task) setTasks(prev => [...prev, task]);
+      showToast({ title: 'Delete failed', type: 'error' });
+    }
   }, [tasks, showToast]);
 
-  const updateTaskStatus = useCallback((id: string, status: TaskStatus) => {
+  const updateTaskStatus = useCallback(async (id: string, status: TaskStatus) => {
     setTasks(prev => prev.map(task => 
       task.id === id ? { ...task, status, updatedAt: new Date().toISOString() } : task
     ));
-    showToast({ title: 'Status updated', type: 'success' });
+
+    try {
+      const { fetchAPI } = await import('./api');
+      const mappedStatus = status === 'open' ? 'TODO' : 
+                           status === 'in-progress' ? 'IN_PROGRESS' : 
+                           status === 'pending-approval' ? 'IN_REVIEW' : 
+                           status === 'closed' ? 'DONE' : status.replace('-', '_').toUpperCase();
+      
+      await fetchAPI(`/tasks/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: mappedStatus })
+      });
+      showToast({ title: 'Status updated', type: 'success' });
+    } catch (err) {
+       showToast({ title: 'Status update failed', type: 'error' });
+    }
   }, [showToast]);
 
-  const assignTask = useCallback((taskId: string, userId: string | null) => {
+  const assignTask = useCallback(async (taskId: string, userId: string | null) => {
     const user = userId ? users.find(u => u.id === userId) : null;
+    const newStatus = user ? 'ASSIGNED' : 'TODO';
+    
     setTasks(prev => prev.map(task => 
       task.id === taskId ? { 
         ...task, 
@@ -288,11 +442,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updatedAt: new Date().toISOString() 
       } : task
     ));
-    showToast({ 
-      title: user ? 'Task assigned' : 'Task unassigned', 
-      description: user ? `Assigned to ${user.name}` : undefined,
-      type: 'success' 
-    });
+
+    try {
+      const { fetchAPI } = await import('./api');
+      await fetchAPI(`/tasks/${taskId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ assignee_id: userId, status: newStatus })
+      });
+      showToast({ 
+        title: user ? 'Task assigned' : 'Task unassigned', 
+        description: user ? `Assigned to ${user.name}` : undefined,
+        type: 'success' 
+      });
+    } catch (err) {
+      showToast({ title: 'Assignment failed', type: 'error' });
+    }
   }, [users, showToast]);
 
   const selectTask = useCallback((id: string) => {
@@ -339,50 +503,116 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [showToast]);
 
   // Project actions
-  const addProject = useCallback((project: Omit<Project, 'id' | 'createdAt'>) => {
-    const newProject: Project = {
-      ...project,
-      id: `proj-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-    };
+  const addProject = useCallback(async (project: Omit<Project, 'id'>) => {
+    const tempId = `proj-temp-${Date.now()}`;
+    const newProject: Project = { ...project, id: tempId };
     setProjects(prev => [...prev, newProject]);
-    showToast({ title: 'Project created', description: newProject.name, type: 'success' });
+    
+    try {
+      const { fetchAPI, mapBackendProject } = await import('./api');
+      const savedProject = await fetchAPI('/projects', {
+        method: 'POST',
+        body: JSON.stringify({ name: project.name, status: 'PLANNING' })
+      });
+      
+      setProjects(prev => prev.map(p => p.id === tempId ? mapBackendProject(savedProject) : p));
+      showToast({ title: 'Project created', description: savedProject.name, type: 'success' });
+    } catch (error) {
+      setProjects(prev => prev.filter(p => p.id !== tempId));
+      showToast({ title: 'Project creation failed', type: 'error' });
+    }
   }, [showToast]);
 
-  const updateProject = useCallback((id: string, updates: Partial<Project>) => {
+  const updateProject = useCallback(async (id: string, updates: Partial<Project>) => {
+    // Optimistic UI update
     setProjects(prev => prev.map(project => 
       project.id === id ? { ...project, ...updates } : project
     ));
-    showToast({ title: 'Project updated', type: 'success' });
+
+    try {
+      const { fetchAPI } = await import('./api');
+      const payload: any = { ...updates };
+      // Map UI names to DB names if necessary
+      if (payload.status) payload.status = payload.status.replace('-', '_').toUpperCase();
+      
+      await fetchAPI(`/projects/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload)
+      });
+      showToast({ title: 'Project updated', type: 'success' });
+    } catch (error) {
+      // Typically we would rollback optimistic state here
+      showToast({ title: 'Update failed', type: 'error' });
+    }
   }, [showToast]);
 
-  const deleteProject = useCallback((id: string) => {
+  const deleteProject = useCallback(async (id: string) => {
     const project = projects.find(p => p.id === id);
+    
+    // Optimistic UI update
     setProjects(prev => prev.filter(p => p.id !== id));
-    showToast({ title: 'Project deleted', description: project?.name, type: 'success' });
+    
+    try {
+      const { fetchAPI } = await import('./api');
+      await fetchAPI(`/projects/${id}`, { method: 'DELETE' });
+      showToast({ title: 'Project deleted', description: project?.name, type: 'success' });
+    } catch (error) {
+      // Rollback
+      if (project) setProjects(prev => [...prev, project]);
+      showToast({ title: 'Delete failed', type: 'error' });
+    }
   }, [projects, showToast]);
 
   // Team actions
-  const addTeam = useCallback((team: Omit<Team, 'id'>) => {
-    const newTeam: Team = {
-      ...team,
-      id: `team-${Date.now()}`,
-    };
+  const addTeam = useCallback(async (team: Omit<Team, 'id'>) => {
+    const tempId = `team-temp-${Date.now()}`;
+    const newTeam: Team = { ...team, id: tempId };
     setTeams(prev => [...prev, newTeam]);
-    showToast({ title: 'Team created', description: newTeam.name, type: 'success' });
+    
+    try {
+      const { fetchAPI, mapBackendTeam } = await import('./api');
+      const savedTeam = await fetchAPI('/teams', {
+        method: 'POST',
+        body: JSON.stringify({ name: team.name })
+      });
+      if (!savedTeam) throw new Error("No response from server");
+      setTeams(prev => prev.map(t => t.id === tempId ? mapBackendTeam(savedTeam as any) : t));
+      showToast({ title: 'Team created', description: savedTeam.name, type: 'success' });
+    } catch (err) {
+      setTeams(prev => prev.filter(t => t.id !== tempId));
+      showToast({ title: 'Team creation failed', type: 'error' });
+    }
   }, [showToast]);
 
-  const updateTeam = useCallback((id: string, updates: Partial<Team>) => {
+  const updateTeam = useCallback(async (id: string, updates: Partial<Team>) => {
     setTeams(prev => prev.map(team => 
       team.id === id ? { ...team, ...updates } : team
     ));
-    showToast({ title: 'Team updated', type: 'success' });
+    
+    try {
+      const { fetchAPI } = await import('./api');
+      await fetchAPI(`/teams/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(updates)
+      });
+      showToast({ title: 'Team updated', type: 'success' });
+    } catch (err) {
+      showToast({ title: 'Update failed', type: 'error' });
+    }
   }, [showToast]);
 
-  const deleteTeam = useCallback((id: string) => {
+  const deleteTeam = useCallback(async (id: string) => {
     const team = teams.find(t => t.id === id);
     setTeams(prev => prev.filter(t => t.id !== id));
-    showToast({ title: 'Team deleted', description: team?.name, type: 'success' });
+    
+    try {
+      const { fetchAPI } = await import('./api');
+      await fetchAPI(`/teams/${id}`, { method: 'DELETE' });
+      showToast({ title: 'Team deleted', description: team?.name, type: 'success' });
+    } catch(err) {
+       if (team) setTeams(prev => [...prev, team]);
+       showToast({ title: 'Delete failed', type: 'error' });
+    }
   }, [teams, showToast]);
 
   const addTeamMember = useCallback((teamId: string, userId: string) => {
@@ -462,14 +692,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [portfolios, showToast]);
 
   // Time tracking actions
-  const addTimeEntry = useCallback((entry: Omit<TimeEntry, 'id' | 'createdAt'>) => {
+  const addTimeEntry = useCallback(async (entry: Omit<TimeEntry, 'id' | 'createdAt'>) => {
+    const tempId = `time-temp-${Date.now()}`;
     const newEntry: TimeEntry = {
       ...entry,
-      id: `time-${Date.now()}`,
+      id: tempId,
       createdAt: new Date().toISOString(),
     };
     setTimeEntries(prev => [...prev, newEntry]);
-    showToast({ title: 'Time logged', description: `${entry.hours}h logged`, type: 'success' });
+    
+    try {
+      const { fetchAPI, mapBackendTimeEntry } = await import('./api');
+      const savedEntry = await fetchAPI('/time-entries', {
+        method: 'POST',
+        body: JSON.stringify({ 
+          duration: Math.round(entry.hours * 60), // backend expects minutes
+          date: entry.date,
+          description: entry.description || "",
+          task_id: entry.taskId,
+          user_id: entry.userId,
+        })
+      });
+      setTimeEntries(prev => prev.map(e => e.id === tempId ? mapBackendTimeEntry(savedEntry) : e));
+      showToast({ title: 'Time logged', description: `${entry.hours}h logged`, type: 'success' });
+    } catch (err) {
+      setTimeEntries(prev => prev.filter(e => e.id !== tempId));
+      showToast({ title: 'Time logging failed', type: 'error' });
+    }
   }, [showToast]);
 
   const updateTimeEntry = useCallback((id: string, updates: Partial<TimeEntry>) => {
@@ -564,6 +813,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     toasts,
     searchOpen,
     aiCopilotOpen,
+    isAuthenticated,
+    token,
     // Task actions
     addTask,
     updateTask,
@@ -628,6 +879,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     getTeam,
     getProgram,
     getPortfolio,
+    // Auth actions
+    loginAction,
+    signupAction,
+    logoutAction,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

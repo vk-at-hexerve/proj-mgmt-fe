@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { AppProvider } from '@/lib/app-context'
+import { AuthGuard } from '@/components/auth/auth-guard'
 import { AppModals } from '@/components/modals/app-modals'
 import { AppToasts } from '@/components/ui/app-toasts'
 import { CommandPalette } from '@/components/command-palette'
@@ -43,7 +44,9 @@ export default function RootLayout({
     <html lang="en">
       <body className={`font-sans antialiased`}>
         <AppProvider>
-          {children}
+          <AuthGuard>
+            {children}
+          </AuthGuard>
           <AppModals />
           <AppToasts />
           <CommandPalette />

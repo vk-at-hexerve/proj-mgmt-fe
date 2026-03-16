@@ -208,11 +208,12 @@ function CreateTaskModal({
   onSubmit: (task: Parameters<ReturnType<typeof useApp>['addTask']>[0]) => void;
   projectId?: string;
 }) {
+  const { projects, users } = useApp();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [type, setType] = useState<'task' | 'bug' | 'story' | 'epic'>('task');
   const [priority, setPriority] = useState<TaskPriority>('medium');
-  const [project, setProject] = useState(projectId || projects[0].id);
+  const [project, setProject] = useState(projectId || projects[0]?.id || '');
   const [assignee, setAssignee] = useState<string>('');
   const [storyPoints, setStoryPoints] = useState<string>('');
   const [dueDate, setDueDate] = useState<string>('');
@@ -394,7 +395,7 @@ function EditTaskModal({
   onClose: () => void; 
   onSubmit: (updates: Partial<NonNullable<typeof task>>) => void;
 }) {
-  const { tasks } = useApp();
+  const { tasks, users } = useApp();
   const [title, setTitle] = useState(task?.title || '');
   const [description, setDescription] = useState(task?.description || '');
   const [type, setType] = useState<'task' | 'bug' | 'story' | 'epic' | 'subtask'>(task?.type || 'task');
@@ -1163,6 +1164,7 @@ function AssignTaskModal({
   onClose: () => void; 
   onAssign: (userId: string) => void;
 }) {
+  const { users } = useApp();
   const [selectedUser, setSelectedUser] = useState<string>('');
 
   return (
@@ -1270,6 +1272,7 @@ function CreateProjectModal({
   onClose: () => void;
   onSubmit: (project: Parameters<ReturnType<typeof useApp>['addProject']>[0]) => void;
 }) {
+  const { users } = useApp();
   const [step, setStep] = useState<'template' | 'details'>('template');
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [name, setName] = useState('');
@@ -2051,7 +2054,7 @@ function AddMemberModal({
   teamId: string;
   onClose: () => void;
 }) {
-  const { getTeam, addTeamMember, teams } = useApp();
+  const { getTeam, addTeamMember, teams, users } = useApp();
   const team = getTeam(teamId);
   const [selectedUser, setSelectedUser] = useState<string>('');
 

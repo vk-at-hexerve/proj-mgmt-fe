@@ -12,7 +12,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Bell, Plus, Search, MessageSquare, HelpCircle } from 'lucide-react';
+import { Bell, Plus, Search, MessageSquare, HelpCircle, LogOut, User as UserIcon, Settings } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { aiInsights } from '@/lib/mock-data';
 
 interface AppHeaderProps {
@@ -23,7 +24,7 @@ interface AppHeaderProps {
 
 export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
   const router = useRouter();
-  const { setSearchOpen, openModal, showToast } = useApp();
+  const { setSearchOpen, openModal, showToast, currentUser, logoutAction, isAuthenticated } = useApp();
   const criticalInsights = aiInsights.filter((i) => i.severity === 'critical').length;
   const warningInsights = aiInsights.filter((i) => i.severity === 'warning').length;
 
@@ -131,6 +132,55 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
         </DropdownMenu>
 
         {actions}
+
+        {/* User Profile */}
+        {isAuthenticated ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="rounded-full size-8 p-0">
+                <Avatar className="size-8">
+                  <AvatarImage src={currentUser.avatar || "/placeholder.svg"} alt={currentUser.name} />
+                  <AvatarFallback className="text-xs">
+                    {currentUser.name.split(' ').map(n => n[0]).join('')}
+                  </AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <div className="flex items-center gap-2 p-2">
+                <Avatar className="size-8">
+                  <AvatarImage src={currentUser.avatar || "/placeholder.svg"} alt={currentUser.name} />
+                  <AvatarFallback className="text-xs">
+                    {currentUser.name.split(' ').map(n => n[0]).join('')}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col space-y-0.5">
+                  <p className="text-sm font-medium leading-none">{currentUser.name}</p>
+                  <p className="text-xs leading-none text-muted-foreground">{currentUser.email}</p>
+                </div>
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => openModal('user-profile')}>
+                <UserIcon className="mr-2 size-4" />
+                <span>Profile</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push('/settings')}>
+                <Settings className="mr-2 size-4" />
+                <span>Settings</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={logoutAction} className="text-destructive focus:text-destructive">
+                <LogOut className="mr-2 size-4" />
+                <span>Log out</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => router.push('/login')}>Login</Button>
+            <Button size="sm" onClick={() => router.push('/signup')}>Sign Up</Button>
+          </div>
+        )}
       </div>
     </header>
   );

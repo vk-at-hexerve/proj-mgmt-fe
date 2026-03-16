@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ArrowRight, Sparkles, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
-import { projects } from '@/lib/mock-data';
+import { useApp } from '@/lib/app-context';
 import type { RiskLevel } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -32,6 +32,8 @@ const statusColors = {
 };
 
 export function ProjectsOverview() {
+  const { projects } = useApp();
+  
   return (
     <Card className="h-full">
       <CardHeader className="pb-3">

@@ -49,7 +49,6 @@ import {
   Package,
 } from 'lucide-react';
 import { currentUser } from '@/lib/mock-data';
-import { projects } from '@/lib/mock-data'; // Declare the projects variable
 
 interface NavItem {
   label: string;
@@ -85,7 +84,9 @@ const financeNav: NavItem[] = [
 export function AppSidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
-  const { setSearchOpen, setAiCopilotOpen, openModal, showToast, setCurrentProject } = useApp();
+  const { setSearchOpen, setAiCopilotOpen, openModal, showToast, setCurrentProject, projects, currentProject } = useApp();
+  
+  const activeProj = projects.find(p => p.id === currentProject) || projects[0] || { name: 'No Projects' };
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -125,7 +126,7 @@ export function AppSidebar() {
                   variant="ghost"
                   className="w-full justify-between h-10 px-3 text-sidebar-foreground hover:bg-sidebar-accent"
                 >
-                  <span className="truncate">{projects[0].name}</span>
+                  <span className="truncate">{activeProj.name}</span>
                   <ChevronDown className="size-4 opacity-50" />
                 </Button>
               </DropdownMenuTrigger>

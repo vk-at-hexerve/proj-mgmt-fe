@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useApp } from '@/lib/app-context';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -47,7 +47,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { users, tags as availableTags } from '@/lib/mock-data';
-import type { TaskPriority, TaskStatus } from '@/lib/types';
+import type { Task, TaskPriority, TaskStatus } from '@/lib/types';
 
 // Extended WBS Grid Row type with many more columns
 interface WBSRow {
@@ -176,17 +176,98 @@ interface ProjectGridViewProps {
 }
 
 export function ProjectGridView({ projectId, projectKey = 'PRJ' }: ProjectGridViewProps) {
-  const { showToast, currentUser, users } = useApp();
-  const [rows, setRows] = useState<WBSRow[]>(createInitialWBSData(projectKey));
+  const { 
+    showToast, 
+    currentUser, 
+    users, 
+    tasks: allTasks, 
+    addTask: addTaskContext, 
+    updateTask: updateTaskContext, 
+    deleteTask: deleteTaskContext,
+    openModal 
+  } = useApp();
+
+  // Map Task to WBSRow
+  const mapTaskToWBSRow = useCallback((task: Task, index: number, projectKey: string): WBSRow => {
+    const progress =
+      task.status === 'closed' ? 100
+      : task.status === 'in-progress' ? 50
+      : task.status === 'pending-approval' ? 80
+      : 0;
+
+    return {
+      id: task.id,
+      wbs: `${projectKey}-${index + 1}`,
+      taskName: task.title,
+      duration: 1, 
+      startDate: task.createdAt?.split('T')[0] || new Date().toISOString().split('T')[0],
+      endDate: task.dueDate || new Date().toISOString().split('T')[0],
+      predecessors: '',
+      successors: '',
+      assigneeId: task.assignee?.id || '',
+      priority: task.priority,
+      status: task.status,
+      progress,
+      notes: task.description || '',
+      indent: 0,
+      expanded: true,
+      isParent: false,
+      isCritical: false,
+      isEditing: false,
+      taskType: task.type === 'epic' ? 'summary' : 'task',
+      work: 8,
+      actualWork: 0,
+      remainingWork: 8,
+      cost: 0,
+      actualCost: 0,
+      baselineStart: '',
+      baselineFinish: '',
+      variance: 0,
+      slack: 0,
+      constraintType: 'asap',
+      constraintDate: '',
+      deadline: task.dueDate || '',
+      wbsLevel: 1,
+      outlineLevel: 1,
+      resourceNames: task.assignee?.name || '',
+      percentWorkComplete: progress,
+      milestoneFlag: false,
+      summaryFlag: task.type === 'epic',
+      tags: (task.tags || []).map(t => t.name),
+      riskLevel: task.priority === 'critical' ? 'critical' : task.priority === 'high' ? 'high' : 'low',
+      group: '',
+      calendarName: 'Standard',
+      earlyStart: '',
+      earlyFinish: '',
+      lateStart: '',
+      lateFinish: '',
+      totalSlack: 0,
+      freeSlack: 0,
+    };
+  }, []);
+
+  const projectTasks = useMemo(() => {
+    return allTasks.filter(t => t.projectId === projectId);
+  }, [allTasks, projectId]);
+
+  const [rows, setRows] = useState<WBSRow[]>([]);
+
+  // Update rows when tasks change
+  useEffect(() => {
+    const mappedRows = projectTasks.map((t: Task, i: number) => mapTaskToWBSRow(t, i, projectKey));
+    setRows(mappedRows);
+  }, [projectTasks, projectKey, mapTaskToWBSRow]);
+
   const [columns, setColumns] = useState<ColumnConfig[]>(allColumns);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [editingCell, setEditingCell] = useState<{ rowId: string; field: keyof WBSRow } | null>(null);
-  const [showCriticalPath, setShowCriticalPath] = useState(true);
+  const [showCriticalPath, setShowCriticalPath] = useState(false); // Default to false for real data until calculated
   const [hasChanges, setHasChanges] = useState(false);
   const [showColumnPicker, setShowColumnPicker] = useState(false);
 
   // Calculate critical path
   const calculateCriticalPath = useCallback((data: WBSRow[]) => {
+    if (data.length === 0) return [];
     const wbsMap = new Map<string, WBSRow>();
     data.forEach(row => wbsMap.set(row.wbs, row));
 
@@ -197,7 +278,7 @@ export function ProjectGridView({ projectId, projectKey = 'PRJ' }: ProjectGridVi
 
     // Forward pass
     data.forEach(row => {
-      const predecessorWBS = row.predecessors.split(',').filter(p => p.trim());
+      const predecessorWBS = (row.predecessors || '').split(',').filter(p => p.trim());
       let maxFinish = 0;
       
       predecessorWBS.forEach(predWBS => {
@@ -217,7 +298,7 @@ export function ProjectGridView({ projectId, projectKey = 'PRJ' }: ProjectGridVi
 
     // Backward pass
     [...data].reverse().forEach(row => {
-      const successorWBS = row.successors.split(',').filter(s => s.trim());
+      const successorWBS = (row.successors || '').split(',').filter(s => s.trim());
       
       if (successorWBS.length === 0) {
         latestFinish.set(row.wbs, projectEnd);
@@ -303,14 +384,29 @@ export function ProjectGridView({ projectId, projectKey = 'PRJ' }: ProjectGridVi
     }
   };
 
-  const updateCell = (rowId: string, field: keyof WBSRow, value: string | number | boolean) => {
+  const updateCell = (rowId: string, field: keyof WBSRow, value: any) => {
+    const updates: any = {}; // Use any to avoid strict Partial<Task> issues with internal grid state
+    if (field === 'taskName') updates.title = value as string;
+    if (field === 'status') updates.status = value as TaskStatus;
+    if (field === 'priority') updates.priority = value as TaskPriority;
+    if (field === 'assigneeId') {
+      const user = users.find(u => u.id === value);
+      if (user) updates.assignee = user;
+    }
+    
+    // Optimistic UI
     setRows(prev => prev.map(row => {
       if (row.id === rowId) {
         return { ...row, [field]: value };
       }
       return row;
     }));
-    setHasChanges(true);
+
+    if (Object.keys(updates).length > 0) {
+      updateTaskContext(rowId, updates);
+    }
+    
+    setHasChanges(true); // Still keep this for path recalculation if desired
     setEditingCell(null);
   };
 
@@ -325,6 +421,7 @@ export function ProjectGridView({ projectId, projectKey = 'PRJ' }: ProjectGridVi
     setHasChanges(false);
     showToast({ title: 'Changes saved', description: 'Critical path recalculated', type: 'success' });
   };
+
 
   const getStatusColor = (status: TaskStatus) => {
     const colors: Record<TaskStatus, string> = {
@@ -529,7 +626,7 @@ export function ProjectGridView({ projectId, projectKey = 'PRJ' }: ProjectGridVi
         {/* Toolbar */}
         <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30 shrink-0">
           <div className="flex items-center gap-2">
-            <Button size="sm" className="h-7 gap-1">
+            <Button size="sm" className="h-7 gap-1" onClick={() => openModal('create-task', { projectId })}>
               <Plus className="size-3.5" />
               Add Task
             </Button>
@@ -538,7 +635,14 @@ export function ProjectGridView({ projectId, projectKey = 'PRJ' }: ProjectGridVi
               size="sm" 
               variant="outline" 
               className="h-7"
-              onClick={() => selectedRows.size > 0 && setRows(prev => prev.filter(r => !selectedRows.has(r.id)))}
+              onClick={() => {
+                if (selectedRows.size > 0) {
+                  const idsToDelete = Array.from(selectedRows);
+                  idsToDelete.forEach(id => deleteTaskContext(id));
+                  setSelectedRows(new Set());
+                  showToast({ title: `${idsToDelete.length} tasks removed`, type: 'success' });
+                }
+              }}
               disabled={selectedRows.size === 0}
             >
               <Trash2 className="size-3.5" />
