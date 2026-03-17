@@ -4,9 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Calendar, Target, TrendingUp, Clock } from 'lucide-react';
-import { sprints, tasks } from '@/lib/mock-data';
+import { useApp } from '@/lib/app-context';
 
 export function SprintProgress() {
+  const { sprints, tasks } = useApp();
   const activeSprint = sprints.find((s) => s.status === 'active');
   const sprintTasks = tasks.filter((t) => t.sprintId === activeSprint?.id);
   const completedTasks = sprintTasks.filter((t) => t.status === 'closed').length;

@@ -9,7 +9,7 @@ import { ProjectsOverview } from '@/components/dashboard/projects-overview';
 import { RecentTasks } from '@/components/dashboard/recent-tasks';
 import { SprintProgress } from '@/components/dashboard/sprint-progress';
 import { AICopilot } from '@/components/ai/ai-copilot';
-import { dashboardMetrics, currentUser } from '@/lib/mock-data';
+import { useApp } from '@/lib/app-context';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -61,7 +61,7 @@ interface WidgetConfig {
 
 interface MetricConfig extends WidgetConfig {
   type: 'metric';
-  metricKey: keyof typeof dashboardMetrics | 'custom';
+  metricKey: 'activeProjects' | 'tasksCompleted' | 'tasksInProgress' | 'overdueTasks' | 'teamUtilization' | 'aiConfidenceScore' | 'custom';
   icon: string;
   customValue?: string | number;
   trend?: 'up' | 'down' | 'neutral';
@@ -105,13 +105,25 @@ const iconMap: Record<string, React.ReactNode> = {
 };
 
 export default function DashboardPage() {
+  const { tasks, projects, teams, currentUser, aiCopilotOpen, isMounted } = useApp();
   const [isEditMode, setIsEditMode] = useState(false);
   const [metrics, setMetrics] = useState<MetricConfig[]>(defaultMetrics);
   const [panels, setPanels] = useState<PanelConfig[]>(defaultPanels);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
 
+  // Derived metrics from real data
+  const liveMetrics = {
+    activeProjects: projects.filter(p => p.status === 'active').length,
+    tasksCompleted: tasks.filter(t => t.status === 'closed').length,
+    tasksInProgress: tasks.filter(t => t.status === 'in-progress').length,
+    overdueTasks: tasks.filter(t => t.status !== 'closed' && t.dueDate && new Date(t.dueDate) < new Date()).length,
+    teamUtilization: 85, // Still hardcoded until ResourceAllocations are fully in DB
+    aiConfidenceScore: projects.length > 0 ? Math.round(projects.reduce((acc, p) => acc + (p.aiConfidence || 0), 0) / projects.length) : 85,
+  };
+
   const greeting = () => {
+    if (!isMounted) return 'Hello';
     const hour = new Date().getHours();
     if (hour < 12) return 'Good morning';
     if (hour < 18) return 'Good afternoon';
@@ -165,12 +177,14 @@ export default function DashboardPage() {
 
   const getMetricValue = (metric: MetricConfig): string | number => {
     if (metric.customValue !== undefined) return metric.customValue;
-    const value = dashboardMetrics[metric.metricKey as keyof typeof dashboardMetrics];
-    if (metric.metricKey === 'teamUtilization' || metric.metricKey === 'aiConfidenceScore' || metric.metricKey === 'budgetUtilization') {
+    const value = liveMetrics[metric.metricKey as keyof typeof liveMetrics] || 0;
+    if (metric.metricKey === 'teamUtilization' || metric.metricKey === 'aiConfidenceScore') {
       return `${value}%`;
     }
+
     return value;
   };
+
 
   const visibleMetrics = metrics.filter(m => m.visible).sort((a, b) => a.order - b.order);
   const visiblePanels = panels.filter(p => p.visible).sort((a, b) => a.order - b.order);

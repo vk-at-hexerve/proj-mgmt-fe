@@ -59,7 +59,7 @@ import {
   X,
   CornerDownRight,
 } from 'lucide-react';
-import { projects } from '@/lib/mock-data';
+// import { projects as mockProjects } from '@/lib/mock-data';
 import type { Task, TaskPriority, TaskStatus } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -108,7 +108,7 @@ const defaultColumns: ColumnConfig[] = [
 ];
 
 export default function TasksClient() {
-  const { tasks, openModal, currentUser, selectTask, selectedTasks, selectAllTasks, clearSelectedTasks, addTask, showToast } = useApp();
+  const { tasks, projects, openModal, currentUser, selectTask, selectedTasks, selectAllTasks, clearSelectedTasks, addTask, showToast } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
@@ -286,7 +286,7 @@ export default function TasksClient() {
       tags: [],
     });
     
-    const project = projects.find(p => p.id === taskProjectId);
+    const project = projects.find((p: any) => p.id === taskProjectId);
     showToast({ 
       title: isSubtask ? 'Subtask created' : 'Task created', 
       description: `${newTaskTitle.trim()} added to ${project?.name || 'project'}`,
@@ -405,7 +405,7 @@ export default function TasksClient() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Projects</SelectItem>
-                  {projects.map(p => (
+                  {projects.map((p: any) => (
                     <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -585,7 +585,7 @@ export default function TasksClient() {
 
                   {parentTasks.length > 0 ? (
                     parentTasks.map(task => {
-                      const project = projects.find(p => p.id === task.projectId);
+                      const project = projects.find((p: any) => p.id === task.projectId);
                       const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'closed';
                       const isSelected = selectedTasks.includes(task.id);
                       const isCreatingSubtask = inlineSubtaskParent === task.id;
@@ -700,7 +700,7 @@ export default function TasksClient() {
                                   <Avatar className="size-6">
                                     <AvatarImage src={task.assignee.avatar || '/placeholder.svg'} />
                                     <AvatarFallback className="text-xs">
-                                      {task.assignee.name.split(' ').map(n => n[0]).join('')}
+                                      {task.assignee.name.split(' ').map((n: string) => n[0]).join('')}
                                     </AvatarFallback>
                                   </Avatar>
                                   <span className="text-sm truncate">{task.assignee.name}</span>
@@ -759,7 +759,7 @@ export default function TasksClient() {
                           
                           {/* Render Subtasks when expanded */}
                           {isExpanded && taskSubtasks.map((subtask) => {
-                            const subtaskProject = projects.find(p => p.id === subtask.projectId);
+                            const subtaskProject = projects.find((p: any) => p.id === subtask.projectId);
                             const isSubtaskOverdue = subtask.dueDate && new Date(subtask.dueDate) < new Date() && subtask.status !== 'closed';
                             const isSubtaskSelected = selectedTasks.includes(subtask.id);
 

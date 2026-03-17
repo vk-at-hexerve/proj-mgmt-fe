@@ -5,12 +5,14 @@ export type TaskPriority = 'critical' | 'high' | 'medium' | 'low';
 export type ProjectType = 'agile-scrum' | 'agile-kanban' | 'waterfall' | 'hybrid';
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 
+export type UserRole = 'super-admin' | 'org-admin' | 'portfolio-manager' | 'program-manager' | 'project-manager' | 'contributor' | 'viewer';
+
 export interface User {
   id: string;
   name: string;
   email: string;
   avatar?: string;
-  role: 'super-admin' | 'org-admin' | 'portfolio-manager' | 'program-manager' | 'project-manager' | 'contributor' | 'viewer';
+  role: UserRole;
 }
 
 export interface Tag {
@@ -85,13 +87,15 @@ export interface Sprint {
   velocity?: number;
 }
 
+export type ProjectStatus = 'active' | 'on-hold' | 'completed' | 'cancelled' | 'planning';
+
 export interface Project {
   id: string;
   name: string;
   key: string; // e.g., PRO (first 3 letters)
   description?: string;
   type: ProjectType;
-  status: 'active' | 'on-hold' | 'completed' | 'cancelled';
+  status: ProjectStatus;
   startDate: string;
   endDate?: string;
   programId?: string;
@@ -252,4 +256,56 @@ export interface Invoice {
   createdAt: string;
   updatedAt: string;
   paidAt?: string;
+}
+// Backend API types for mapping
+export interface BackendUser {
+  id: number | string;
+  name: string;
+  email: string;
+  avatar?: string;
+  role?: string;
+}
+
+export interface BackendProject {
+  id: number | string;
+  name: string;
+  description?: string;
+  status?: string;
+  progress?: number;
+  ai_confidence?: number;
+  risk_level?: RiskLevel;
+  start_date?: string;
+  owner?: BackendUser;
+  members?: BackendUser[];
+}
+
+export interface BackendTask {
+  id: number | string;
+  task_code?: string;
+  title: string;
+  description?: string;
+  status: string;
+  priority: string;
+  project_id: number | string;
+  assignee?: BackendUser;
+  reporter?: BackendUser;
+}
+
+export interface BackendTeam {
+  id: number | string;
+  name: string;
+  description?: string;
+  lead?: BackendUser;
+  members?: BackendUser[];
+  project_ids?: (number | string)[];
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  description?: string;
+  avatar?: string;
+  lead: User;
+  members: User[];
+  projects: Project[];
 }

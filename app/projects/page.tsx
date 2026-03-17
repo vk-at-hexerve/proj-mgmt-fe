@@ -63,7 +63,7 @@ import {
   MoveRight,
   Check,
 } from 'lucide-react';
-import { sprints as initialSprints, generateCalendarEvents, users } from '@/lib/mock-data';
+// import { sprints as initialSprints, generateCalendarEvents, users } from '@/lib/mock-data';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { Sprint } from '@/lib/types';
@@ -86,21 +86,29 @@ const viewOptions: { id: ViewType; label: string; icon: React.ReactNode }[] = [
 ];
 
 export default function ProjectsPage() {
-  const { projects, tasks: allTasks, showToast, teams, currentProject: currentProjectId } = useApp();
+  const { projects, tasks: allTasks, showToast, teams, currentProject: currentProjectId, sprints: contextSprints, users, addSprint, updateSprint } = useApp();
   const [currentView, setCurrentView] = useState<ViewType>('kanban');
   const [filters, setFilters] = useState<FilterState>({ assignees: [], priorities: [], types: [] });
   const [filterOpen, setFilterOpen] = useState(false);
   const [teamOpen, setTeamOpen] = useState(false);
   const [sprintDialogOpen, setSprintDialogOpen] = useState(false);
-  const [sprints, setSprints] = useState<Sprint[]>(initialSprints);
   const [newSprint, setNewSprint] = useState({ name: '', goal: '', startDate: '', endDate: '' });
   const [selectedBacklogTasks, setSelectedBacklogTasks] = useState<string[]>([]);
   const [localTasks, setLocalTasks] = useState(allTasks);
 
   const currentProject = projects.find(p => p.id === currentProjectId) || projects[0];
+  const sprints = contextSprints.filter(s => s.projectId === currentProject?.id);
   const activeSprint = sprints.find((s) => s.status === 'active');
-  const calendarEvents = generateCalendarEvents().filter(e => e.projectId === currentProject?.id);
-  const projectTeam = teams[0];
+  // Mock calendar events for now until we have a proper utility
+  const calendarEvents = allTasks
+    .filter(t => t.projectId === currentProject?.id && t.dueDate)
+    .map(t => ({
+      id: t.id,
+      title: t.title,
+      start: new Date(t.dueDate!),
+      color: t.priority === 'critical' ? '#EF4444' : '#3B82F6'
+    }));
+  const projectTeam = teams.find(t => t.projects.some(p => p.id === currentProject?.id)) || teams[0];
 
   const backlogTasks = localTasks.filter(t =>
     t.projectId === currentProject?.id && !t.sprintId
@@ -129,10 +137,10 @@ export default function ProjectsPage() {
       status: 'planning',
       projectId: currentProject.id,
     };
-    setSprints(prev => [...prev, sprint]);
+    addSprint(sprint);
     // Move selected backlog tasks to this sprint
     if (selectedBacklogTasks.length > 0) {
-      setLocalTasks(prev => prev.map(t =>
+      setLocalTasks((prev: typeof allTasks) => prev.map(t =>
         selectedBacklogTasks.includes(t.id) ? { ...t, sprintId } : t
       ));
     }
@@ -147,7 +155,7 @@ export default function ProjectsPage() {
   };
 
   const handleMoveToSprint = (taskId: string, sprintId: string | null) => {
-    setLocalTasks(prev => prev.map(t =>
+    setLocalTasks((prev: typeof allTasks) => prev.map(t =>
       t.id === taskId ? { ...t, sprintId: sprintId || undefined } : t
     ));
     showToast({ 
@@ -157,23 +165,21 @@ export default function ProjectsPage() {
   };
 
   const toggleBacklogTaskSelection = (taskId: string) => {
-    setSelectedBacklogTasks(prev =>
+    setSelectedBacklogTasks((prev: string[]) =>
       prev.includes(taskId) ? prev.filter(id => id !== taskId) : [...prev, taskId]
     );
   };
 
   const handleStartSprint = (sprintId: string) => {
-    setSprints(prev => prev.map(s =>
-      s.id === sprintId ? { ...s, status: 'active' } :
-      s.status === 'active' ? { ...s, status: 'completed' } : s
-    ));
+    updateSprint(sprintId, { status: 'active' });
+    // If there was another active sprint, complete it (simplified logic for now)
+    const active = contextSprints.find(s => s.status === 'active' && s.id !== sprintId);
+    if (active) updateSprint(active.id, { status: 'completed' });
     showToast({ title: 'Sprint started', type: 'success' });
   };
 
   const handleCompleteSprint = (sprintId: string) => {
-    setSprints(prev => prev.map(s =>
-      s.id === sprintId ? { ...s, status: 'completed' } : s
-    ));
+    updateSprint(sprintId, { status: 'completed' });
     showToast({ title: 'Sprint completed', type: 'success' });
   };
 
@@ -354,7 +360,7 @@ export default function ProjectsPage() {
                         <Avatar className="size-8">
                           <AvatarImage src={projectTeam.lead.avatar || '/placeholder.svg'} />
                           <AvatarFallback className="text-xs">
-                            {projectTeam.lead.name.split(' ').map(n => n[0]).join('')}
+                            {projectTeam.lead.name.split(' ').map((n: string) => n[0]).join('')}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
@@ -365,11 +371,11 @@ export default function ProjectsPage() {
                       <div className="space-y-2">
                         <p className="text-xs text-muted-foreground">Members ({projectTeam.members.length})</p>
                         <div className="flex flex-wrap gap-1">
-                          {projectTeam.members.slice(0, 6).map((member) => (
+                          {projectTeam.members.slice(0, 6).map((member: any) => (
                             <Avatar key={member.id} className="size-7" title={member.name}>
                               <AvatarImage src={member.avatar || '/placeholder.svg'} />
                               <AvatarFallback className="text-xs">
-                                {member.name.split(' ').map(n => n[0]).join('')}
+                                {member.name.split(' ').map((n: string) => n[0]).join('')}
                               </AvatarFallback>
                             </Avatar>
                           ))}
@@ -587,7 +593,7 @@ export default function ProjectsPage() {
                       {Array.from({ length: 35 }, (_, i) => {
                         const date = new Date('2026-01-01');
                         date.setDate(date.getDate() + i - 3);
-                        const dayEvents = calendarEvents.filter(e => {
+                        const dayEvents = calendarEvents.filter((e: any) => {
                           const eventDate = new Date(e.start);
                           return eventDate.toDateString() === date.toDateString();
                         });
@@ -596,7 +602,7 @@ export default function ProjectsPage() {
                           <div key={i} className={cn('min-h-[80px] p-2 rounded-lg border border-border', isToday && 'ring-2 ring-primary bg-primary/5')}>
                             <span className={cn('text-sm', isToday && 'font-semibold text-primary')}>{date.getDate()}</span>
                             <div className="mt-1 space-y-1">
-                              {dayEvents.slice(0, 2).map((event) => (
+                              {dayEvents.slice(0, 2).map((event: any) => (
                                 <div key={event.id} className="text-xs px-1 py-0.5 rounded truncate" style={{ backgroundColor: `${event.color}20`, color: event.color }}>
                                   {event.title}
                                 </div>

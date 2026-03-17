@@ -48,7 +48,7 @@ import {
   Receipt,
   Package,
 } from 'lucide-react';
-import { currentUser } from '@/lib/mock-data';
+// import { currentUser as mockUser } from '@/lib/mock-data';
 
 interface NavItem {
   label: string;
@@ -84,7 +84,19 @@ const financeNav: NavItem[] = [
 export function AppSidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
-  const { setSearchOpen, setAiCopilotOpen, openModal, showToast, setCurrentProject, projects, currentProject } = useApp();
+  const { 
+    setSearchOpen, 
+    setAiCopilotOpen, 
+    openModal, 
+    showToast, 
+    setCurrentProject, 
+    projects, 
+    currentProject, 
+    currentUser,
+    logoutAction
+  } = useApp();
+  
+  if (!currentUser) return null;
   
   const activeProj = projects.find(p => p.id === currentProject) || projects[0] || { name: 'No Projects' };
 
@@ -351,7 +363,7 @@ export function AppSidebar() {
                       {currentUser.name}
                     </p>
                     <p className="text-xs text-sidebar-muted truncate capitalize">
-                      {currentUser.role.replace('-', ' ')}
+                      {currentUser.role?.replace('-', ' ') || 'User'}
                     </p>
                   </div>
                 )}
@@ -367,7 +379,10 @@ export function AppSidebar() {
                 Notifications
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="gap-2 text-destructive" onClick={() => showToast({ title: 'Signed out', type: 'success' })}>
+              <DropdownMenuItem className="gap-2 text-destructive" onClick={() => {
+                logoutAction();
+                showToast({ title: 'Signed out', type: 'success' });
+              }}>
                 Sign out
               </DropdownMenuItem>
             </DropdownMenuContent>

@@ -216,7 +216,7 @@ export function ResourcesClient() {
                             <div className="flex items-center justify-between mb-2">
                               <div>
                                 <h3 className="font-medium">{user.name}</h3>
-                                <p className="text-sm text-muted-foreground capitalize">{user.role.replace('-', ' ')}</p>
+                                <p className="text-sm text-muted-foreground capitalize">{user.role?.replace('-', ' ') || 'Contributor'}</p>
                               </div>
                               <div className="flex items-center gap-2">
                                 <Badge variant={isOverAllocated ? 'destructive' : totalAllocation >= 80 ? 'secondary' : 'outline'}>
@@ -330,10 +330,10 @@ export function ResourcesClient() {
                                             {user?.name.split(' ').map(n => n[0]).join('')}
                                           </AvatarFallback>
                                         </Avatar>
-                                        <div>
-                                          <p className="text-sm font-medium">{user?.name}</p>
-                                          <p className="text-xs text-muted-foreground capitalize">{user?.role.replace('-', ' ')}</p>
-                                        </div>
+                                          <div>
+                                            <p className="text-sm font-medium">{user?.name}</p>
+                                            <p className="text-xs text-muted-foreground capitalize">{user?.role?.replace('-', ' ') || 'Contributor'}</p>
+                                          </div>
                                       </div>
                                       <div className="flex items-center gap-2">
                                         <Badge variant="secondary">{allocation.allocation}%</Badge>

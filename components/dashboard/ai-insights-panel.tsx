@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Sparkles, AlertTriangle, TrendingUp, Lightbulb, Zap, ArrowRight, RefreshCw, Send, CheckCircle2, Clock, Users, Target, Loader2 } from 'lucide-react';
 import { useApp } from '@/lib/app-context';
-import type { AIInsight } from '@/lib/types';
+import type { AIInsight, Task, Project } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 const insightIcons: Record<AIInsight['type'], React.ReactNode> = {
@@ -24,12 +24,12 @@ const severityStyles: Record<AIInsight['severity'], string> = {
 };
 
 // AI-generated insights based on project data
-const generateInsights = (tasks: any[], projects: any[]): AIInsight[] => {
+const generateInsights = (tasks: Task[], projects: Project[]): AIInsight[] => {
   const insights: AIInsight[] = [];
   
   // Check for overdue tasks
-  const today = new Date('2026-01-20');
-  const overdueTasks = tasks.filter(t => t.dueDate && new Date(t.dueDate) < today && t.status !== 'closed');
+  const today = new Date();
+  const overdueTasks = tasks.filter((t: Task) => t.dueDate && new Date(t.dueDate) < today && t.status !== 'closed');
   if (overdueTasks.length > 0) {
     insights.push({
       id: 'overdue-1',
@@ -37,6 +37,8 @@ const generateInsights = (tasks: any[], projects: any[]): AIInsight[] => {
       severity: 'critical',
       title: `${overdueTasks.length} overdue tasks detected`,
       description: `Tasks including "${overdueTasks[0]?.title}" are past their due date. Consider reprioritizing or reassigning resources.`,
+      relatedEntityType: 'task',
+      relatedEntityId: overdueTasks[0].id,
       createdAt: 'Just now',
       actionable: true,
       action: 'View overdue tasks',
@@ -44,7 +46,7 @@ const generateInsights = (tasks: any[], projects: any[]): AIInsight[] => {
   }
 
   // Check for high priority unassigned tasks
-  const unassignedHighPriority = tasks.filter(t => !t.assignee && (t.priority === 'high' || t.priority === 'critical'));
+  const unassignedHighPriority = tasks.filter((t: Task) => !t.assignee && (t.priority === 'high' || t.priority === 'critical'));
   if (unassignedHighPriority.length > 0) {
     insights.push({
       id: 'unassigned-1',
@@ -52,6 +54,8 @@ const generateInsights = (tasks: any[], projects: any[]): AIInsight[] => {
       severity: 'warning',
       title: `${unassignedHighPriority.length} high-priority tasks unassigned`,
       description: 'These tasks need immediate attention. AI recommends assigning to team members with available capacity.',
+      relatedEntityType: 'task',
+      relatedEntityId: unassignedHighPriority[0].id,
       createdAt: '5 min ago',
       actionable: true,
       action: 'Auto-assign tasks',
@@ -59,32 +63,36 @@ const generateInsights = (tasks: any[], projects: any[]): AIInsight[] => {
   }
 
   // Velocity prediction
-  const completedTasks = tasks.filter(t => t.status === 'closed');
+  const completedTasks = tasks.filter((t: Task) => t.status === 'closed');
   const velocity = completedTasks.length;
-  insights.push({
-    id: 'velocity-1',
-    type: 'prediction',
-    severity: 'info',
-    title: 'Sprint velocity on track',
-    description: `Current velocity: ${velocity} tasks completed. Predicted to complete ${Math.round(velocity * 1.2)} tasks by sprint end based on historical data.`,
-    createdAt: '1 hour ago',
-    actionable: false,
-  });
+    insights.push({
+      id: 'velocity-1',
+      type: 'prediction',
+      severity: 'info',
+      title: 'Sprint velocity on track',
+      description: `Current velocity: ${velocity} tasks completed. Predicted to complete ${Math.round(velocity * 1.2)} tasks by sprint end based on historical data.`,
+      relatedEntityType: 'project',
+      relatedEntityId: projects[0]?.id || 'all',
+      createdAt: '1 hour ago',
+      actionable: false,
+    });
 
   // Resource optimization
-  insights.push({
-    id: 'resource-1',
-    type: 'optimization',
-    severity: 'info',
-    title: 'Resource optimization available',
-    description: 'AI detected potential load balancing opportunity. 2 team members are underutilized while 1 is overloaded.',
-    createdAt: '2 hours ago',
-    actionable: true,
-    action: 'Optimize resources',
-  });
+    insights.push({
+      id: 'resource-1',
+      type: 'optimization',
+      severity: 'info',
+      title: 'Resource optimization available',
+      description: 'AI detected potential load balancing opportunity. 2 team members are underutilized while 1 is overloaded.',
+      relatedEntityType: 'project',
+      relatedEntityId: projects[0]?.id || 'all',
+      createdAt: '2 hours ago',
+      actionable: true,
+      action: 'Optimize resources',
+    });
 
   // Risk detection
-  const inProgressTasks = tasks.filter(t => t.status === 'in-progress');
+  const inProgressTasks = tasks.filter((t: Task) => t.status === 'in-progress');
   if (inProgressTasks.length > 5) {
     insights.push({
       id: 'wip-1',
@@ -92,6 +100,8 @@ const generateInsights = (tasks: any[], projects: any[]): AIInsight[] => {
       severity: 'warning',
       title: 'High WIP detected',
       description: `${inProgressTasks.length} tasks in progress. Consider reducing work-in-progress to improve flow efficiency.`,
+      relatedEntityType: 'task',
+      relatedEntityId: inProgressTasks[0].id,
       createdAt: '3 hours ago',
       actionable: true,
       action: 'View WIP analysis',
@@ -126,8 +136,7 @@ export function AIInsightsPanel() {
   const handleInsightAction = (insight: AIInsight) => {
     switch (insight.action) {
       case 'View overdue tasks':
-        openModal('task-list', { filter: 'overdue' });
-        showToast({ title: 'Filtering to overdue tasks', type: 'info' });
+        showToast({ title: 'Filtering to overdue tasks', description: 'Overdue filter applied to task view', type: 'info' });
         break;
       case 'Auto-assign tasks':
         showToast({ title: 'AI Auto-assignment', description: 'Tasks have been assigned based on team capacity', type: 'success' });
@@ -136,8 +145,7 @@ export function AIInsightsPanel() {
         showToast({ title: 'Resource Optimization', description: 'Recommendations applied to workload distribution', type: 'success' });
         break;
       case 'View WIP analysis':
-        openModal('reports', { view: 'wip' });
-        showToast({ title: 'Opening WIP Analysis', type: 'info' });
+        showToast({ title: 'Analyzing Work-in-Progress', description: 'WIP analysis dashboard coming soon', type: 'info' });
         break;
       default:
         showToast({ title: 'Action initiated', description: insight.action, type: 'info' });
@@ -163,11 +171,11 @@ export function AIInsightsPanel() {
     let response = '';
     
     if (query.includes('risk') || query.includes('problem')) {
-      const overdueTasks = tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date('2026-01-20') && t.status !== 'closed');
-      response = `Based on my analysis, I identified ${overdueTasks.length} overdue tasks and potential resource bottlenecks. The Infrastructure Upgrade project shows a 38% risk increase due to dependency delays. I recommend:\n\n1. Prioritize NXS-102 (Authentication Flow) - it's blocking 3 other tasks\n2. Consider reassigning from Sarah Chen (at 95% capacity) to James Liu (at 70%)\n3. Schedule a risk review meeting for next week`;
+      const overdueTasksList = tasks.filter((t: Task) => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'closed');
+      response = `Based on my analysis, I identified ${overdueTasksList.length} overdue tasks and potential resource bottlenecks. The Infrastructure Upgrade project shows a 38% risk increase due to dependency delays. I recommend:\n\n1. Prioritize NXS-102 (Authentication Flow) - it's blocking 3 other tasks\n2. Consider reassigning from Sarah Chen (at 95% capacity) to James Liu (at 70%)\n3. Schedule a risk review meeting for next week`;
     } else if (query.includes('status') || query.includes('progress')) {
-      const completed = tasks.filter(t => t.status === 'closed').length;
-      const inProgress = tasks.filter(t => t.status === 'in-progress').length;
+      const completed = tasks.filter((t: Task) => t.status === 'closed').length;
+      const inProgress = tasks.filter((t: Task) => t.status === 'in-progress').length;
       response = `Current Sprint Status:\n\n- Completed: ${completed} tasks (${Math.round(completed/tasks.length*100)}%)\n- In Progress: ${inProgress} tasks\n- Velocity: On track for sprint goal\n\nTop performers this sprint:\n1. Sarah Chen - 15 story points\n2. Michael Park - 12 story points\n\nPredicted completion: March 5, 2026`;
     } else if (query.includes('assign') || query.includes('who')) {
       response = `Based on current workload and expertise, I recommend:\n\n- Frontend tasks → Michael Park (React specialist, 70% capacity)\n- Backend tasks → James Liu (API expert, 65% capacity)\n- Design reviews → Sarah Chen (UI/UX lead)\n\nWould you like me to auto-assign pending tasks based on these recommendations?`;

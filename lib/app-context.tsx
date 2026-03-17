@@ -1,28 +1,24 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
-import type { Task, Project, User, TaskStatus, TaskPriority } from './types';
-import { tasks as initialTasks, projects as initialProjects, users as initialUsers, sprints as initialSprints } from './mock-data';
-import { teams as initialTeams, programs as initialPrograms, portfolios as initialPortfolios } from './mock-data';
-import type { Team, Program, Portfolio } from './mock-data';
+import type { Task, Project, User, TaskStatus, TaskPriority, Team, Program, Portfolio, Sprint, UserRole } from './types';
 
 // User Roles
-export type UserRole = 'admin' | 'executive' | 'program-manager' | 'project-manager' | 'team-lead' | 'contributor' | 'viewer';
 
 export interface UserWithRole extends User {
   systemRole: UserRole;
   permissions: string[];
 }
 
-// Role permissions mapping
 export const rolePermissions: Record<UserRole, string[]> = {
-  admin: ['*'], // All permissions
-  executive: ['view:all', 'reports:all', 'portfolios:manage', 'programs:view', 'budgets:view'],
+  'super-admin': ['*'],
+  'org-admin': ['*'],
+  'portfolio-manager': ['view:all', 'reports:all', 'portfolios:manage', 'programs:view', 'budgets:view'],
   'program-manager': ['view:all', 'programs:manage', 'projects:manage', 'teams:view', 'budgets:manage'],
   'project-manager': ['projects:manage', 'tasks:manage', 'teams:manage', 'sprints:manage', 'reports:view'],
   'team-lead': ['tasks:manage', 'teams:view', 'sprints:view', 'members:manage'],
-  contributor: ['tasks:own', 'time:log', 'comments:add'],
-  viewer: ['view:assigned'],
+  'contributor': ['tasks:own', 'time:log', 'comments:add'],
+  'viewer': ['view:assigned'],
 };
 
 // Modal types
@@ -92,6 +88,7 @@ interface AppState {
   users: User[];
   timeEntries: TimeEntry[];
   resourceAllocations: ResourceAllocation[];
+  sprints: Sprint[];
   currentUser: UserWithRole;
   currentProject: string | null;
   selectedTasks: string[];
@@ -141,6 +138,11 @@ interface AppContextType extends AppState {
   updatePortfolio: (id: string, updates: Partial<Portfolio>) => void;
   deletePortfolio: (id: string) => void;
   
+  // Sprint actions
+  addSprint: (sprint: Omit<Sprint, 'id'>) => void;
+  updateSprint: (id: string, updates: Partial<Sprint>) => void;
+  deleteSprint: (id: string) => void;
+  
   // Time tracking actions
   addTimeEntry: (entry: Omit<TimeEntry, 'id' | 'createdAt'>) => void;
   updateTimeEntry: (id: string, updates: Partial<TimeEntry>) => void;
@@ -179,42 +181,39 @@ interface AppContextType extends AppState {
   getTeam: (id: string) => Team | undefined;
   getProgram: (id: string) => Program | undefined;
   getPortfolio: (id: string) => Portfolio | undefined;
+  getSprint: (id: string) => Sprint | undefined;
   
   // Auth actions
   loginAction: (email: string, password: string) => Promise<void>;
   signupAction: (name: string, email: string, password: string) => Promise<void>;
   logoutAction: () => void;
+  isMounted: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 // Create current user with role
-const currentUserWithRole: UserWithRole = {
-  ...initialUsers[0],
-  systemRole: 'project-manager',
-  permissions: rolePermissions['project-manager'],
-};
-
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
-  const [projects, setProjects] = useState<Project[]>(initialProjects);
-  const [teams, setTeams] = useState<Team[]>(initialTeams);
-  const [programs, setPrograms] = useState<Program[]>(initialPrograms);
-  const [portfolios, setPortfolios] = useState<Portfolio[]>(initialPortfolios);
-  const [users] = useState<User[]>(initialUsers);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [programs, setPrograms] = useState<Program[]>([]);
+  const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
+  const [sprints, setSprints] = useState<Sprint[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
-  const [resourceAllocations, setResourceAllocations] = useState<ResourceAllocation[]>([
-    { id: 'ra-1', userId: 'user-1', projectId: 'proj-1', allocation: 60, startDate: '2026-01-01' },
-    { id: 'ra-2', userId: 'user-1', projectId: 'proj-3', allocation: 40, startDate: '2026-01-01' },
-    { id: 'ra-3', userId: 'user-2', projectId: 'proj-1', allocation: 100, startDate: '2026-01-01' },
-    { id: 'ra-4', userId: 'user-3', projectId: 'proj-2', allocation: 80, startDate: '2026-01-01' },
-    { id: 'ra-5', userId: 'user-4', projectId: 'proj-2', allocation: 50, startDate: '2026-01-01' },
-    { id: 'ra-6', userId: 'user-4', projectId: 'proj-1', allocation: 50, startDate: '2026-01-01' },
-    { id: 'ra-7', userId: 'user-5', projectId: 'proj-1', allocation: 100, startDate: '2026-01-01' },
-  ]);
-  const [currentUser, setCurrentUser] = useState<UserWithRole>(currentUserWithRole);
-  const [token, setToken] = useState<string | null>(typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!token);
+  const [resourceAllocations, setResourceAllocations] = useState<ResourceAllocation[]>([]);
+  const [currentUser, setCurrentUser] = useState<UserWithRole>({
+    id: 'loading',
+    name: 'Loading...',
+    email: '',
+    role: 'viewer' as UserRole,
+    systemRole: 'viewer' as UserRole,
+    permissions: rolePermissions['viewer'],
+  });
+  const [token, setToken] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isMounted, setIsMounted] = useState(false);
   const [currentProject, setCurrentProject] = useState<string | null>(null);
   const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
   const [modal, setModal] = useState<ModalState>({ type: null });
@@ -223,7 +222,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [aiCopilotOpen, setAiCopilotOpen] = useState(false);
 
   // Task counter for generating keys
-  const [taskCounter, setTaskCounter] = useState(initialTasks.length + 1);
+  const [taskCounter, setTaskCounter] = useState(0);
 
   const loginAction = useCallback(async (email: string, password: string) => {
     try {
@@ -260,16 +259,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   React.useEffect(() => {
-    if (!token) return;
+    setIsMounted(true);
+    const storedToken = localStorage.getItem('auth_token');
+    if (storedToken) {
+      setToken(storedToken);
+      setIsAuthenticated(true);
+    }
+  }, []);
 
-    import('./api').then(({ fetchAPI, mapBackendProject, mapBackendTask, mapBackendTeam, mapBackendTimeEntry }) => {
+  React.useEffect(() => {
+    if (!isMounted || !token) return;
+
+    import('./api').then(({ 
+      fetchAPI, 
+      mapBackendProject, 
+      mapBackendTask, 
+      mapBackendTeam, 
+      mapBackendTimeEntry,
+      mapBackendPortfolio,
+      mapBackendProgram,
+      mapBackendSprint
+    }) => {
       // Load from the API
       Promise.all([
         fetchAPI('/projects').catch(() => null),
         fetchAPI('/tasks').catch(() => null),
         fetchAPI('/teams').catch(() => null),
         fetchAPI('/time-entries').catch(() => null),
-      ]).then(([projectsData, tasksData, teamsData, timeEntriesData]) => {
+        fetchAPI('/portfolios').catch(() => null),
+        fetchAPI('/programs').catch(() => null),
+        fetchAPI('/users').catch(() => null),
+        fetchAPI('/users/me').catch(() => null),
+        fetchAPI('/sprints').catch(() => null),
+      ]).then(([projectsData, tasksData, teamsData, timeEntriesData, portfoliosData, programsData, usersData, meData, sprintsData]) => {
         if (projectsData && Array.isArray(projectsData)) {
           setProjects(projectsData.map(mapBackendProject) as any);
         }
@@ -283,9 +305,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (timeEntriesData && Array.isArray(timeEntriesData)) {
           setTimeEntries(timeEntriesData.map(mapBackendTimeEntry) as any);
         }
+        if (portfoliosData && Array.isArray(portfoliosData)) {
+          setPortfolios(portfoliosData.map(mapBackendPortfolio) as any);
+        }
+        if (programsData && Array.isArray(programsData)) {
+          setPrograms(programsData.map(mapBackendProgram) as any);
+        }
+        if (usersData && Array.isArray(usersData)) {
+          setUsers(usersData as any);
+        }
+        if (sprintsData && Array.isArray(sprintsData)) {
+          setSprints(sprintsData.map(mapBackendSprint) as any);
+        }
+        if (meData) {
+          setCurrentUser({
+            ...meData,
+            systemRole: meData.role || 'project-manager',
+            permissions: rolePermissions[meData.role as UserRole || 'project-manager'] || rolePermissions['project-manager'],
+          });
+        }
       });
     });
   }, [token]);
+
 
   // Toast action - defined first since other functions use it
   const showToast = useCallback((toast: Omit<Toast, 'id'>) => {
@@ -501,6 +543,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSelectedTasks([]);
     showToast({ title: `${ids.length} tasks deleted`, type: 'success' });
   }, [showToast]);
+
+  // Sprint actions
+  const addSprint = useCallback((sprint: Omit<Sprint, 'id'>) => {
+    const newSprint: Sprint = { ...sprint, id: `sprint-${Date.now()}` };
+    setSprints(prev => [...prev, newSprint]);
+    showToast({ title: 'Sprint created', description: newSprint.name, type: 'success' });
+  }, [showToast]);
+
+  const updateSprint = useCallback((id: string, updates: Partial<Sprint>) => {
+    setSprints(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+  }, []);
+
+  const deleteSprint = useCallback((id: string) => {
+    setSprints(prev => prev.filter(s => s.id !== id));
+  }, []);
 
   // Project actions
   const addProject = useCallback(async (project: Omit<Project, 'id'>) => {
@@ -796,6 +853,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const getTeam = useCallback((id: string) => teams.find(t => t.id === id), [teams]);
   const getProgram = useCallback((id: string) => programs.find(p => p.id === id), [programs]);
   const getPortfolio = useCallback((id: string) => portfolios.find(p => p.id === id), [portfolios]);
+  const getSprint = useCallback((id: string) => sprints.find(s => s.id === id), [sprints]);
 
   const value: AppContextType = {
     tasks,
@@ -806,6 +864,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     users,
     timeEntries,
     resourceAllocations,
+    sprints,
     currentUser,
     currentProject,
     selectedTasks,
@@ -847,6 +906,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addPortfolio,
     updatePortfolio,
     deletePortfolio,
+    // Sprint actions
+    addSprint,
+    updateSprint,
+    deleteSprint,
     // Time tracking actions
     addTimeEntry,
     updateTimeEntry,
@@ -879,10 +942,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     getTeam,
     getProgram,
     getPortfolio,
+    getSprint,
     // Auth actions
     loginAction,
     signupAction,
     logoutAction,
+    isMounted,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

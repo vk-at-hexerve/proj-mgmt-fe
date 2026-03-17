@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ArrowRight, Bug, BookOpen, Zap, ListTodo } from 'lucide-react';
-import { tasks } from '@/lib/mock-data';
+import { useApp } from '@/lib/app-context';
 import type { Task, TaskPriority, TaskStatus } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -37,6 +37,7 @@ const typeIcons: Record<Task['type'], React.ReactNode> = {
 };
 
 export function RecentTasks() {
+  const { tasks } = useApp();
   const recentTasks = tasks.slice(0, 5);
 
   return (

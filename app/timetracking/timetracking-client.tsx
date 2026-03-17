@@ -53,11 +53,11 @@ import {
   ChevronRight,
   Timer,
 } from 'lucide-react';
-import { projects } from '@/lib/mock-data';
+// import { projects } from '@/lib/mock-data';
 import { cn } from '@/lib/utils';
 
 export function TimeTrackingClient() {
-  const { tasks, timeEntries, addTimeEntry, updateTimeEntry, deleteTimeEntry, currentUser, getTask } = useApp();
+  const { tasks, timeEntries, projects, addTimeEntry, updateTimeEntry, deleteTimeEntry, currentUser, getTask } = useApp();
   const [showLogModal, setShowLogModal] = useState(false);
   const [editEntry, setEditEntry] = useState<string | null>(null);
   const [selectedWeek, setSelectedWeek] = useState(new Date());
@@ -99,9 +99,9 @@ export function TimeTrackingClient() {
   const todayHours = todayEntries.reduce((sum, e) => sum + e.hours, 0);
   const avgDailyHours = weekEntries.length > 0 ? totalWeekHours / 5 : 0;
 
-  const dailyHours = weekDates.map(d => {
+  const dailyHours = weekDates.map((d: Date) => {
     const dateStr = d.toISOString().split('T')[0];
-    const entries = weekEntries.filter(e => e.date === dateStr);
+    const entries = weekEntries.filter((e: any) => e.date === dateStr);
     return entries.reduce((sum, e) => sum + e.hours, 0);
   });
 
@@ -309,9 +309,9 @@ export function TimeTrackingClient() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {weekEntries.sort((a, b) => b.date.localeCompare(a.date)).map((entry) => {
+                      {weekEntries.sort((a, b) => b.date.localeCompare(a.date)).map((entry: any) => {
                         const task = getTask(entry.taskId);
-                        const project = task ? projects.find(p => p.id === task.projectId) : null;
+                        const project = task ? projects.find((p: any) => p.id === task.projectId) : null;
 
                         return (
                           <TableRow key={entry.id}>

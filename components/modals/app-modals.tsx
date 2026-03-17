@@ -36,7 +36,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { users, projects, portfolios, tags as availableTags, projectTemplates, clients } from '@/lib/mock-data';
+// import { users, projects, portfolios, tags as availableTags, projectTemplates, clients } from '@/lib/mock-data';
+const availableTags: any[] = []; // Placeholder for tags logic
+const projectTemplates: any[] = [];
+const clients: any[] = [];
 import type { TaskPriority, TaskStatus, TaskComment, TaskAttachment, TaskLink, Task } from '@/lib/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -70,7 +73,31 @@ import {
 } from 'lucide-react';
 
 export function AppModals() {
-  const { modal, closeModal, addTask, updateTask, deleteTask, assignTask, updateTaskStatus, bulkAssignTasks, bulkUpdateTaskStatus, bulkDeleteTasks, getTask, tasks, addTeam, addProgram, addPortfolio, addTimeEntry, addProject } = useApp();
+  const { 
+    modal, 
+    closeModal, 
+    addTask, 
+    updateTask, 
+    deleteTask, 
+    assignTask, 
+    updateTaskStatus, 
+    bulkAssignTasks, 
+    bulkUpdateTaskStatus, 
+    bulkDeleteTasks, 
+    getTask, 
+    tasks, 
+    addTeam, 
+    addProgram, 
+    addPortfolio, 
+    addTimeEntry, 
+    addProject, 
+    users, 
+    projects, 
+    portfolios,
+    programs,
+    teams,
+    currentUser
+  } = useApp();
 
   // Create Task Modal
   if (modal.type === 'create-task') {
@@ -395,7 +422,7 @@ function EditTaskModal({
   onClose: () => void; 
   onSubmit: (updates: Partial<NonNullable<typeof task>>) => void;
 }) {
-  const { tasks, users } = useApp();
+  const { tasks, users, currentUser } = useApp();
   const [title, setTitle] = useState(task?.title || '');
   const [description, setDescription] = useState(task?.description || '');
   const [type, setType] = useState<'task' | 'bug' | 'story' | 'epic' | 'subtask'>(task?.type || 'task');
@@ -405,7 +432,7 @@ function EditTaskModal({
   const [startDate, setStartDate] = useState<string>(task?.startDate || '');
   const [dueDate, setDueDate] = useState<string>(task?.dueDate || '');
   const [assignee, setAssignee] = useState<string>(task?.assignee?.id || '');
-  const [selectedTags, setSelectedTags] = useState<string[]>(task?.tags?.map(t => t.id) || []);
+  const [selectedTags, setSelectedTags] = useState<string[]>(task?.tags?.map((t: any) => t.id) || []);
   
   // Comments state
   const [comments, setComments] = useState<TaskComment[]>(task?.comments || []);
@@ -426,7 +453,7 @@ function EditTaskModal({
   if (!task) return null;
 
   const isSubtask = !!task.parentId;
-  const currentUserId = 'user-1'; // Current user
+  const currentUserId = currentUser.id;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1055,7 +1082,7 @@ function TaskDetailModal({
   task: NonNullable<ReturnType<ReturnType<typeof useApp>['getTask']>>;
   onClose: () => void; 
 }) {
-  const { openModal } = useApp();
+  const { openModal, projects } = useApp();
   const project = projects.find(p => p.id === task.projectId);
 
   return (
@@ -1191,7 +1218,7 @@ function AssignTaskModal({
               </Avatar>
               <div className="text-left">
                 <p className="font-medium text-sm">{user.name}</p>
-                <p className="text-xs text-muted-foreground capitalize">{user.role.replace('-', ' ')}</p>
+                <p className="text-xs text-muted-foreground capitalize">{user.role?.replace('-', ' ') || 'Contributor'}</p>
               </div>
             </button>
           ))}
@@ -1536,10 +1563,11 @@ function CreateTeamModal({
   onClose: () => void;
   onSubmit: (team: Parameters<ReturnType<typeof useApp>['addTeam']>[0]) => void;
 }) {
+  const { users, projects } = useApp();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [leadId, setLeadId] = useState(users[0].id);
-  const [selectedMembers, setSelectedMembers] = useState<string[]>([users[0].id]);
+  const [leadId, setLeadId] = useState(users[0]?.id || '');
+  const [selectedMembers, setSelectedMembers] = useState<string[]>(users[0] ? [users[0].id] : []);
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [capacity, setCapacity] = useState('40');
 
@@ -1691,10 +1719,11 @@ function CreateProgramModal({
   onClose: () => void;
   onSubmit: (program: Parameters<ReturnType<typeof useApp>['addProgram']>[0]) => void;
 }) {
+  const { portfolios, users, projects } = useApp();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [portfolioId, setPortfolioId] = useState(portfolios[0]?.id || '');
-  const [ownerId, setOwnerId] = useState(users[0].id);
+  const [ownerId, setOwnerId] = useState(users[0]?.id || '');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [budget, setBudget] = useState('');
@@ -1859,9 +1888,10 @@ function CreatePortfolioModal({
   onClose: () => void;
   onSubmit: (portfolio: Parameters<ReturnType<typeof useApp>['addPortfolio']>[0]) => void;
 }) {
+  const { users } = useApp();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [ownerId, setOwnerId] = useState(users[0].id);
+  const [ownerId, setOwnerId] = useState(users[0]?.id || '');
   const [budget, setBudget] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -2094,7 +2124,7 @@ function AddMemberModal({
                 </Avatar>
                 <div className="text-left">
                   <p className="font-medium text-sm">{user.name}</p>
-                  <p className="text-xs text-muted-foreground capitalize">{user.role.replace('-', ' ')}</p>
+                  <p className="text-xs text-muted-foreground capitalize">{user.role?.replace('-', ' ') || 'Contributor'}</p>
                 </div>
               </button>
             ))

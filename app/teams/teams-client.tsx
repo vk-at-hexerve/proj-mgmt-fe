@@ -45,11 +45,11 @@ import {
   Edit,
   UserMinus,
 } from 'lucide-react';
-import { projects } from '@/lib/mock-data';
+// import { projects } from '@/lib/mock-data';
 import { cn } from '@/lib/utils';
 
 export default function TeamsClient() {
-  const { teams, tasks, openModal, removeTeamMember, setTeamLead, deleteTeam, showToast } = useApp();
+  const { teams, tasks, projects, openModal, removeTeamMember, setTeamLead, deleteTeam, showToast } = useApp();
   const [search, setSearch] = useState('');
   const [selectedTeam, setSelectedTeam] = useState(teams[0]?.id);
   const [memberToRemove, setMemberToRemove] = useState<{ teamId: string; userId: string; userName: string } | null>(null);
@@ -192,8 +192,8 @@ export default function TeamsClient() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Teams List */}
               <div className="space-y-4">
-                {filteredTeams.map((team) => {
-                  const teamProjectsList = projects.filter(p => team.projectIds.includes(p.id));
+                {filteredTeams.map((team: any) => {
+                  const teamProjectsList = projects.filter((p: any) => team.projectIds.includes(p.id));
                   const utilization = (team.velocity / team.capacity) * 100;
 
                   return (
@@ -343,7 +343,7 @@ export default function TeamsClient() {
                                   <Avatar className="size-10">
                                     <AvatarImage src={member.avatar || '/placeholder.svg'} />
                                     <AvatarFallback>
-                                      {member.name.split(' ').map(n => n[0]).join('')}
+                                      {member.name.split(' ').map((n: string) => n[0]).join('')}
                                     </AvatarFallback>
                                   </Avatar>
                                   <div className="flex-1 min-w-0">
@@ -357,9 +357,7 @@ export default function TeamsClient() {
                                       )}
                                     </div>
                                     <div className="flex items-center gap-2 mt-0.5">
-                                      <span className="text-sm text-muted-foreground capitalize">
-                                        {member.role.replace('-', ' ')}
-                                      </span>
+                                        {member.role?.replace('-', ' ') || 'Member'}
                                       <span className="text-border">|</span>
                                       <span className="text-sm text-muted-foreground flex items-center gap-1">
                                         <Mail className="size-3" />
@@ -417,7 +415,7 @@ export default function TeamsClient() {
 
                         <TabsContent value="projects" className="mt-4">
                           <div className="space-y-3">
-                            {teamProjects.map((project) => (
+                            {teamProjects.map((project: any) => (
                               <div
                                 key={project.id}
                                 className="flex items-center gap-4 p-4 rounded-lg border border-border hover:bg-muted/30 transition-colors"
