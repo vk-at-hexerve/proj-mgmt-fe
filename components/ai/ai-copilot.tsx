@@ -64,12 +64,14 @@ What would you like help with today?`,
 ];
 
 export function AICopilot() {
-  const { aiCopilotOpen, setAiCopilotOpen, openModal, showToast, addTask } = useApp();
+  const { aiCopilotOpen, setAiCopilotOpen, openModal, showToast, addTask, isMounted } = useApp();
+  
   const [isExpanded, setIsExpanded] = useState(false);
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
 
   // Listen for keyboard shortcut to open AI copilot
   useEffect(() => {
@@ -286,6 +288,8 @@ Is there something specific you'd like me to help you with? I can assist with:
     setMessages((prev) => [...prev, userMessage]);
     simulateResponse(prompt);
   };
+
+  if (!isMounted) return null;
 
   if (!aiCopilotOpen) {
     return (

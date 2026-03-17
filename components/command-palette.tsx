@@ -34,8 +34,9 @@ import {
 
 export function CommandPalette() {
   const router = useRouter();
-  const { searchOpen, setSearchOpen, openModal, tasks, projects, setAiCopilotOpen } = useApp();
+  const { searchOpen, setSearchOpen, openModal, tasks, projects, setAiCopilotOpen, isMounted } = useApp();
   const [search, setSearch] = useState('');
+
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -81,6 +82,8 @@ export function CommandPalette() {
     subtask: <ListTodo className="size-3 text-muted-foreground" />,
     bug: <Bug className="size-4 text-destructive" />,
   };
+
+  if (!isMounted) return null;
 
   return (
     <CommandDialog open={searchOpen} onOpenChange={setSearchOpen}>

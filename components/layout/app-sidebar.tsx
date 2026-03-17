@@ -93,12 +93,14 @@ export function AppSidebar() {
     projects, 
     currentProject, 
     currentUser,
-    logoutAction
+    logoutAction,
+    isMounted
   } = useApp();
   
-  if (!currentUser) return null;
   
   const activeProj = projects.find(p => p.id === currentProject) || projects[0] || { name: 'No Projects' };
+
+  if (!isMounted || !currentUser) return null;
 
   return (
     <TooltipProvider delayDuration={0}>

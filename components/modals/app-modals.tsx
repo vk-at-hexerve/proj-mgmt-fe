@@ -96,8 +96,11 @@ export function AppModals() {
     portfolios,
     programs,
     teams,
-    currentUser
+    currentUser,
+    isMounted
   } = useApp();
+
+  if (!isMounted) return null;
 
   // Create Task Modal
   if (modal.type === 'create-task') {
