@@ -36,11 +36,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-// import { users, projects, portfolios, tags as availableTags, projectTemplates, clients } from '@/lib/mock-data';
-const availableTags: any[] = []; // Placeholder for tags logic
-const projectTemplates: any[] = [];
-const clients: any[] = [];
-import type { TaskPriority, TaskStatus, TaskComment, TaskAttachment, TaskLink, Task } from '@/lib/types';
+import { users as contextUsers, projects as contextProjects, portfolios as contextPortfolios, tags as availableTags, projectTemplates, clients } from '@/lib/mock-data';
+// const availableTags: any[] = []; // Placeholder for tags logic
+// const projectTemplates: any[] = [];
+// const clients: any[] = [];
+import type { TaskPriority, TaskStatus, TaskComment, TaskAttachment, TaskLink, Task, ProjectTemplate, ProjectType, RiskLevel } from '@/lib/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -1310,13 +1310,26 @@ function CreateProjectModal({
   const [budget, setBudget] = useState('');
   const [clientId, setClientId] = useState<string>('');
 
-  const template = projectTemplates.find(t => t.id === selectedTemplate);
+  const blankProjectTemplate: ProjectTemplate = {
+    id: 'blank',
+    name: 'Blank Project',
+    description: 'Start from scratch with a custom setup',
+    category: 'custom',
+    icon: 'FolderPlus',
+    color: '#64748b',
+    projectType: 'agile-scrum',
+    defaultTasks: [],
+    suggestedTags: []
+  };
+
+  const allTemplates = [blankProjectTemplate, ...projectTemplates];
+  const template = allTemplates.find(t => t.id === selectedTemplate);
 
   const handleSelectTemplate = (templateId: string) => {
     setSelectedTemplate(templateId);
-    const tpl = projectTemplates.find(t => t.id === templateId);
+    const tpl = allTemplates.find(t => t.id === templateId);
     if (tpl) {
-      setType(tpl.projectType);
+      setType(tpl.projectType as any);
       setDescription(tpl.description);
     }
     setStep('details');
@@ -1356,7 +1369,7 @@ function CreateProjectModal({
           </DialogHeader>
           <ScrollArea className="flex-1 pr-4">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pb-4">
-              {projectTemplates.map((tpl) => (
+              {allTemplates.map((tpl: any) => (
                 <button
                   key={tpl.id}
                   onClick={() => handleSelectTemplate(tpl.id)}
@@ -1378,7 +1391,7 @@ function CreateProjectModal({
                     <Badge variant="outline" className="text-[10px] capitalize">
                       {tpl.projectType.replace('-', ' ')}
                     </Badge>
-                    {tpl.defaultTasks.length > 0 && (
+                    {tpl.defaultTasks && tpl.defaultTasks.length > 0 && (
                       <Badge variant="secondary" className="text-[10px]">
                         {tpl.defaultTasks.length} tasks
                       </Badge>
@@ -1520,21 +1533,21 @@ function CreateProjectModal({
             />
           </div>
 
-          {template && template.defaultTasks.length > 0 && (
+          {template && (template as any).defaultTasks && (template as any).defaultTasks.length > 0 && (
             <div className="rounded-lg border border-border p-3 bg-muted/30">
               <p className="text-xs font-medium mb-2">This template includes:</p>
               <div className="flex flex-wrap gap-1">
                 <Badge variant="secondary" className="text-[10px]">
-                  {template.defaultTasks.length} starter tasks
+                  {(template as any).defaultTasks.length} starter tasks
                 </Badge>
-                {template.defaultSprints && (
+                {(template as any).defaultSprints && (
                   <Badge variant="secondary" className="text-[10px]">
-                    {template.defaultSprints.length} sprints
+                    {(template as any).defaultSprints.length} sprints
                   </Badge>
                 )}
-                {template.suggestedTags.length > 0 && (
+                {(template as any).suggestedTags && (template as any).suggestedTags.length > 0 && (
                   <Badge variant="secondary" className="text-[10px]">
-                    {template.suggestedTags.length} tags
+                    {(template as any).suggestedTags.length} tags
                   </Badge>
                 )}
               </div>
@@ -1583,9 +1596,7 @@ function CreateTeamModal({
       description: description.trim(),
       lead,
       members,
-      projectIds: selectedProjects,
-      velocity: 0,
-      capacity: parseInt(capacity) || 40,
+      projects: projects.filter(p => selectedProjects.includes(p.id)),
     });
     onClose();
   };
@@ -1739,16 +1750,13 @@ function CreateProgramModal({
       name: name.trim(),
       description: description.trim(),
       portfolioId,
-      projectIds: selectedProjects,
+      projects: projects.filter(p => selectedProjects.includes(p.id)),
       owner,
       startDate: startDate || new Date().toISOString().split('T')[0],
       endDate: endDate || undefined,
       aiConfidence: 80,
-      riskLevel: 'low',
+      riskLevel: 'low' as RiskLevel,
       progress: 0,
-      budget: budget ? parseInt(budget) : 200000,
-      spent: 0,
-      status: 'planning',
     });
     onClose();
   };
@@ -1903,14 +1911,12 @@ function CreatePortfolioModal({
     onSubmit({
       name: name.trim(),
       description: description.trim(),
-      programIds: [],
+      programs: [],
       owner,
       budget: budget ? parseInt(budget) : 500000,
       spent: 0,
       aiConfidence: 85,
-      riskLevel: 'low',
-      progress: 0,
-      status: 'active',
+      riskLevel: 'low' as RiskLevel,
     });
     onClose();
   };
