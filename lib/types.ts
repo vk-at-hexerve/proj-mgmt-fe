@@ -5,7 +5,7 @@ export type TaskPriority = 'critical' | 'high' | 'medium' | 'low';
 export type ProjectType = 'agile-scrum' | 'agile-kanban' | 'waterfall' | 'hybrid';
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 
-export type UserRole = 'super-admin' | 'org-admin' | 'portfolio-manager' | 'program-manager' | 'project-manager' | 'contributor' | 'viewer';
+export type UserRole = 'super-admin' | 'org-admin' | 'portfolio-manager' | 'program-manager' | 'project-manager' | 'team-lead' | 'contributor' | 'viewer';
 
 export interface User {
   id: string;
@@ -122,6 +122,10 @@ export interface Program {
   aiConfidence: number;
   riskLevel: RiskLevel;
   progress: number;
+  projectIds: string[];
+  budget: number;
+  spent: number;
+  status: 'active' | 'on-hold' | 'completed' | 'planning';
 }
 
 export interface Portfolio {
@@ -134,6 +138,9 @@ export interface Portfolio {
   spent: number;
   aiConfidence: number;
   riskLevel: RiskLevel;
+  programIds: string[];
+  progress: number;
+  status: 'active' | 'on-hold' | 'completed' | 'planning';
 }
 
 export interface AIInsight {
@@ -269,6 +276,7 @@ export interface BackendUser {
 export interface BackendProject {
   id: number | string;
   name: string;
+  project_key?: string;
   description?: string;
   status?: string;
   progress?: number;
@@ -308,4 +316,7 @@ export interface Team {
   lead: User;
   members: User[];
   projects: Project[];
+  projectIds: string[];
+  velocity: number;
+  capacity: number;
 }

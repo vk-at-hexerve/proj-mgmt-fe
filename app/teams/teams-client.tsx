@@ -57,7 +57,7 @@ export default function TeamsClient() {
 
   const filteredTeams = teams.filter((team) =>
     team.name.toLowerCase().includes(search.toLowerCase()) ||
-    team.description.toLowerCase().includes(search.toLowerCase())
+    (team.description || "").toLowerCase().includes(search.toLowerCase())
   );
 
   const currentTeam = teams.find(t => t.id === selectedTeam) || teams[0];
@@ -101,7 +101,7 @@ export default function TeamsClient() {
     <div className="flex h-screen bg-background">
       <AppSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <AppHeader />
+        <AppHeader title="Teams" subtitle="Manage and coordinate work across teams" />
         <main className="flex-1 overflow-auto">
           <div className="p-6">
             {/* Page Header */}

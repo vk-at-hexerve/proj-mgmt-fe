@@ -29,9 +29,32 @@ import {
   Target,
   Users,
 } from 'lucide-react';
-import { generateCalendarEvents, projects, tasks } from '@/lib/mock-data';
-import type { CalendarEvent } from '@/lib/mock-data';
+import { useApp } from '@/lib/app-context';
 import { cn } from '@/lib/utils';
+import type { Task, Project, Sprint } from '@/lib/types';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+
+// Calendar events derived from tasks
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  start: Date;
+  end: Date;
+  type: 'task' | 'sprint' | 'milestone' | 'meeting';
+  color: string;
+  taskId?: string;
+  projectId?: string;
+}
 
 type ViewMode = 'month' | 'week' | 'day';
 
@@ -40,17 +63,158 @@ const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
-
 export default function CalendarPage() {
-  const [currentDate, setCurrentDate] = useState(new Date('2026-01-20'));
+  const { tasks, projects, sprints, addTask, addSprint, users, currentUser } = useApp();
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [selectedProject, setSelectedProject] = useState<string>('all');
 
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [eventType, setEventType] = useState<'task' | 'sprint' | 'milestone' | 'high-priority' | 'critical'>('task');
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [projId, setProjId] = useState<string>('');
+  const [dueDate, setDueDate] = useState<string>('');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+
+  const getTodayDateInputValue = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = `${today.getMonth() + 1}`.padStart(2, "0");
+    const day = `${today.getDate()}`.padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const isPastDate = (value: string) => {
+    if (!value) return false;
+    const selected = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(selected.getTime())) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return selected < today;
+  };
+
+  const handleOpenModal = () => {
+    setEventType('task');
+    setTitle('');
+    setDescription('');
+    setProjId(selectedProject !== 'all' ? selectedProject : (projects[0]?.id || ''));
+
+    const today = new Date().toISOString().split('T')[0];
+    setDueDate(today);
+    setStartDate(today);
+
+    const nextWeek = new Date();
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    setEndDate(nextWeek.toISOString().split('T')[0]);
+
+    setIsCreateModalOpen(true);
+  };
+
+  const handleCreateEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || !projId) return;
+
+    if (eventType === 'sprint') {
+      if (!startDate || !endDate) return;
+      if (isPastDate(startDate) || isPastDate(endDate)) return;
+      addSprint({
+        name: title.trim(),
+        goal: description.trim(),
+        startDate,
+        endDate,
+        status: 'planning',
+        projectId: projId,
+      });
+    } else {
+      if (!dueDate) return;
+      if (isPastDate(dueDate)) return;
+
+      let taskType: 'epic' | 'story' | 'task' | 'subtask' | 'bug' = 'task';
+      let taskPriority: 'critical' | 'high' | 'medium' | 'low' = 'medium';
+
+      if (eventType === 'milestone') {
+        taskType = 'epic';
+      } else if (eventType === 'high-priority') {
+        taskPriority = 'high';
+      } else if (eventType === 'critical') {
+        taskPriority = 'critical';
+      }
+
+      await addTask({
+        title: title.trim(),
+        description: description.trim(),
+        type: taskType,
+        priority: taskPriority,
+        status: 'open',
+        projectId: projId,
+        dueDate: dueDate || undefined,
+        reporter: currentUser || users[0],
+        tags: [],
+      });
+    }
+
+    setIsCreateModalOpen(false);
+  };
+
   const events = useMemo(() => {
-    const allEvents = generateCalendarEvents();
-    if (selectedProject === 'all') return allEvents;
-    return allEvents.filter(e => e.projectId === selectedProject);
-  }, [selectedProject]);
+    const calendarEvents: CalendarEvent[] = [];
+
+    // Add task due dates
+    tasks.forEach((task) => {
+      if (task.dueDate) {
+        const dueDate = new Date(task.dueDate);
+        let color = '#3B82F6';
+        let eventType: CalendarEvent['type'] = 'task';
+
+        if (task.type === 'epic') {
+          color = '#22C55E';
+          eventType = 'milestone';
+        } else if (task.priority === 'critical') {
+          color = '#EF4444';
+        } else if (task.priority === 'high') {
+          color = '#F59E0B';
+        }
+
+        calendarEvents.push({
+          id: `event-${task.id}`,
+          title: task.title,
+          start: dueDate,
+          end: dueDate,
+          type: eventType,
+          color: color,
+          taskId: task.id,
+          projectId: task.projectId,
+        });
+      }
+    });
+
+    // Add sprint dates
+    sprints.forEach((sprint) => {
+      calendarEvents.push({
+        id: `event-sprint-${sprint.id}-start`,
+        title: `${sprint.name} Start`,
+        start: new Date(sprint.startDate),
+        end: new Date(sprint.startDate),
+        type: 'sprint',
+        color: '#7B68EE',
+        projectId: sprint.projectId,
+      });
+      calendarEvents.push({
+        id: `event-sprint-${sprint.id}-end`,
+        title: `${sprint.name} End`,
+        start: new Date(sprint.endDate),
+        end: new Date(sprint.endDate),
+        type: 'sprint',
+        color: '#7B68EE',
+        projectId: sprint.projectId,
+      });
+    });
+
+    if (selectedProject === 'all') return calendarEvents;
+    return calendarEvents.filter(e => e.projectId === selectedProject);
+  }, [tasks, sprints, selectedProject]);
 
   const navigateMonth = (direction: number) => {
     const newDate = new Date(currentDate);
@@ -65,7 +229,7 @@ export default function CalendarPage() {
   };
 
   const goToToday = () => {
-    setCurrentDate(new Date('2026-01-20'));
+    setCurrentDate(new Date());
   };
 
   const getDaysInMonth = (date: Date) => {
@@ -75,19 +239,19 @@ export default function CalendarPage() {
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
     const startingDay = firstDay.getDay();
-    
+
     const days: (Date | null)[] = [];
-    
+
     // Add empty slots for days before the first day of the month
     for (let i = 0; i < startingDay; i++) {
       days.push(null);
     }
-    
+
     // Add all days of the month
     for (let i = 1; i <= daysInMonth; i++) {
       days.push(new Date(year, month, i));
     }
-    
+
     return days;
   };
 
@@ -105,7 +269,7 @@ export default function CalendarPage() {
 
   const isToday = (date: Date | null): boolean => {
     if (!date) return false;
-    const today = new Date('2026-01-20');
+    const today = new Date();
     return (
       date.getDate() === today.getDate() &&
       date.getMonth() === today.getMonth() &&
@@ -118,7 +282,7 @@ export default function CalendarPage() {
     const diff = date.getDate() - day;
     const weekStart = new Date(date);
     weekStart.setDate(diff);
-    
+
     const days: Date[] = [];
     for (let i = 0; i < 7; i++) {
       const d = new Date(weekStart);
@@ -141,7 +305,7 @@ export default function CalendarPage() {
 
   // Upcoming events for sidebar
   const upcomingEvents = useMemo(() => {
-    const today = new Date('2026-01-20');
+    const today = new Date();
     return events
       .filter(e => new Date(e.start) >= today)
       .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
@@ -152,20 +316,18 @@ export default function CalendarPage() {
     <div className="flex h-screen bg-background">
       <AppSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <AppHeader />
+        <AppHeader
+          title="Calendar"
+          subtitle="View and manage your schedule"
+          actions={
+            <Button size="sm" className="gap-1" onClick={handleOpenModal}>
+              <Plus className="size-4" />
+              Add Event
+            </Button>
+          }
+        />
         <main className="flex-1 overflow-auto">
           <div className="p-6">
-            {/* Page Header */}
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h1 className="text-2xl font-semibold text-foreground">Calendar</h1>
-                <p className="text-muted-foreground">View and manage your schedule</p>
-              </div>
-              <Button className="gap-2">
-                <Plus className="size-4" />
-                Add Event
-              </Button>
-            </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
               {/* Main Calendar */}
@@ -232,7 +394,7 @@ export default function CalendarPage() {
                         {days.map((date, index) => {
                           const dayEvents = getEventsForDate(date);
                           const today = isToday(date);
-                          
+
                           return (
                             <div
                               key={index}
@@ -307,7 +469,7 @@ export default function CalendarPage() {
                         {days.map((date, index) => {
                           const dayEvents = getEventsForDate(date);
                           const today = isToday(date);
-                          
+
                           return (
                             <div key={index} className="bg-card min-h-[400px]">
                               <div
@@ -316,15 +478,19 @@ export default function CalendarPage() {
                                   today && 'bg-primary/10'
                                 )}
                               >
-                                <p className="text-xs text-muted-foreground">{DAYS[date.getDay()]}</p>
-                                <p
-                                  className={cn(
-                                    'text-xl font-semibold',
-                                    today && 'text-primary'
-                                  )}
-                                >
-                                  {date.getDate()}
-                                </p>
+                                {date && (
+                                  <>
+                                    <p className="text-xs text-muted-foreground">{DAYS[date.getDay()]}</p>
+                                    <p
+                                      className={cn(
+                                        'text-xl font-semibold',
+                                        today && 'text-primary'
+                                      )}
+                                    >
+                                      {date.getDate()}
+                                    </p>
+                                  </>
+                                )}
                               </div>
                               <div className="p-2 space-y-1">
                                 {dayEvents.map((event) => (
@@ -485,6 +651,118 @@ export default function CalendarPage() {
         </main>
         <AICopilot />
       </div>
+
+      <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Add New Event</DialogTitle>
+            <DialogDescription>
+              Create a new event on your calendar.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateEvent} className="space-y-4 mt-2">
+            <div className="space-y-1">
+              <Label htmlFor="event-type">Event Type</Label>
+              <Select value={eventType} onValueChange={(v: any) => setEventType(v)}>
+                <SelectTrigger id="event-type">
+                  <SelectValue placeholder="Select event type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="task">Tasks</SelectItem>
+                  <SelectItem value="sprint">Sprints</SelectItem>
+                  <SelectItem value="milestone">Milestones</SelectItem>
+                  <SelectItem value="high-priority">High Priority</SelectItem>
+                  <SelectItem value="critical">Critical</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="event-title">Title</Label>
+              <Input
+                id="event-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Event title"
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="event-desc">Description</Label>
+              <Textarea
+                id="event-desc"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Optional description"
+                rows={3}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="event-project">Project</Label>
+              <Select value={projId} onValueChange={setProjId}>
+                <SelectTrigger id="event-project">
+                  <SelectValue placeholder="Select project" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {eventType !== 'sprint' ? (
+              <div className="space-y-1">
+                <Label htmlFor="event-date">Due Date</Label>
+                <Input
+                  id="event-date"
+                  type="date"
+                  value={dueDate}
+                  min={getTodayDateInputValue()}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  required
+                />
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label htmlFor="event-start-date">Start Date</Label>
+                  <Input
+                    id="event-start-date"
+                    type="date"
+                    value={startDate}
+                    min={getTodayDateInputValue()}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="event-end-date">End Date</Label>
+                  <Input
+                    id="event-end-date"
+                    type="date"
+                    value={endDate}
+                    min={getTodayDateInputValue()}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+            )}
+
+            <DialogFooter className="pt-4">
+              <Button type="button" variant="outline" onClick={() => setIsCreateModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit">Create Event</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

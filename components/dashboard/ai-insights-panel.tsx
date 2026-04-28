@@ -63,33 +63,39 @@ const generateInsights = (tasks: Task[], projects: Project[]): AIInsight[] => {
   }
 
   // Velocity prediction
-  const completedTasks = tasks.filter((t: Task) => t.status === 'closed');
-  const velocity = completedTasks.length;
+  if (projects.length > 0) {
+    const completedTasks = tasks.filter((t: Task) => t.status === 'closed');
+    const velocity = completedTasks.length;
     insights.push({
       id: 'velocity-1',
       type: 'prediction',
       severity: 'info',
       title: 'Sprint velocity on track',
-      description: `Current velocity: ${velocity} tasks completed. Predicted to complete ${Math.round(velocity * 1.2)} tasks by sprint end based on historical data.`,
+      description: velocity > 0 
+        ? `Current velocity: ${velocity} tasks completed. Predicted to complete ${Math.round(velocity * 1.2)} tasks by sprint end based on historical data.`
+        : 'Velocity tracking will begin once tasks are completed.',
       relatedEntityType: 'project',
       relatedEntityId: projects[0]?.id || 'all',
-      createdAt: '1 hour ago',
+      createdAt: 'Just now',
       actionable: false,
     });
+  }
 
   // Resource optimization
+  if (projects.length > 0 && tasks.length > 0) {
     insights.push({
       id: 'resource-1',
       type: 'optimization',
       severity: 'info',
       title: 'Resource optimization available',
-      description: 'AI detected potential load balancing opportunity. 2 team members are underutilized while 1 is overloaded.',
+      description: 'AI is monitoring team workload for optimization opportunities.',
       relatedEntityType: 'project',
       relatedEntityId: projects[0]?.id || 'all',
-      createdAt: '2 hours ago',
+      createdAt: 'Just now',
       actionable: true,
       action: 'Optimize resources',
     });
+  }
 
   // Risk detection
   const inProgressTasks = tasks.filter((t: Task) => t.status === 'in-progress');

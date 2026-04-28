@@ -201,13 +201,13 @@ function ProgramSection({
   program,
   isLast,
 }: {
-  program: Program;
+  program: any;
   isLast: boolean;
 }) {
   const [expanded, setExpanded] = useState(true);
   const { showToast, openModal } = useApp();
-  const programProjects = projects.filter((p) => program.projectIds.includes(p.id));
-  const budgetPct = Math.round((program.spent / program.budget) * 100);
+  const programProjects = projects.filter((p) => program.projectIds?.includes(p.id));
+  const budgetPct = Math.round(((program.spent || 0) / (program.budget || 1)) * 100);
 
   return (
     <div className="flex items-start gap-2 group/prog">
@@ -341,14 +341,15 @@ function ProgramSection({
 
 // ─── Portfolio Card ──────────────────────────────────────────────────────────
 
-function PortfolioCard({ portfolio }: { portfolio: Portfolio }) {
+function PortfolioCard({ portfolio }: { portfolio: any }) {
   const [expanded, setExpanded] = useState(true);
-  const { programs, openModal, showToast } = useApp();
-  const portfolioPrograms = programs.filter((p) => portfolio.programIds.includes(p.id));
-  const allProjects = portfolioPrograms.flatMap((prog) =>
-    projects.filter((p) => prog.projectIds.includes(p.id))
+  const { programs: contextPrograms, openModal, showToast } = useApp();
+  const programs = contextPrograms as any[];
+  const portfolioPrograms = programs.filter((p: any) => portfolio.programIds?.includes(p.id));
+  const allProjects = portfolioPrograms.flatMap((prog: any) =>
+    projects.filter((p) => prog.projectIds?.includes(p.id))
   );
-  const budgetPct = Math.round((portfolio.spent / portfolio.budget) * 100);
+  const budgetPct = Math.round(((portfolio.spent || 0) / (portfolio.budget || 1)) * 100);
 
   return (
     <Card className={cn('overflow-hidden transition-shadow hover:shadow-md')}>
@@ -535,12 +536,14 @@ function PortfolioCard({ portfolio }: { portfolio: Portfolio }) {
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function HierarchyPage() {
-  const { portfolios, programs, openModal } = useApp();
+  const { portfolios: contextPortfolios, programs: contextPrograms, openModal } = useApp();
+  const portfolios = contextPortfolios as any[];
+  const programs = contextPrograms as any[];
 
-  const totalProjects = programs.reduce((sum, prog) => sum + prog.projectIds.length, 0);
-  const totalBudget = portfolios.reduce((sum, p) => sum + p.budget, 0);
-  const totalSpent = portfolios.reduce((sum, p) => sum + p.spent, 0);
-  const avgProgress = portfolios.reduce((sum, p) => sum + p.progress, 0) / (portfolios.length || 1);
+  const totalProjects = programs.reduce((sum, prog) => sum + (prog.projectIds?.length || 0), 0);
+  const totalBudget = portfolios.reduce((sum, p) => sum + (p.budget || 0), 0);
+  const totalSpent = portfolios.reduce((sum, p) => sum + (p.spent || 0), 0);
+  const avgProgress = portfolios.reduce((sum, p) => sum + (p.progress || 0), 0) / (portfolios.length || 1);
 
   return (
     <div className="flex h-screen bg-background">

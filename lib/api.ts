@@ -37,7 +37,7 @@ export function mapBackendProject(backendProject: BackendProject): Project {
     type: 'agile-kanban', // Default for now
     id: String(backendProject.id),
     name: backendProject.name,
-    key: backendProject.name.substring(0, 3).toUpperCase(),
+    key: backendProject.project_key || backendProject.name.substring(0, 3).toUpperCase(),
     status: (backendProject.status?.toLowerCase() || 'active') as ProjectStatus,
     progress: backendProject.progress || 0,
     aiConfidence: backendProject.ai_confidence || 85,
@@ -62,6 +62,7 @@ export function mapBackendProject(backendProject: BackendProject): Project {
 export function mapBackendTask(backendTask: BackendTask): Task {
   const statusMap: Record<string, TaskStatus> = {
     'TODO': 'open',
+    'ASSIGNED': 'assigned',
     'IN_PROGRESS': 'in-progress',
     'IN_REVIEW': 'pending-approval',
     'DONE': 'closed',

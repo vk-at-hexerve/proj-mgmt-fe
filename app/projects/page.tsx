@@ -77,12 +77,12 @@ interface FilterState {
 }
 
 const viewOptions: { id: ViewType; label: string; icon: React.ReactNode }[] = [
-  { id: 'kanban',  label: 'Board View',    icon: <LayoutGrid className="size-4" /> },
-  { id: 'list',    label: 'List View',     icon: <List className="size-4" /> },
-  { id: 'gantt',   label: 'Gantt View',    icon: <GanttChartSquare className="size-4" /> },
-  { id: 'calendar',label: 'Calendar View', icon: <Calendar className="size-4" /> },
-  { id: 'grid',    label: 'Grid View',     icon: <Table2 className="size-4" /> },
-  { id: 'backlog', label: 'Backlog',       icon: <Layers className="size-4" /> },
+  { id: 'kanban', label: 'Board View', icon: <LayoutGrid className="size-4" /> },
+  { id: 'list', label: 'List View', icon: <List className="size-4" /> },
+  { id: 'gantt', label: 'Gantt View', icon: <GanttChartSquare className="size-4" /> },
+  { id: 'calendar', label: 'Calendar View', icon: <Calendar className="size-4" /> },
+  { id: 'grid', label: 'Grid View', icon: <Table2 className="size-4" /> },
+  { id: 'backlog', label: 'Backlog', icon: <Layers className="size-4" /> },
 ];
 
 export default function ProjectsPage() {
@@ -147,10 +147,10 @@ export default function ProjectsPage() {
     setSprintDialogOpen(false);
     setNewSprint({ name: '', goal: '', startDate: '', endDate: '' });
     setSelectedBacklogTasks([]);
-    showToast({ 
-      title: 'Sprint created', 
-      description: `${sprint.name} with ${selectedBacklogTasks.length} task(s)`, 
-      type: 'success' 
+    showToast({
+      title: 'Sprint created',
+      description: `${sprint.name} with ${selectedBacklogTasks.length} task(s)`,
+      type: 'success'
     });
   };
 
@@ -158,9 +158,9 @@ export default function ProjectsPage() {
     setLocalTasks((prev: typeof allTasks) => prev.map(t =>
       t.id === taskId ? { ...t, sprintId: sprintId || undefined } : t
     ));
-    showToast({ 
-      title: sprintId ? 'Task moved to sprint' : 'Task moved to backlog', 
-      type: 'success' 
+    showToast({
+      title: sprintId ? 'Task moved to sprint' : 'Task moved to backlog',
+      type: 'success'
     });
   };
 
@@ -341,7 +341,7 @@ export default function ProjectsPage() {
               <Button variant="outline" size="sm" className="h-8 gap-2 text-primary border-primary/30 hover:bg-primary/10 bg-transparent">
                 <Sparkles className="size-4" />
                 AI Suggestions
-                <Badge variant="secondary" className="ml-1 text-xs">3</Badge>
+                <Badge variant="secondary" className="ml-1 text-xs">0</Badge>
               </Button>
 
               {/* Team */}
@@ -578,36 +578,42 @@ export default function ProjectsPage() {
             )}
             {currentView === 'calendar' && (
               <Card className="h-full flex flex-col">
-                <CardContent className="flex-1 p-6">
+                <CardContent className="flex-1 p-3 pt-0">
                   <div className="h-full flex flex-col">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold">Project Calendar</h3>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-base font-semibold">Project Calendar</h3>
                       <Link href="/calendar">
-                        <Button variant="outline" size="sm">Open Full Calendar</Button>
+                        <Button variant="outline" size="sm" className="h-7 text-xs px-2">Open Full Calendar</Button>
                       </Link>
                     </div>
-                    <div className="flex-1 grid grid-cols-7 gap-2">
+                    <div className="flex-1 grid grid-cols-7 gap-1">
                       {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-                        <div key={day} className="text-center text-sm font-medium text-muted-foreground py-2">{day}</div>
+                        <div key={day} className="text-center text-xs font-medium text-muted-foreground py-1">{day}</div>
                       ))}
                       {Array.from({ length: 35 }, (_, i) => {
-                        const date = new Date('2026-01-01');
-                        date.setDate(date.getDate() + i - 3);
+                        const today = new Date();
+                        const date = new Date(today.getFullYear(), today.getMonth(), 1);
+                        date.setDate(date.getDate() + i - date.getDay());
                         const dayEvents = calendarEvents.filter((e: any) => {
                           const eventDate = new Date(e.start);
                           return eventDate.toDateString() === date.toDateString();
                         });
-                        const isToday = date.toDateString() === new Date('2026-01-20').toDateString();
+                        const isToday = date.toDateString() === today.toDateString();
+                        const isCurrentMonth = date.getMonth() === today.getMonth();
                         return (
-                          <div key={i} className={cn('min-h-[80px] p-2 rounded-lg border border-border', isToday && 'ring-2 ring-primary bg-primary/5')}>
-                            <span className={cn('text-sm', isToday && 'font-semibold text-primary')}>{date.getDate()}</span>
-                            <div className="mt-1 space-y-1">
-                              {dayEvents.slice(0, 2).map((event: any) => (
-                                <div key={event.id} className="text-xs px-1 py-0.5 rounded truncate" style={{ backgroundColor: `${event.color}20`, color: event.color }}>
+                          <div key={i} className={cn(
+                            'min-h-[50px] p-1 rounded-md border border-border flex flex-col justify-between',
+                            isToday && 'ring-1 ring-primary bg-primary/5',
+                            !isCurrentMonth && 'opacity-30'
+                          )}>
+                            <span className={cn('text-xs', isToday && 'font-semibold text-primary')}>{date.getDate()}</span>
+                            <div className="mt-0.5 space-y-0.5 flex-1 flex flex-col justify-end">
+                              {dayEvents.slice(0, 1).map((event: any) => (
+                                <div key={event.id} className="text-[10px] px-0.5 py-px rounded truncate leading-tight" style={{ backgroundColor: `${event.color}20`, color: event.color }}>
                                   {event.title}
                                 </div>
                               ))}
-                              {dayEvents.length > 2 && <span className="text-xs text-muted-foreground">+{dayEvents.length - 2}</span>}
+                              {dayEvents.length > 1 && <span className="text-[9px] text-muted-foreground leading-none">+{dayEvents.length - 1}</span>}
                             </div>
                           </div>
                         );
