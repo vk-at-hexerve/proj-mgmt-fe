@@ -2,8 +2,10 @@
 
 import React from "react";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useApp } from "@/lib/app-context";
+import { cn } from "@/lib/utils";
+
 import {
   Dialog,
   DialogContent,
@@ -54,6 +56,7 @@ import type {
   TaskAttachment,
   TaskLink,
   Task,
+  Sprint,
   ProjectTemplate,
   ProjectType,
   RiskLevel,
@@ -139,7 +142,9 @@ export function AppModals() {
     teams,
     currentUser,
     isMounted,
+    addSprint,
   } = useApp();
+
 
   if (!isMounted) return null;
 
@@ -298,8 +303,19 @@ export function AppModals() {
     return <AddMemberModal teamId={teamId} onClose={closeModal} />;
   }
 
+  // Create Sprint Modal
+  if (modal.type === "create-sprint") {
+    return (
+      <CreateSprintModal
+        onClose={closeModal}
+        onSubmit={addSprint}
+      />
+    );
+  }
+
   return null;
 }
+
 
 // Create Task Modal Component
 function CreateTaskModal({
@@ -2000,7 +2016,11 @@ function CreateTeamModal({
       lead,
       members,
       projects: projects.filter((p) => selectedProjects.includes(p.id)),
+      projectIds: selectedProjects,
+      velocity: 0,
+      capacity: Number(capacity) || 40,
     });
+
     onClose();
   };
 
@@ -2179,7 +2199,12 @@ function CreateProgramModal({
       aiConfidence: 80,
       riskLevel: "low" as RiskLevel,
       progress: 0,
+      status: "planning",
+      budget: Number(budget) || 0,
+      spent: 0,
+      projectIds: selectedProjects,
     });
+
     onClose();
   };
 
@@ -2348,7 +2373,11 @@ function CreatePortfolioModal({
       spent: 0,
       aiConfidence: 85,
       riskLevel: "low" as RiskLevel,
+      progress: 0,
+      status: "planning",
+      programIds: [],
     });
+
     onClose();
   };
 
@@ -2600,3 +2629,231 @@ function AddMemberModal({
     </Dialog>
   );
 }
+
+// Create Sprint Modal Component
+function CreateSprintModal({
+  onClose,
+  onSubmit,
+}: {
+  onClose: () => void;
+  onSubmit: (sprint: Omit<Sprint, "id">, taskIds?: string[]) => void;
+}) {
+  const { projects, tasks } = useApp();
+  const [name, setName] = useState("");
+  const [goal, setGoal] = useState("");
+  const [startDate, setStartDate] = useState(getTodayDateInputValue());
+  const [endDate, setEndDate] = useState("");
+  const [projectId, setProjectId] = useState(projects[0]?.id || "");
+  const [dateError, setDateError] = useState("");
+
+  const backlogTasks = tasks.filter((t) => t.projectId === projectId && !t.sprintId);
+  const [selectedBacklogTasks, setSelectedBacklogTasks] = useState<string[]>([]);
+
+  useEffect(() => {
+    setSelectedBacklogTasks([]);
+  }, [projectId]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+
+    if (isPastDate(startDate)) {
+      setDateError("Start date cannot be in the past.");
+      return;
+    }
+
+    if (endDate && new Date(startDate) > new Date(endDate)) {
+      setDateError("End date cannot be before start date.");
+      return;
+    }
+
+    onSubmit(
+      {
+        name: name.trim(),
+        goal: goal.trim() || undefined,
+        startDate,
+        endDate: endDate || startDate,
+        status: "active",
+        projectId,
+      },
+      selectedBacklogTasks
+    );
+    onClose();
+  };
+
+  const toggleBacklogTaskSelection = (taskId: string) => {
+    setSelectedBacklogTasks((prev) =>
+      prev.includes(taskId) ? prev.filter((id) => id !== taskId) : [...prev, taskId]
+    );
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Create New Sprint</DialogTitle>
+          <DialogDescription>
+            Define the sprint details and select tasks from the backlog.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="sprint-name">Sprint Name *</Label>
+            <Input
+              id="sprint-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g., Sprint 1, Q2 Iteration"
+              autoFocus
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="sprint-project">Associated Project *</Label>
+            <Select value={projectId} onValueChange={setProjectId}>
+              <SelectTrigger id="sprint-project">
+                <SelectValue placeholder="Select project" />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    <span className="flex items-center gap-2">
+                      <Badge variant="outline" className="font-mono text-xs">
+                        {p.key}
+                      </Badge>
+                      {p.name}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="sprint-start-date">Start Date *</Label>
+              <Input
+                id="sprint-start-date"
+                type="date"
+                value={startDate}
+                min={getTodayDateInputValue()}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setDateError("");
+                }}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="sprint-end-date">End Date *</Label>
+              <Input
+                id="sprint-end-date"
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setDateError("");
+                }}
+                required
+              />
+            </div>
+          </div>
+
+          {dateError && <p className="text-sm text-destructive">{dateError}</p>}
+
+          <div className="space-y-2">
+            <Label htmlFor="sprint-goal">Sprint Goal</Label>
+            <Textarea
+              id="sprint-goal"
+              value={goal}
+              onChange={(e) => setGoal(e.target.value)}
+              placeholder="What does the team aim to achieve?"
+              rows={2}
+            />
+          </div>
+
+          {/* Backlog Task Selection */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Select Backlog Tasks</Label>
+              {selectedBacklogTasks.length > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  {selectedBacklogTasks.length} selected (
+                  {backlogTasks
+                    .filter((t) => selectedBacklogTasks.includes(t.id))
+                    .reduce((sum, t) => sum + (t.storyPoints || 0), 0)}{" "}
+                  pts)
+                </Badge>
+              )}
+            </div>
+            <ScrollArea className="h-48 border rounded-lg">
+              {backlogTasks.length === 0 ? (
+                <p className="text-sm text-muted-foreground p-4 text-center">
+                  No tasks in backlog
+                </p>
+              ) : (
+                <div className="divide-y divide-border">
+                  {backlogTasks.map((task) => (
+                    <label
+                      key={task.id}
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-muted/50 transition-colors",
+                        selectedBacklogTasks.includes(task.id) && "bg-primary/5"
+                      )}
+                    >
+                      <Checkbox
+                        checked={selectedBacklogTasks.includes(task.id)}
+                        onCheckedChange={() => toggleBacklogTaskSelection(task.id)}
+                      />
+                      <span
+                        className={cn(
+                          "text-[10px] font-mono px-1 py-0.5 rounded border shrink-0",
+                          {
+                            "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400":
+                              task.type === "bug",
+                            "bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400":
+                              task.type === "epic",
+                            "bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400":
+                              task.type === "story",
+                            "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400":
+                              task.type === "task" || task.type === "subtask",
+                          }
+                        )}
+                      >
+                        {task.key}
+                      </span>
+                      <span className="flex-1 text-sm truncate">{task.title}</span>
+                      {task.storyPoints && (
+                        <Badge variant="outline" className="text-[10px] shrink-0">
+                          {task.storyPoints} pts
+                        </Badge>
+                      )}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={!name.trim() || !projectId || !!dateError}
+            >
+              Create Sprint{" "}
+              {selectedBacklogTasks.length > 0 &&
+                `(${selectedBacklogTasks.length} tasks)`}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+
+  );
+}
+

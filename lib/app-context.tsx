@@ -728,17 +728,73 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Sprint actions
   const addSprint = useCallback(
-    (sprint: Omit<Sprint, "id">) => {
-      const newSprint: Sprint = { ...sprint, id: `sprint-${Date.now()}` };
+    async (sprint: Omit<Sprint, "id">, taskIds: string[] = []) => {
+      const tempId = `sprint-temp-${Date.now()}`;
+      const newSprint: Sprint = { ...sprint, id: tempId };
       setSprints((prev) => [...prev, newSprint]);
-      showToast({
-        title: "Sprint created",
-        description: newSprint.name,
-        type: "success",
-      });
+
+      if (taskIds.length > 0) {
+        setTasks((prev) =>
+          prev.map((task) =>
+            taskIds.includes(task.id) ? { ...task, sprintId: tempId } : task,
+          ),
+        );
+      }
+
+      try {
+        const { fetchAPI, mapBackendSprint } = await import("./api");
+        const savedSprint = await fetchAPI("/sprints", {
+          method: "POST",
+          body: JSON.stringify({
+            name: sprint.name,
+            goal: sprint.goal || "",
+            status: sprint.status || "active",
+            start_date: sprint.startDate || null,
+            end_date: sprint.endDate || null,
+            velocity: sprint.velocity || 0,
+            project_id: sprint.projectId || null,
+          }),
+        });
+
+        setSprints((prev) =>
+          prev.map((s) =>
+            s.id === tempId ? mapBackendSprint(savedSprint) : s,
+          ),
+        );
+
+        if (taskIds.length > 0) {
+          setTasks((prev) =>
+            prev.map((task) =>
+              taskIds.includes(task.id)
+                ? { ...task, sprintId: savedSprint.id || tempId }
+                : task,
+            ),
+          );
+        }
+
+        showToast({
+          title: "Sprint created",
+          description: savedSprint.name,
+          type: "success",
+        });
+      } catch (error) {
+        setSprints((prev) => prev.filter((s) => s.id !== tempId));
+        if (taskIds.length > 0) {
+          setTasks((prev) =>
+            prev.map((task) =>
+              taskIds.includes(task.id) && task.sprintId === tempId
+                ? { ...task, sprintId: undefined }
+                : task,
+            ),
+          );
+        }
+        showToast({ title: "Sprint creation failed", type: "error" });
+      }
     },
     [showToast],
   );
+
+
 
   const updateSprint = useCallback((id: string, updates: Partial<Sprint>) => {
     setSprints((prev) =>

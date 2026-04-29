@@ -95,6 +95,8 @@ export default function ProjectsPage() {
   const [newSprint, setNewSprint] = useState({ name: '', goal: '', startDate: '', endDate: '' });
   const [selectedBacklogTasks, setSelectedBacklogTasks] = useState<string[]>([]);
   const [localTasks, setLocalTasks] = useState(allTasks);
+  const [dateError, setDateError] = useState('');
+
 
   const currentProject = projects.find(p => p.id === currentProjectId) || projects[0];
   const sprints = contextSprints.filter(s => s.projectId === currentProject?.id);
@@ -127,6 +129,27 @@ export default function ProjectsPage() {
 
   const handleCreateSprint = () => {
     if (!newSprint.name.trim() || !newSprint.startDate || !newSprint.endDate) return;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    // Use local time to evaluate inputs
+    const [startYear, startMonth, startDay] = newSprint.startDate.split('-').map(Number);
+    const [endYear, endMonth, endDay] = newSprint.endDate.split('-').map(Number);
+    const start = new Date(startYear, startMonth - 1, startDay);
+    const end = new Date(endYear, endMonth - 1, endDay);
+
+    if (start < today) {
+      setDateError("Start date cannot be in the past.");
+      return;
+    }
+
+    if (end < start) {
+      setDateError("End date cannot be before start date.");
+      return;
+    }
+
+    setDateError('');
+
     const sprintId = `sprint-${Date.now()}`;
     const sprint: Sprint = {
       id: sprintId,
@@ -631,8 +654,12 @@ export default function ProjectsPage() {
       {/* Create Sprint Dialog */}
       <Dialog open={sprintDialogOpen} onOpenChange={(open) => {
         setSprintDialogOpen(open);
-        if (!open) setSelectedBacklogTasks([]);
+        if (!open) {
+          setSelectedBacklogTasks([]);
+          setDateError('');
+        }
       }}>
+
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Create New Sprint</DialogTitle>
@@ -726,8 +753,10 @@ export default function ProjectsPage() {
                 )}
               </ScrollArea>
             </div>
+            {dateError && <p className="text-sm text-destructive mt-2">{dateError}</p>}
           </div>
           <DialogFooter>
+
             <Button variant="outline" onClick={() => { setSprintDialogOpen(false); setSelectedBacklogTasks([]); }}>Cancel</Button>
             <Button
               onClick={handleCreateSprint}

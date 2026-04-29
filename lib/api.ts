@@ -157,8 +157,10 @@ export function mapBackendSprint(backendSprint: any) {
     startDate: backendSprint.start_date,
     endDate: backendSprint.end_date,
     velocity: backendSprint.velocity || 0,
+    projectId: backendSprint.project_id ? String(backendSprint.project_id) : "",
   };
 }
+
 
 export function mapBackendClient(backendClient: any) {
   return {

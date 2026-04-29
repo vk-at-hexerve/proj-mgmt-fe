@@ -50,13 +50,23 @@ import { cn } from '@/lib/utils';
 import type { Task, Project } from '@/lib/types';
 
 export default function ReportsPage() {
-  const { tasks, projects, users } = useApp();
+  const { tasks, projects, users, sprints } = useApp();
   const [dateRange, setDateRange] = useState('this-month');
 
-  // Velocity data - should be empty until real sprints are created
-  const velocityData: any[] = [];
+  // Velocity data calculated from actual sprints
+  const velocityData = sprints.map(s => {
+    const sprintTasks = tasks.filter(t => t.sprintId === s.id);
+    const planned = sprintTasks.reduce((acc, t) => acc + (t.storyPoints || 0), 0);
+    const completed = sprintTasks.filter(t => t.status === 'closed').reduce((acc, t) => acc + (t.storyPoints || 0), 0);
+    return {
+      sprint: s.name,
+      planned,
+      completed,
+    };
+  });
 
   const burndownData: any[] = [];
+
 
   const taskDistribution = [
     { name: 'Completed', value: tasks.filter(t => t.status === 'closed').length, color: '#22C55E' },
