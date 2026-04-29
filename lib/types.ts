@@ -294,6 +294,7 @@ export interface BackendTask {
   description?: string;
   status: string;
   priority: string;
+  story_points?: number;
   project_id: number | string;
   assignee?: BackendUser;
   reporter?: BackendUser;

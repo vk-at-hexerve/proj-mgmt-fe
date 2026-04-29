@@ -398,7 +398,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 systemRole: meData.role || "project-manager",
                 permissions:
                   rolePermissions[
-                    (meData.role as UserRole) || "project-manager"
+                  (meData.role as UserRole) || "project-manager"
                   ] || rolePermissions["project-manager"],
               });
             }
@@ -471,6 +471,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           title: task.title,
           description: task.description || "",
           project_id: task.projectId,
+          story_points: task.storyPoints || 0,
           status:
             task.status === "open"
               ? "TODO"
@@ -548,6 +549,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
             payload.priority === "critical"
               ? "URGENT"
               : payload.priority.toUpperCase();
+        }
+
+        if (payload.storyPoints !== undefined) {
+          payload.story_points = payload.storyPoints;
+          delete payload.storyPoints;
         }
 
         if (payload.assignee) {
@@ -634,12 +640,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         prev.map((task) =>
           task.id === taskId
             ? {
-                ...task,
-                assignee: user || undefined,
-                status:
-                  user && task.status === "open" ? "assigned" : task.status,
-                updatedAt: new Date().toISOString(),
-              }
+              ...task,
+              assignee: user || undefined,
+              status:
+                user && task.status === "open" ? "assigned" : task.status,
+              updatedAt: new Date().toISOString(),
+            }
             : task,
         ),
       );
@@ -699,11 +705,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         prev.map((task) =>
           ids.includes(task.id)
             ? {
-                ...task,
-                assignee: user,
-                status: task.status === "open" ? "assigned" : task.status,
-                updatedAt: new Date().toISOString(),
-              }
+              ...task,
+              assignee: user,
+              status: task.status === "open" ? "assigned" : task.status,
+              updatedAt: new Date().toISOString(),
+            }
             : task,
         ),
       );

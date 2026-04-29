@@ -85,6 +85,7 @@ export function mapBackendTask(backendTask: BackendTask): Task {
     priority: priorityMap[backendTask.priority] || 'medium',
     type: 'task',
     projectId: String(backendTask.project_id),
+    storyPoints: backendTask.story_points || 0,
     assignee: backendTask.assignee ? {
       id: String(backendTask.assignee.id),
       name: backendTask.assignee.name,
@@ -125,7 +126,9 @@ export function mapBackendTeam(backendTeam: BackendTeam): Team {
       avatar: m.avatar,
       role: (m.role || 'contributor') as UserRole
     })) : [],
-
+    projectIds: backendTeam.project_ids ? backendTeam.project_ids.map(String) : [],
+    velocity: 0,
+    capacity: 100,
   };
 }
 
