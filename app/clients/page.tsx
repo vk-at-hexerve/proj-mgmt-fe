@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useApp } from '@/lib/app-context';
-import { clients as initialClients } from '@/lib/mock-data';
 import type { Client, ClientType } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -59,9 +58,12 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+import { AppSidebar } from '@/components/layout/app-sidebar';
+import { AppHeader } from '@/components/layout/app-header';
+import { AICopilot } from '@/components/ai/ai-copilot';
+
 export default function ClientsPage() {
-  const { showToast } = useApp();
-  const [clients, setClients] = useState<Client[]>(initialClients);
+  const { clients, addClient, updateClient, deleteClient, openModal, showToast } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<ClientType | 'all'>('all');
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -123,28 +125,15 @@ export default function ClientsPage() {
     const now = new Date().toISOString().split('T')[0];
 
     if (editingClient) {
-      setClients(prev => prev.map(c =>
-        c.id === editingClient.id
-          ? { ...c, ...formData, updatedAt: now }
-          : c
-      ));
-      showToast({ title: 'Client updated', type: 'success' });
+      updateClient(editingClient.id, formData);
     } else {
-      const newClient: Client = {
-        id: `client-${Date.now()}`,
-        ...formData,
-        createdAt: now,
-        updatedAt: now,
-      };
-      setClients(prev => [...prev, newClient]);
-      showToast({ title: 'Client created', type: 'success' });
+      addClient(formData);
     }
     setDialogOpen(false);
   };
 
   const handleDeleteClient = (id: string) => {
-    setClients(prev => prev.filter(c => c.id !== id));
-    showToast({ title: 'Client deleted', type: 'success' });
+    deleteClient(id);
   };
 
   const getInitials = (name: string) => {
@@ -152,66 +141,66 @@ export default function ClientsPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-screen overflow-hidden">
-      {/* Header */}
-      <header className="flex items-center justify-between px-6 py-4 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div>
-          <h1 className="text-2xl font-semibold">Clients</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage external and internal clients for your projects
-          </p>
-        </div>
-        <Button onClick={() => handleOpenDialog()} className="gap-2">
-          <Plus className="size-4" />
-          Add Client
-        </Button>
-      </header>
-
-      {/* Stats */}
-      <div className="px-6 py-4 grid grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Users className="size-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-2xl font-semibold">{clients.length}</p>
-                <p className="text-sm text-muted-foreground">Total Clients</p>
-              </div>
+    <div className="flex h-screen bg-background">
+      <AppSidebar />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <AppHeader 
+          title="Clients" 
+          subtitle="Manage external and internal clients for your projects" 
+          actions={
+            <Button onClick={() => handleOpenDialog()} size="sm" className="gap-2">
+              <Plus className="size-4" />
+              Add Client
+            </Button>
+          }
+        />
+        <main className="flex-1 overflow-auto">
+          <div className="p-6">
+            {/* Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <Users className="size-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-semibold">{clients.length}</p>
+                      <p className="text-sm text-muted-foreground">Total Clients</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-blue-500/10">
+                      <ExternalLink className="size-5 text-blue-500" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-semibold">{externalClients.length}</p>
+                      <p className="text-sm text-muted-foreground">External Clients</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-green-500/10">
+                      <Building className="size-5 text-green-500" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-semibold">{internalClients.length}</p>
+                      <p className="text-sm text-muted-foreground">Internal Clients</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-500/10">
-                <ExternalLink className="size-5 text-blue-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-semibold">{externalClients.length}</p>
-                <p className="text-sm text-muted-foreground">External Clients</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-green-500/10">
-                <Building className="size-5 text-green-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-semibold">{internalClients.length}</p>
-                <p className="text-sm text-muted-foreground">Internal Clients</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Toolbar */}
-      <div className="flex items-center gap-4 px-6 py-3 border-b border-border">
+      <div className="flex items-center gap-4 py-3 border-b border-border">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
@@ -240,11 +229,15 @@ export default function ClientsPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="mt-6">
         {viewMode === 'grid' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredClients.map(client => (
-              <Card key={client.id} className="group hover:shadow-md transition-shadow">
+              <Card 
+                key={client.id} 
+                className="group hover:shadow-md transition-shadow cursor-pointer border-border/50 hover:border-primary/30"
+                onClick={() => openModal('client-detail', { clientId: client.id })}
+              >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
@@ -328,7 +321,11 @@ export default function ClientsPage() {
               </TableHeader>
               <TableBody>
                 {filteredClients.map(client => (
-                  <TableRow key={client.id}>
+                  <TableRow 
+                    key={client.id} 
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => openModal('client-detail', { clientId: client.id })}
+                  >
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Avatar className="size-8">
@@ -432,39 +429,36 @@ export default function ClientsPage() {
                 onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))}
               />
             </div>
-            {formData.type === 'external' && (
-              <>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="client-phone">Phone</Label>
-                    <Input
-                      id="client-phone"
-                      placeholder="+1 (555) 123-4567"
-                      value={formData.phone}
-                      onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="client-company">Company</Label>
-                    <Input
-                      id="client-company"
-                      placeholder="Company name"
-                      value={formData.company}
-                      onChange={(e) => setFormData(p => ({ ...p, company: e.target.value }))}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="client-address">Address</Label>
-                  <Input
-                    id="client-address"
-                    placeholder="Full address"
-                    value={formData.address}
-                    onChange={(e) => setFormData(p => ({ ...p, address: e.target.value }))}
-                  />
-                </div>
-              </>
-            )}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="client-phone">Phone</Label>
+                <Input
+                  id="client-phone"
+                  placeholder="+1 (555) 123-4567"
+                  value={formData.phone}
+                  onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="client-company">Company</Label>
+                <Input
+                  id="client-company"
+                  placeholder="Company name"
+                  value={formData.company}
+                  onChange={(e) => setFormData(p => ({ ...p, company: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="client-address">Address</Label>
+              <Textarea
+                id="client-address"
+                placeholder="Full address"
+                value={formData.address}
+                onChange={(e) => setFormData(p => ({ ...p, address: e.target.value }))}
+                rows={2}
+              />
+            </div>
             <div className="space-y-1.5">
               <Label htmlFor="client-notes">Notes</Label>
               <Textarea
@@ -487,6 +481,9 @@ export default function ClientsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </div>
+      </main>
     </div>
-  );
+  </div>
+);
 }

@@ -104,7 +104,7 @@ export interface CalendarEvent {
 
 export const generateCalendarEvents = (): CalendarEvent[] => {
   const events: CalendarEvent[] = [];
-  
+
   // Add task due dates
   tasks.forEach((task) => {
     if (task.dueDate) {
@@ -183,7 +183,7 @@ export interface GanttTask {
 
 export const generateGanttData = (): GanttTask[] => {
   const ganttTasks: GanttTask[] = [];
-  
+
   // Add projects as parent items
   projects.forEach((project) => {
     ganttTasks.push({
@@ -200,7 +200,7 @@ export const generateGanttData = (): GanttTask[] => {
   tasks.forEach((task) => {
     const createdDate = new Date(task.createdAt);
     const dueDate = task.dueDate ? new Date(task.dueDate) : new Date(createdDate.getTime() + 7 * 24 * 60 * 60 * 1000);
-    
+
     let progress = 0;
     switch (task.status) {
       case 'closed': progress = 100; break;
@@ -412,62 +412,7 @@ export const projectTemplates: ProjectTemplate[] = [
 ];
 
 // Clients
-export const clients: Client[] = [
-  {
-    id: 'client-1',
-    name: 'Acme Corporation',
-    email: 'contact@acme.com',
-    phone: '+1 (555) 123-4567',
-    company: 'Acme Corporation',
-    type: 'external',
-    address: '123 Business Ave, San Francisco, CA 94102',
-    notes: 'Enterprise client, primary contact: John Smith',
-    createdAt: '2025-06-15',
-    updatedAt: '2026-01-10',
-  },
-  {
-    id: 'client-2',
-    name: 'TechStart Inc',
-    email: 'hello@techstart.io',
-    phone: '+1 (555) 234-5678',
-    company: 'TechStart Inc',
-    type: 'external',
-    address: '456 Startup Blvd, Austin, TX 78701',
-    notes: 'Startup client, fast-paced projects',
-    createdAt: '2025-08-20',
-    updatedAt: '2026-01-15',
-  },
-  {
-    id: 'client-3',
-    name: 'Marketing Department',
-    email: 'marketing@internal.com',
-    type: 'internal',
-    notes: 'Internal marketing team projects',
-    createdAt: '2025-01-01',
-    updatedAt: '2025-01-01',
-  },
-  {
-    id: 'client-4',
-    name: 'HR Department',
-    email: 'hr@internal.com',
-    type: 'internal',
-    notes: 'Internal HR and operations projects',
-    createdAt: '2025-01-01',
-    updatedAt: '2025-01-01',
-  },
-  {
-    id: 'client-5',
-    name: 'Global Media Group',
-    email: 'projects@globalmedia.com',
-    phone: '+1 (555) 345-6789',
-    company: 'Global Media Group',
-    type: 'external',
-    address: '789 Media Center, New York, NY 10001',
-    notes: 'Media company, video and content projects',
-    createdAt: '2025-10-01',
-    updatedAt: '2026-01-18',
-  },
-];
+export const clients: Client[] = [];
 
 // Products for invoicing
 export const products: Product[] = [

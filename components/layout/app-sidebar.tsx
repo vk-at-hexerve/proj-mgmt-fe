@@ -4,7 +4,7 @@ import React from "react";
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/lib/app-context";
 import { Button } from "@/components/ui/button";
@@ -63,11 +63,6 @@ const mainNav: NavItem[] = [
     label: "Dashboard",
     href: "/",
     icon: <LayoutDashboard className="size-5" />,
-  },
-  {
-    label: "Project",
-    href: "/projects",
-    icon: <FolderKanban className="size-5" />,
   },
   { label: "My Tasks", href: "/tasks", icon: <ListTodo className="size-5" /> },
   {
@@ -132,6 +127,7 @@ const financeNav: NavItem[] = [
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const {
     setSearchOpen,
@@ -146,6 +142,9 @@ export function AppSidebar() {
     logoutAction,
     isMounted,
   } = useApp();
+
+  const [projectsExpanded, setProjectsExpanded] = useState(false);
+  const [showAllProjects, setShowAllProjects] = useState(false);
 
   const assignedTaskCount = appTasks.filter(
     (task: Task) => task.assignee?.id === currentUser?.id,
@@ -219,7 +218,10 @@ export function AppSidebar() {
                   <DropdownMenuItem
                     key={project.id}
                     className="gap-2"
-                    onClick={() => setCurrentProject(project.id)}
+                    onClick={() => {
+                      setCurrentProject(project.id);
+                      router.push("/projects");
+                    }}
                   >
                     <Badge variant="outline" className="font-mono text-xs">
                       {project.key}
@@ -259,7 +261,136 @@ export function AppSidebar() {
 
         {/* Main Navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
-          {mainNav.map((item) => {
+          {/* Dashboard (First in mainNav) */}
+          {mainNav.filter(i => i.label === "Dashboard").map((item) => {
+            const isActive = pathname === item.href;
+            const NavLink = (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                  isActive
+                    ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent",
+                  collapsed && "justify-center px-2",
+                )}
+              >
+                {item.icon}
+                {!collapsed && <span className="flex-1">{item.label}</span>}
+              </Link>
+            );
+            if (collapsed) {
+              return (
+                <Tooltip key={item.href}>
+                  <TooltipTrigger asChild>{NavLink}</TooltipTrigger>
+                  <TooltipContent side="right">
+                    <p>{item.label}</p>
+                  </TooltipContent>
+                </Tooltip>
+              );
+            }
+            return NavLink;
+          })}
+
+          {/* Expandable Project Menu */}
+          <div className="space-y-1">
+            <button
+              onClick={() => setProjectsExpanded(!projectsExpanded)}
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                pathname.startsWith("/projects")
+                  ? "bg-sidebar-accent text-sidebar-foreground"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent",
+                collapsed && "justify-center px-2",
+              )}
+            >
+              <FolderKanban className="size-5" />
+              {!collapsed && (
+                <>
+                  <span className="flex-1 text-left">Project</span>
+                  <ChevronDown
+                    className={cn(
+                      "size-4 transition-transform duration-200",
+                      projectsExpanded && "rotate-180",
+                    )}
+                  />
+                </>
+              )}
+            </button>
+
+            {!collapsed && projectsExpanded && (
+              <div className="mt-1 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden transition-all animate-in slide-in-from-top-2 duration-300">
+                <div
+                  className={cn(
+                    "p-1 space-y-0.5",
+                    showAllProjects && "max-h-60 overflow-y-auto custom-scrollbar"
+                  )}
+                >
+                  {(showAllProjects ? projects : projects.slice(0, 3)).map((project) => (<button
+                    key={project.id}
+                    onClick={() => {
+                      setCurrentProject(project.id);
+                      router.push("/projects");
+                    }}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all text-left group",
+                      currentProject === project.id
+                        ? "bg-[#6366F1] text-white shadow-md"
+                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 hover:shadow-sm",
+                    )}
+                  >
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "px-2 py-0.5 h-6 text-[10px] font-bold font-mono shrink-0 transition-colors",
+                        currentProject === project.id
+                          ? "bg-white/20 border-white/30 text-white shadow-none"
+                          : "bg-white border-slate-200 text-slate-700 shadow-sm group-hover:border-slate-400"
+                      )}
+                    >
+                      {project.key}
+                    </Badge>
+                    <span className="truncate tracking-tight font-semibold">{project.name}</span>
+                  </button>
+                  ))}
+                </div>
+
+                <div className="border-t border-slate-100 p-1.5 bg-slate-50/50">
+                  {!showAllProjects && projects.length > 3 && (
+                    <button
+                      onClick={() => setShowAllProjects(true)}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-500 hover:text-slate-900 hover:bg-slate-200/60 transition-all"
+                    >
+                      <Layers className="size-4 opacity-70" />
+                      View All Projects
+                    </button>
+                  )}
+                  {showAllProjects && (
+                    <button
+                      onClick={() => setShowAllProjects(false)}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-500 hover:text-slate-900 hover:bg-slate-200/60 transition-all"
+                    >
+                      <ChevronDown className="size-4 rotate-180 opacity-70" />
+                      Show Less
+                    </button>
+                  )}
+                  <button
+                    onClick={() => openModal("create-project")}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-200/60 hover:text-slate-900 transition-all whitespace-nowrap"
+                  >
+                    <Plus className="size-4" />
+                    Create New Project
+                  </button>
+                </div>
+              </div>
+            )}
+
+
+          </div>
+
+          {/* Remaining Main Navigation */}
+          {mainNav.filter(i => i.label !== "Dashboard").map((item) => {
             const isActive = pathname === item.href;
             const NavLink = (
               <Link
@@ -444,7 +575,7 @@ export function AppSidebar() {
                     alt={currentUser.name}
                   />
                   <AvatarFallback>
-                    {currentUser.name
+                    {(currentUser?.name || "User")
                       .split(" ")
                       .map((n) => n[0])
                       .join("")}

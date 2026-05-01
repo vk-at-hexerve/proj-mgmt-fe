@@ -149,6 +149,7 @@ export default function CalendarPage() {
         priority: taskPriority,
         status: 'open',
         projectId: projId,
+        startDate: startDate || undefined,
         dueDate: dueDate || undefined,
         reporter: currentUser || users[0],
         tags: [],
@@ -161,10 +162,13 @@ export default function CalendarPage() {
   const events = useMemo(() => {
     const calendarEvents: CalendarEvent[] = [];
 
-    // Add task due dates
+    // Add task dates
     tasks.forEach((task) => {
-      if (task.dueDate) {
-        const dueDate = new Date(task.dueDate);
+      // Use startDate if available, fallback to dueDate
+      const start = task.startDate ? new Date(task.startDate) : (task.dueDate ? new Date(task.dueDate) : null);
+      const end = task.dueDate ? new Date(task.dueDate) : (task.startDate ? new Date(task.startDate) : null);
+
+      if (start && end) {
         let color = '#3B82F6';
         let eventType: CalendarEvent['type'] = 'task';
 
@@ -178,10 +182,10 @@ export default function CalendarPage() {
         }
 
         calendarEvents.push({
-          id: `event-${task.id}`,
+          id: `event-task-${task.id}`,
           title: task.title,
-          start: dueDate,
-          end: dueDate,
+          start: start,
+          end: end,
           type: eventType,
           color: color,
           taskId: task.id,
@@ -193,18 +197,9 @@ export default function CalendarPage() {
     // Add sprint dates
     sprints.forEach((sprint) => {
       calendarEvents.push({
-        id: `event-sprint-${sprint.id}-start`,
-        title: `${sprint.name} Start`,
+        id: `event-sprint-${sprint.id}`,
+        title: sprint.name,
         start: new Date(sprint.startDate),
-        end: new Date(sprint.startDate),
-        type: 'sprint',
-        color: '#7B68EE',
-        projectId: sprint.projectId,
-      });
-      calendarEvents.push({
-        id: `event-sprint-${sprint.id}-end`,
-        title: `${sprint.name} End`,
-        start: new Date(sprint.endDate),
         end: new Date(sprint.endDate),
         type: 'sprint',
         color: '#7B68EE',
@@ -212,8 +207,15 @@ export default function CalendarPage() {
       });
     });
 
-    if (selectedProject === 'all') return calendarEvents;
-    return calendarEvents.filter(e => e.projectId === selectedProject);
+    return calendarEvents
+      .filter(e => selectedProject === 'all' || e.projectId === selectedProject)
+      .sort((a, b) => {
+        const startA = a.start.getTime();
+        const startB = b.start.getTime();
+        if (startA !== startB) return startA - startB;
+        // Longer events first for consistent stack
+        return (b.end.getTime() - b.start.getTime()) - (a.end.getTime() - a.start.getTime());
+      });
   }, [tasks, sprints, selectedProject]);
 
   const navigateMonth = (direction: number) => {
@@ -252,18 +254,26 @@ export default function CalendarPage() {
       days.push(new Date(year, month, i));
     }
 
+    // Add empty slots to complete the last week
+    while (days.length % 7 !== 0) {
+      days.push(null);
+    }
+
     return days;
   };
 
   const getEventsForDate = (date: Date | null): CalendarEvent[] => {
     if (!date) return [];
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+
     return events.filter(event => {
-      const eventDate = new Date(event.start);
-      return (
-        eventDate.getDate() === date.getDate() &&
-        eventDate.getMonth() === date.getMonth() &&
-        eventDate.getFullYear() === date.getFullYear()
-      );
+      const start = new Date(event.start);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(event.end);
+      end.setHours(23, 59, 59, 999);
+
+      return d >= start && d <= end;
     });
   };
 
@@ -311,6 +321,82 @@ export default function CalendarPage() {
       .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
       .slice(0, 5);
   }, [events]);
+
+  const weeks = useMemo(() => {
+    const w: (Date | null)[][] = [];
+    if (viewMode === 'month') {
+      const monthDays = getDaysInMonth(currentDate);
+      for (let i = 0; i < monthDays.length; i += 7) {
+        w.push(monthDays.slice(i, i + 7));
+      }
+    } else {
+      w.push(getWeekDays(currentDate));
+    }
+    return w;
+  }, [currentDate, viewMode]);
+
+  const getWeekEventSlots = (week: (Date | null)[]) => {
+    const startOfWeek = week.find(d => d !== null);
+    const endOfWeek = [...week].reverse().find(d => d !== null);
+    if (!startOfWeek || !endOfWeek) return [];
+
+    const weekEvents = events.filter(event => {
+      const start = new Date(event.start);
+      const end = new Date(event.end);
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+      const weekStart = new Date(startOfWeek);
+      weekStart.setHours(0, 0, 0, 0);
+      const weekEnd = new Date(endOfWeek);
+      weekEnd.setHours(23, 59, 59, 999);
+      return start <= weekEnd && end >= weekStart;
+    });
+
+    const slots: { event: CalendarEvent; startCol: number; endCol: number }[][] = [];
+
+    weekEvents.forEach(event => {
+      const eStart = new Date(event.start);
+      const eEnd = new Date(event.end);
+      const compareStart = new Date(eStart);
+      compareStart.setHours(0, 0, 0, 0);
+      const compareEnd = new Date(eEnd);
+      compareEnd.setHours(0, 0, 0, 0);
+
+      // Default to full week coverage if outside week boundaries
+      let startCol = 0;
+      let endCol = 6;
+
+      week.forEach((date, i) => {
+        if (date) {
+          const d = new Date(date);
+          d.setHours(0, 0, 0, 0);
+          if (d.getTime() === compareStart.getTime()) startCol = i;
+          if (d.getTime() === compareEnd.getTime()) endCol = i;
+        }
+      });
+
+      const weekStartBound = new Date(startOfWeek);
+      weekStartBound.setHours(0, 0, 0, 0);
+      const weekEndBound = new Date(endOfWeek);
+      weekEndBound.setHours(0, 0, 0, 0);
+
+      if (compareStart < weekStartBound) startCol = 0;
+      if (compareEnd > weekEndBound) endCol = 6;
+
+      let slotIndex = slots.findIndex(slot => {
+        return !slot.some(s => s.startCol <= endCol && s.endCol >= startCol);
+      });
+
+      if (slotIndex === -1) {
+        slotIndex = slots.length;
+        slots[slotIndex] = [];
+      }
+
+      slots[slotIndex].push({ event, startCol, endCol });
+    });
+
+    return slots;
+  };
 
   return (
     <div className="flex h-screen bg-background">
@@ -380,84 +466,121 @@ export default function CalendarPage() {
                   </CardHeader>
                   <CardContent>
                     {viewMode === 'month' && (
-                      <div className="grid grid-cols-7 gap-px bg-border rounded-lg overflow-hidden">
+                      <div className="flex flex-col bg-border rounded-lg overflow-hidden border border-border">
                         {/* Day headers */}
-                        {DAYS.map((day) => (
-                          <div
-                            key={day}
-                            className="bg-muted p-3 text-center text-sm font-medium text-muted-foreground"
-                          >
-                            {day}
-                          </div>
-                        ))}
-                        {/* Calendar days */}
-                        {days.map((date, index) => {
-                          const dayEvents = getEventsForDate(date);
-                          const today = isToday(date);
-
-                          return (
+                        <div className="grid grid-cols-7 bg-muted border-b border-border">
+                          {DAYS.map((day) => (
                             <div
-                              key={index}
-                              className={cn(
-                                'bg-card min-h-[120px] p-2 relative',
-                                !date && 'bg-muted/50',
-                                today && 'ring-2 ring-primary ring-inset'
-                              )}
+                              key={day}
+                              className="p-3 text-center text-sm font-medium text-muted-foreground"
                             >
-                              {date && (
-                                <>
-                                  <span
-                                    className={cn(
-                                      'inline-flex items-center justify-center size-7 rounded-full text-sm',
-                                      today && 'bg-primary text-primary-foreground font-semibold'
-                                    )}
-                                  >
-                                    {date.getDate()}
-                                  </span>
-                                  <div className="mt-1 space-y-1">
-                                    {dayEvents.slice(0, 3).map((event) => (
-                                      <Popover key={event.id}>
-                                        <PopoverTrigger asChild>
-                                          <button
-                                            className="w-full text-left text-xs px-1.5 py-0.5 rounded truncate flex items-center gap-1"
-                                            style={{ backgroundColor: `${event.color}20`, color: event.color }}
-                                          >
-                                            {getEventTypeIcon(event.type)}
-                                            <span className="truncate">{event.title}</span>
-                                          </button>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-72 p-3">
-                                          <div className="space-y-2">
-                                            <div className="flex items-center gap-2">
-                                              <div
-                                                className="size-3 rounded-full"
-                                                style={{ backgroundColor: event.color }}
-                                              />
-                                              <span className="font-medium">{event.title}</span>
-                                            </div>
-                                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                              <CalendarIcon className="size-4" />
-                                              {event.start.toLocaleDateString('en-US', {
-                                                weekday: 'long',
-                                                month: 'long',
-                                                day: 'numeric',
-                                              })}
-                                            </div>
-                                            <Badge variant="outline" className="capitalize">
-                                              {event.type}
-                                            </Badge>
-                                          </div>
-                                        </PopoverContent>
-                                      </Popover>
-                                    ))}
-                                    {dayEvents.length > 3 && (
-                                      <span className="text-xs text-muted-foreground px-1.5">
-                                        +{dayEvents.length - 3} more
+                              {day}
+                            </div>
+                          ))}
+                        </div>
+
+                        {weeks.map((week: (Date | null)[], weekIdx: number) => {
+                          const slots = getWeekEventSlots(week);
+                          return (
+                            <div key={weekIdx} className="grid grid-cols-7 relative min-h-[120px] bg-card border-b border-border last:border-b-0">
+                              {/* Background Cells */}
+                              {week.map((date: Date | null, dayIdx: number) => (
+                                <div
+                                  key={dayIdx}
+                                  className={cn(
+                                    "border-r border-border last:border-r-0 relative",
+                                    !date && "bg-muted/30"
+                                  )}
+                                >
+                                  {date && (
+                                    <div className="p-2 text-right">
+                                      <span
+                                        className={cn(
+                                          'inline-flex items-center justify-center size-7 rounded-full text-sm transition-colors',
+                                          isToday(date) ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground'
+                                        )}
+                                      >
+                                        {date.getDate()}
                                       </span>
-                                    )}
-                                  </div>
-                                </>
-                              )}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+
+                              {/* Events Layer */}
+                              <div className="absolute top-10 left-0 right-0 bottom-0 pointer-events-none px-1">
+                                <div className="grid grid-cols-7 gap-y-1">
+                                  {slots.map((slot, slotIdx) => (
+                                    <div key={slotIdx} className="contents">
+                                      {slot.map(({ event, startCol, endCol }, idx) => {
+                                        const isEventStart = week[startCol] && event.start.toDateString() === week[startCol]?.toDateString();
+                                        const isEventEnd = week[endCol] && event.end.toDateString() === week[endCol]?.toDateString();
+
+                                        return (
+                                          <div
+                                            key={`${event.id}-${idx}`}
+                                            className="pointer-events-auto"
+                                            style={{
+                                              gridColumnStart: startCol + 1,
+                                              gridColumnEnd: endCol + 2,
+                                              gridRowStart: slotIdx + 1
+                                            }}
+                                          >
+                                            <Popover>
+                                              <PopoverTrigger asChild>
+                                                <button
+                                                  className={cn(
+                                                    "w-full text-left text-[10px] px-2 py-1 truncate flex items-center gap-1.5 transition-all hover:brightness-95 shadow-sm",
+                                                    isEventStart ? "rounded-l-md ml-0.5" : "rounded-l-none",
+                                                    isEventEnd ? "rounded-r-md mr-0.5" : "rounded-r-none"
+                                                  )}
+                                                  style={{
+                                                    backgroundColor: `${event.color}`,
+                                                    color: 'white',
+                                                    marginTop: '1px'
+                                                  }}
+                                                >
+                                                  {getEventTypeIcon(event.type)}
+                                                  <span className="font-semibold truncate">{event.title}</span>
+                                                </button>
+                                              </PopoverTrigger>
+                                              <PopoverContent className="w-80 p-4 shadow-xl border-2" style={{ borderColor: event.color }}>
+                                                <div className="space-y-4">
+                                                  <div className="flex items-center justify-between">
+                                                    <Badge className="capitalize px-2 py-0.5" style={{ backgroundColor: event.color, color: 'white' }}>
+                                                      {event.type}
+                                                    </Badge>
+                                                    <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                                                      <Clock className="size-3.5" />
+                                                      <span>
+                                                        {event.start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} - {event.end.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                                      </span>
+                                                    </div>
+                                                  </div>
+                                                  <div className="space-y-1.5">
+                                                    <h4 className="font-bold text-base leading-tight">{event.title}</h4>
+                                                    {tasks.find(t => t.id === event.taskId)?.description && (
+                                                      <p className="text-sm text-muted-foreground leading-snug">
+                                                        {tasks.find(t => t.id === event.taskId)?.description}
+                                                      </p>
+                                                    )}
+                                                  </div>
+                                                  <div className="flex items-center gap-2.5 pt-3 border-t border-border mt-2">
+                                                    <div className="size-3 rounded-full shadow-inner" style={{ backgroundColor: event.color }} />
+                                                    <span className="text-xs font-semibold text-muted-foreground">
+                                                      {projects.find(p => p.id === event.projectId)?.name || 'Internal Project'}
+                                                    </span>
+                                                  </div>
+                                                </div>
+                                              </PopoverContent>
+                                            </Popover>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
                             </div>
                           );
                         })}
@@ -716,16 +839,27 @@ export default function CalendarPage() {
             </div>
 
             {eventType !== 'sprint' ? (
-              <div className="space-y-1">
-                <Label htmlFor="event-date">Due Date</Label>
-                <Input
-                  id="event-date"
-                  type="date"
-                  value={dueDate}
-                  min={getTodayDateInputValue()}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  required
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label htmlFor="event-start-date">Start Date</Label>
+                  <Input
+                    id="event-start-date"
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="event-date">Due Date</Label>
+                  <Input
+                    id="event-date"
+                    type="date"
+                    value={dueDate}
+                    min={startDate || getTodayDateInputValue()}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    required
+                  />
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-4">
