@@ -103,18 +103,22 @@ export default function TeamsClient() {
     <div className="flex h-screen bg-background">
       <AppSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <AppHeader 
-          title="Teams" 
-          subtitle="Manage and coordinate work across teams" 
-          actions={
-            <Button size="sm" className="gap-2" onClick={() => openModal('create-team')}>
-              <Plus className="size-4" />
-              New Team
-            </Button>
-          }
+        <AppHeader
+          title="Teams"
+          subtitle="Manage and coordinate work across teams"
         />
         <main className="flex-1 overflow-auto">
           <div className="p-6">
+            <div className="flex justify-end gap-2 mb-4">
+              <Button variant="outline" size="sm" className="gap-1" onClick={() => openModal('create-user')}>
+                <UserPlus className="size-4" />
+                Create User
+              </Button>
+              <Button size="sm" className="gap-1" onClick={() => openModal('create-team')}>
+                <Plus className="size-4" />
+                Create Team
+              </Button>
+            </div>
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <Card>

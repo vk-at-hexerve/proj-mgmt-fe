@@ -81,7 +81,7 @@ export default function ClientsPage() {
   });
 
   const filteredClients = clients.filter(client => {
-    const matchesSearch = 
+    const matchesSearch =
       client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       client.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
       client.company?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -144,18 +144,18 @@ export default function ClientsPage() {
     <div className="flex h-screen bg-background">
       <AppSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <AppHeader 
-          title="Clients" 
-          subtitle="Manage external and internal clients for your projects" 
-          actions={
-            <Button onClick={() => handleOpenDialog()} size="sm" className="gap-2">
-              <Plus className="size-4" />
-              Add Client
-            </Button>
-          }
+        <AppHeader
+          title="Clients"
+          subtitle="Manage external and internal clients for your projects"
         />
         <main className="flex-1 overflow-auto">
           <div className="p-6">
+            <div className="flex justify-end mb-4">
+              <Button onClick={() => handleOpenDialog()} size="sm" className="gap-1">
+                <Plus className="size-4" />
+                Create Client
+              </Button>
+            </div>
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <Card>
@@ -199,291 +199,291 @@ export default function ClientsPage() {
               </Card>
             </div>
 
-      {/* Toolbar */}
-      <div className="flex items-center gap-4 py-3 border-b border-border">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <Input
-            placeholder="Search clients..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as ClientType | 'all')}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="All Types" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="external">External</SelectItem>
-            <SelectItem value="internal">Internal</SelectItem>
-          </SelectContent>
-        </Select>
-        <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'grid' | 'table')} className="ml-auto">
-          <TabsList>
-            <TabsTrigger value="grid">Grid</TabsTrigger>
-            <TabsTrigger value="table">Table</TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
-
-      {/* Content */}
-      <div className="mt-6">
-        {viewMode === 'grid' ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredClients.map(client => (
-              <Card 
-                key={client.id} 
-                className="group hover:shadow-md transition-shadow cursor-pointer border-border/50 hover:border-primary/30"
-                onClick={() => openModal('client-detail', { clientId: client.id })}
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="size-10">
-                        <AvatarFallback className={cn(
-                          'text-sm font-medium',
-                          client.type === 'external' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
-                        )}>
-                          {getInitials(client.name)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0">
-                        <CardTitle className="text-base truncate">{client.name}</CardTitle>
-                        <Badge variant="outline" className={cn(
-                          'text-[10px] mt-1',
-                          client.type === 'external' ? 'border-blue-300 text-blue-600' : 'border-green-300 text-green-600'
-                        )}>
-                          {client.type}
-                        </Badge>
-                      </div>
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="size-8 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <MoreHorizontal className="size-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleOpenDialog(client)}>
-                          <Pencil className="size-4 mr-2" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => handleDeleteClient(client.id)} className="text-destructive">
-                          <Trash2 className="size-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-2 text-sm">
-                  {client.company && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Building2 className="size-3.5 shrink-0" />
-                      <span className="truncate">{client.company}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Mail className="size-3.5 shrink-0" />
-                    <span className="truncate">{client.email}</span>
-                  </div>
-                  {client.phone && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Phone className="size-3.5 shrink-0" />
-                      <span>{client.phone}</span>
-                    </div>
-                  )}
-                  {client.address && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <MapPin className="size-3.5 shrink-0" />
-                      <span className="truncate">{client.address}</span>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Company</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead className="w-10"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredClients.map(client => (
-                  <TableRow 
-                    key={client.id} 
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => openModal('client-detail', { clientId: client.id })}
-                  >
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Avatar className="size-8">
-                          <AvatarFallback className={cn(
-                            'text-xs',
-                            client.type === 'external' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
-                          )}>
-                            {getInitials(client.name)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="font-medium">{client.name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={cn(
-                        'text-xs capitalize',
-                        client.type === 'external' ? 'border-blue-300 text-blue-600' : 'border-green-300 text-green-600'
-                      )}>
-                        {client.type}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{client.company || '-'}</TableCell>
-                    <TableCell>{client.email}</TableCell>
-                    <TableCell>{client.phone || '-'}</TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="size-8">
-                            <MoreHorizontal className="size-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleOpenDialog(client)}>
-                            <Pencil className="size-4 mr-2" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => handleDeleteClient(client.id)} className="text-destructive">
-                            <Trash2 className="size-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
-        )}
-      </div>
-
-      {/* Create/Edit Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editingClient ? 'Edit Client' : 'Add New Client'}</DialogTitle>
-            <DialogDescription>
-              {editingClient ? 'Update client information' : 'Add a new external or internal client'}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="client-name">Name *</Label>
-              <Input
-                id="client-name"
-                placeholder="Client name"
-                value={formData.name}
-                onChange={(e) => setFormData(p => ({ ...p, name: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="client-type">Type *</Label>
-              <Select value={formData.type} onValueChange={(v) => setFormData(p => ({ ...p, type: v as ClientType }))}>
-                <SelectTrigger>
-                  <SelectValue />
+            {/* Toolbar */}
+            <div className="flex items-center gap-4 py-3 border-b border-border">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search clients..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as ClientType | 'all')}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="All Types" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="external">
-                    <div className="flex items-center gap-2">
-                      <ExternalLink className="size-4 text-blue-500" />
-                      External Client
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="internal">
-                    <div className="flex items-center gap-2">
-                      <Building className="size-4 text-green-500" />
-                      Internal Department
-                    </div>
-                  </SelectItem>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="external">External</SelectItem>
+                  <SelectItem value="internal">Internal</SelectItem>
                 </SelectContent>
               </Select>
+              <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'grid' | 'table')} className="ml-auto">
+                <TabsList>
+                  <TabsTrigger value="grid">Grid</TabsTrigger>
+                  <TabsTrigger value="table">Table</TabsTrigger>
+                </TabsList>
+              </Tabs>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="client-email">Email *</Label>
-              <Input
-                id="client-email"
-                type="email"
-                placeholder="client@example.com"
-                value={formData.email}
-                onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))}
-              />
+
+            {/* Content */}
+            <div className="mt-6">
+              {viewMode === 'grid' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {filteredClients.map(client => (
+                    <Card
+                      key={client.id}
+                      className="group hover:shadow-md transition-shadow cursor-pointer border-border/50 hover:border-primary/30"
+                      onClick={() => openModal('client-detail', { clientId: client.id })}
+                    >
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-3">
+                            <Avatar className="size-10">
+                              <AvatarFallback className={cn(
+                                'text-sm font-medium',
+                                client.type === 'external' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                              )}>
+                                {getInitials(client.name)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <CardTitle className="text-base truncate">{client.name}</CardTitle>
+                              <Badge variant="outline" className={cn(
+                                'text-[10px] mt-1',
+                                client.type === 'external' ? 'border-blue-300 text-blue-600' : 'border-green-300 text-green-600'
+                              )}>
+                                {client.type}
+                              </Badge>
+                            </div>
+                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="size-8 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <MoreHorizontal className="size-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleOpenDialog(client)}>
+                                <Pencil className="size-4 mr-2" />
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => handleDeleteClient(client.id)} className="text-destructive">
+                                <Trash2 className="size-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-2 text-sm">
+                        {client.company && (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Building2 className="size-3.5 shrink-0" />
+                            <span className="truncate">{client.company}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Mail className="size-3.5 shrink-0" />
+                          <span className="truncate">{client.email}</span>
+                        </div>
+                        {client.phone && (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Phone className="size-3.5 shrink-0" />
+                            <span>{client.phone}</span>
+                          </div>
+                        )}
+                        {client.address && (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <MapPin className="size-3.5 shrink-0" />
+                            <span className="truncate">{client.address}</span>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <Card>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Company</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Phone</TableHead>
+                        <TableHead className="w-10"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredClients.map(client => (
+                        <TableRow
+                          key={client.id}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => openModal('client-detail', { clientId: client.id })}
+                        >
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Avatar className="size-8">
+                                <AvatarFallback className={cn(
+                                  'text-xs',
+                                  client.type === 'external' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                                )}>
+                                  {getInitials(client.name)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="font-medium">{client.name}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={cn(
+                              'text-xs capitalize',
+                              client.type === 'external' ? 'border-blue-300 text-blue-600' : 'border-green-300 text-green-600'
+                            )}>
+                              {client.type}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{client.company || '-'}</TableCell>
+                          <TableCell>{client.email}</TableCell>
+                          <TableCell>{client.phone || '-'}</TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="size-8">
+                                  <MoreHorizontal className="size-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleOpenDialog(client)}>
+                                  <Pencil className="size-4 mr-2" />
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => handleDeleteClient(client.id)} className="text-destructive">
+                                  <Trash2 className="size-4 mr-2" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Card>
+              )}
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="client-phone">Phone</Label>
-                <Input
-                  id="client-phone"
-                  placeholder="+1 (555) 123-4567"
-                  value={formData.phone}
-                  onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="client-company">Company</Label>
-                <Input
-                  id="client-company"
-                  placeholder="Company name"
-                  value={formData.company}
-                  onChange={(e) => setFormData(p => ({ ...p, company: e.target.value }))}
-                />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="client-address">Address</Label>
-              <Textarea
-                id="client-address"
-                placeholder="Full address"
-                value={formData.address}
-                onChange={(e) => setFormData(p => ({ ...p, address: e.target.value }))}
-                rows={2}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="client-notes">Notes</Label>
-              <Textarea
-                id="client-notes"
-                placeholder="Additional notes..."
-                value={formData.notes}
-                onChange={(e) => setFormData(p => ({ ...p, notes: e.target.value }))}
-                rows={2}
-              />
-            </div>
+
+            {/* Create/Edit Dialog */}
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>{editingClient ? 'Edit Client' : 'Add New Client'}</DialogTitle>
+                  <DialogDescription>
+                    {editingClient ? 'Update client information' : 'Add a new external or internal client'}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="client-name">Name *</Label>
+                    <Input
+                      id="client-name"
+                      placeholder="Client name"
+                      value={formData.name}
+                      onChange={(e) => setFormData(p => ({ ...p, name: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="client-type">Type *</Label>
+                    <Select value={formData.type} onValueChange={(v) => setFormData(p => ({ ...p, type: v as ClientType }))}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="external">
+                          <div className="flex items-center gap-2">
+                            <ExternalLink className="size-4 text-blue-500" />
+                            External Client
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="internal">
+                          <div className="flex items-center gap-2">
+                            <Building className="size-4 text-green-500" />
+                            Internal Department
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="client-email">Email *</Label>
+                    <Input
+                      id="client-email"
+                      type="email"
+                      placeholder="client@example.com"
+                      value={formData.email}
+                      onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="client-phone">Phone</Label>
+                      <Input
+                        id="client-phone"
+                        placeholder="+1 (555) 123-4567"
+                        value={formData.phone}
+                        onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="client-company">Company</Label>
+                      <Input
+                        id="client-company"
+                        placeholder="Company name"
+                        value={formData.company}
+                        onChange={(e) => setFormData(p => ({ ...p, company: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="client-address">Address</Label>
+                    <Textarea
+                      id="client-address"
+                      placeholder="Full address"
+                      value={formData.address}
+                      onChange={(e) => setFormData(p => ({ ...p, address: e.target.value }))}
+                      rows={2}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="client-notes">Notes</Label>
+                    <Textarea
+                      id="client-notes"
+                      placeholder="Additional notes..."
+                      value={formData.notes}
+                      onChange={(e) => setFormData(p => ({ ...p, notes: e.target.value }))}
+                      rows={2}
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+                  <Button
+                    onClick={handleSaveClient}
+                    disabled={!formData.name.trim() || !formData.email.trim()}
+                  >
+                    {editingClient ? 'Update' : 'Create'} Client
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button
-              onClick={handleSaveClient}
-              disabled={!formData.name.trim() || !formData.email.trim()}
-            >
-              {editingClient ? 'Update' : 'Create'} Client
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
-  </div>
-);
+  );
 }

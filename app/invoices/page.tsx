@@ -92,7 +92,7 @@ export default function InvoicesPage() {
 
   const filteredInvoices = invoices.filter(inv => {
     const client = clients.find(c => c.id === inv.clientId);
-    const matchesSearch = 
+    const matchesSearch =
       inv.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
       client?.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'all' || inv.status === statusFilter;
@@ -181,12 +181,12 @@ export default function InvoicesPage() {
     if (editingInvoice) {
       setInvoices(prev => prev.map(inv =>
         inv.id === editingInvoice.id
-          ? { 
-              ...inv, 
-              ...formData, 
-              ...totals,
-              updatedAt: now 
-            }
+          ? {
+            ...inv,
+            ...formData,
+            ...totals,
+            updatedAt: now
+          }
           : inv
       ));
       showToast({ title: 'Invoice updated', type: 'success' });
@@ -239,18 +239,18 @@ export default function InvoicesPage() {
     <div className="flex h-screen bg-background">
       <AppSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <AppHeader 
-          title="Invoices" 
-          subtitle="Create and manage client invoices" 
-          actions={
-            <Button onClick={() => handleOpenDialog()} size="sm" className="gap-2">
-              <Plus className="size-4" />
-              Create Invoice
-            </Button>
-          }
+        <AppHeader
+          title="Invoices"
+          subtitle="Create and manage client invoices"
         />
         <main className="flex-1 overflow-auto">
           <div className="p-6">
+            <div className="flex justify-end mb-4">
+              <Button onClick={() => handleOpenDialog()} size="sm" className="gap-1">
+                <Plus className="size-4" />
+                Create Invoice
+              </Button>
+            </div>
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <Card>
@@ -507,8 +507,8 @@ export default function InvoicesPage() {
                             {formData.lineItems.map((item, index) => (
                               <TableRow key={item.id}>
                                 <TableCell>
-                                  <Select 
-                                    value={item.productId} 
+                                  <Select
+                                    value={item.productId}
                                     onValueChange={(v) => handleSelectProduct(index, v)}
                                   >
                                     <SelectTrigger className="h-8">
@@ -537,7 +537,7 @@ export default function InvoicesPage() {
                                     type="number"
                                     min="1"
                                     value={item.quantity}
-                                    onChange={(e) => handleUpdateLineItem(index, { 
+                                    onChange={(e) => handleUpdateLineItem(index, {
                                       quantity: parseInt(e.target.value) || 1,
                                       total: (parseInt(e.target.value) || 1) * item.unitPrice
                                     })}
@@ -550,7 +550,7 @@ export default function InvoicesPage() {
                                     min="0"
                                     step="0.01"
                                     value={item.unitPrice}
-                                    onChange={(e) => handleUpdateLineItem(index, { 
+                                    onChange={(e) => handleUpdateLineItem(index, {
                                       unitPrice: parseFloat(e.target.value) || 0,
                                       total: item.quantity * (parseFloat(e.target.value) || 0)
                                     })}

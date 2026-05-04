@@ -113,21 +113,18 @@ export default function ProgramsClient() {
     <div className="flex h-screen bg-background">
       <AppSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <AppHeader title="Programs" subtitle="Manage and track strategic program initiatives" />
+        <AppHeader
+          title="Programs"
+          subtitle="Manage and track strategic program initiatives"
+        />
         <main className="flex-1 overflow-auto">
           <div className="p-6">
-            {/* Page Header */}
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h1 className="text-2xl font-semibold text-foreground">Programs</h1>
-                <p className="text-muted-foreground">Manage and track strategic program initiatives</p>
-              </div>
-              <Button className="gap-2" onClick={() => openModal('create-program')}>
+            <div className="flex justify-end mb-4">
+              <Button size="sm" className="gap-1" onClick={() => openModal('create-program')}>
                 <Plus className="size-4" />
-                New Program
+                Create Program
               </Button>
             </div>
-
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <Card>
@@ -310,8 +307,8 @@ export default function ProgramsClient() {
                             <span className="text-muted-foreground">Budget</span>
                             <span className="font-medium">{formatCurrency(program.spent)} / {formatCurrency(program.budget)}</span>
                           </div>
-                          <Progress 
-                            value={budgetUsed} 
+                          <Progress
+                            value={budgetUsed}
                             className={cn('h-1.5', budgetUsed > 80 && '[&>div]:bg-warning')}
                           />
                         </div>

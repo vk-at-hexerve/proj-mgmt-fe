@@ -151,7 +151,7 @@ export default function TasksClient() {
 
   const saveColumnLabel = () => {
     if (editingColumn && editingLabel.trim()) {
-      setColumns(prev => prev.map(c => 
+      setColumns(prev => prev.map(c =>
         c.id === editingColumn ? { ...c, label: editingLabel.trim() } : c
       ));
     }
@@ -173,7 +173,7 @@ export default function TasksClient() {
     e.stopPropagation();
     const column = columns.find(c => c.id === columnId);
     if (!column) return;
-    
+
     setResizing(columnId);
     resizeStartX.current = e.clientX;
     resizeStartWidth.current = column.width;
@@ -181,7 +181,7 @@ export default function TasksClient() {
     const handleMouseMove = (e: MouseEvent) => {
       const diff = e.clientX - resizeStartX.current;
       const newWidth = Math.max(column.minWidth, resizeStartWidth.current + diff);
-      setColumns(prev => prev.map(c => 
+      setColumns(prev => prev.map(c =>
         c.id === columnId ? { ...c, width: newWidth } : c
       ));
     };
@@ -196,7 +196,7 @@ export default function TasksClient() {
     document.addEventListener('mouseup', handleMouseUp);
   }, [columns]);
 
-  const myTasks = tasks.filter(task => 
+  const myTasks = tasks.filter(task =>
     task.assignee?.id === currentUser.id
   );
 
@@ -213,12 +213,12 @@ export default function TasksClient() {
   const getHierarchicalTasks = () => {
     const parentTasks = filteredTasks.filter(t => !t.parentId);
     const subtaskMap = new Map<string, Task[]>();
-    
+
     filteredTasks.filter(t => t.parentId).forEach(subtask => {
       const existing = subtaskMap.get(subtask.parentId!) || [];
       subtaskMap.set(subtask.parentId!, [...existing, subtask]);
     });
-    
+
     return { parentTasks, subtaskMap };
   };
 
@@ -260,18 +260,18 @@ export default function TasksClient() {
 
   const handleInlineCreate = () => {
     if (!newTaskTitle.trim()) return;
-    
+
     const isSubtask = !!inlineSubtaskParent;
     const parentTask = isSubtask ? filteredTasks.find(t => t.id === inlineSubtaskParent) : null;
-    
+
     // Determine project ID - subtasks inherit from parent, otherwise use filter or default
-    const taskProjectId = isSubtask && parentTask 
-      ? parentTask.projectId 
+    const taskProjectId = isSubtask && parentTask
+      ? parentTask.projectId
       : (projectFilter !== 'all' ? projectFilter : 'proj-1');
-    
+
     // Subtasks inherit the parent's type and priority
     // If parent is epic, subtask becomes task; otherwise inherits parent type
-    const inheritedType = isSubtask && parentTask 
+    const inheritedType = isSubtask && parentTask
       ? (parentTask.type === 'epic' ? 'task' : parentTask.type === 'subtask' ? 'subtask' : parentTask.type)
       : newTaskType;
 
@@ -285,14 +285,14 @@ export default function TasksClient() {
       reporter: currentUser,
       tags: [],
     });
-    
+
     const project = projects.find((p: any) => p.id === taskProjectId);
-    showToast({ 
-      title: isSubtask ? 'Subtask created' : 'Task created', 
+    showToast({
+      title: isSubtask ? 'Subtask created' : 'Task created',
       description: `${newTaskTitle.trim()} added to ${project?.name || 'project'}`,
-      type: 'success' 
+      type: 'success'
     });
-    
+
     setNewTaskTitle('');
     setInlineCreateOpen(false);
     setInlineSubtaskParent(null);
@@ -333,10 +333,10 @@ export default function TasksClient() {
       const newColumns = [...prev];
       const draggedIndex = newColumns.findIndex(c => c.id === draggedColumn);
       const targetIndex = newColumns.findIndex(c => c.id === targetColumnId);
-      
+
       const [removed] = newColumns.splice(draggedIndex, 1);
       newColumns.splice(targetIndex, 0, removed);
-      
+
       return newColumns;
     });
 
@@ -431,7 +431,7 @@ export default function TasksClient() {
               )}
               <Button size="sm" className="gap-1" onClick={() => openModal('create-task')}>
                 <Plus className="size-4" />
-                New Task
+                Create Task
               </Button>
             </div>
           </div>
@@ -449,7 +449,7 @@ export default function TasksClient() {
                       />
                     </TableHead>
                     {columns.map((column) => (
-                      <TableHead 
+                      <TableHead
                         key={column.id}
                         style={{ width: column.width }}
                         className={cn(
@@ -483,23 +483,23 @@ export default function TasksClient() {
                               autoFocus
                             />
                           ) : (
-                            <div 
+                            <div
                               className="flex items-center gap-1 flex-1"
                               onClick={() => column.sortable && handleSort(column.id)}
                             >
                               <span className="text-xs font-medium">{column.label}</span>
                               {sortField === column.id && (
-                                sortDirection === 'asc' 
-                                  ? <ChevronUp className="size-3" /> 
+                                sortDirection === 'asc'
+                                  ? <ChevronUp className="size-3" />
                                   : <ChevronDown className="size-3" />
                               )}
                             </div>
                           )}
                           <Popover>
                             <PopoverTrigger asChild>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
+                              <Button
+                                variant="ghost"
+                                size="icon"
                                 className="size-5 opacity-0 group-hover:opacity-100 transition-opacity"
                               >
                                 <Pencil className="size-3" />
@@ -508,9 +508,9 @@ export default function TasksClient() {
                             <PopoverContent className="w-48 p-2" align="start">
                               <div className="space-y-2">
                                 <p className="text-xs font-medium text-muted-foreground">Column Options</p>
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
                                   className="w-full justify-start text-xs"
                                   onClick={() => startEditingColumn(column.id)}
                                 >
@@ -522,7 +522,7 @@ export default function TasksClient() {
                           </Popover>
                         </div>
                         {/* Resize handle */}
-                        <div 
+                        <div
                           className={cn(
                             'absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/50 transition-colors',
                             resizing === column.id && 'bg-primary'
@@ -592,10 +592,10 @@ export default function TasksClient() {
                       const taskSubtasks = subtaskMap.get(task.id) || [];
                       const isExpanded = expandedTasks.has(task.id);
                       const hasChildren = taskSubtasks.length > 0;
-                      
+
                       return (
                         <React.Fragment key={task.id}>
-                          <TableRow 
+                          <TableRow
                             className={cn(
                               'cursor-pointer hover:bg-muted/50 group',
                               isSelected && 'bg-primary/5'
@@ -693,7 +693,7 @@ export default function TasksClient() {
                             </TableCell>
                             <TableCell style={{ width: columns[8].width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
                               {task.assignee ? (
-                                <div 
+                                <div
                                   className="flex items-center gap-2 cursor-pointer"
                                   onClick={() => openModal('assign-task', { taskId: task.id })}
                                 >
@@ -706,7 +706,7 @@ export default function TasksClient() {
                                   <span className="text-sm truncate">{task.assignee.name}</span>
                                 </div>
                               ) : (
-                                <span 
+                                <span
                                   className="text-muted-foreground cursor-pointer hover:text-primary"
                                   onClick={() => openModal('assign-task', { taskId: task.id })}
                                 >
@@ -756,7 +756,7 @@ export default function TasksClient() {
                               </DropdownMenu>
                             </TableCell>
                           </TableRow>
-                          
+
                           {/* Render Subtasks when expanded */}
                           {isExpanded && taskSubtasks.map((subtask) => {
                             const subtaskProject = projects.find((p: any) => p.id === subtask.projectId);
@@ -764,7 +764,7 @@ export default function TasksClient() {
                             const isSubtaskSelected = selectedTasks.includes(subtask.id);
 
                             return (
-                              <TableRow 
+                              <TableRow
                                 key={subtask.id}
                                 className={cn(
                                   'cursor-pointer hover:bg-muted/50 group bg-muted/20',
@@ -840,7 +840,7 @@ export default function TasksClient() {
                                 </TableCell>
                                 <TableCell style={{ width: columns[8].width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
                                   {subtask.assignee ? (
-                                    <div 
+                                    <div
                                       className="flex items-center gap-2 cursor-pointer"
                                       onClick={() => openModal('assign-task', { taskId: subtask.id })}
                                     >
@@ -853,7 +853,7 @@ export default function TasksClient() {
                                       <span className="text-sm truncate">{subtask.assignee.name}</span>
                                     </div>
                                   ) : (
-                                    <span 
+                                    <span
                                       className="text-muted-foreground cursor-pointer hover:text-primary"
                                       onClick={() => openModal('assign-task', { taskId: subtask.id })}
                                     >
@@ -956,7 +956,7 @@ export default function TasksClient() {
                       </TableCell>
                     </TableRow>
                   )}
-                  
+
                   {/* Also show orphaned subtasks (subtasks whose parents are filtered out) */}
                   {filteredTasks.filter(t => t.parentId && !parentTasks.find(p => p.id === t.parentId)).map(subtask => {
                     const subtaskProject = projects.find(p => p.id === subtask.projectId);
@@ -965,7 +965,7 @@ export default function TasksClient() {
                     const parentTask = tasks.find(t => t.id === subtask.parentId);
 
                     return (
-                      <TableRow 
+                      <TableRow
                         key={subtask.id}
                         className={cn(
                           'cursor-pointer hover:bg-muted/50 group bg-muted/10',
@@ -1044,7 +1044,7 @@ export default function TasksClient() {
                         </TableCell>
                         <TableCell style={{ width: columns[8].width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
                           {subtask.assignee ? (
-                            <div 
+                            <div
                               className="flex items-center gap-2 cursor-pointer"
                               onClick={() => openModal('assign-task', { taskId: subtask.id })}
                             >
@@ -1057,7 +1057,7 @@ export default function TasksClient() {
                               <span className="text-sm truncate">{subtask.assignee.name}</span>
                             </div>
                           ) : (
-                            <span 
+                            <span
                               className="text-muted-foreground cursor-pointer hover:text-primary"
                               onClick={() => openModal('assign-task', { taskId: subtask.id })}
                             >
@@ -1092,15 +1092,15 @@ export default function TasksClient() {
                       </TableRow>
                     );
                   })}
-                  
+
                   {/* Add New Task Row - Always Last */}
                   {!inlineCreateOpen && !inlineSubtaskParent && (
-                    <TableRow 
+                    <TableRow
                       className="hover:bg-muted/30 cursor-pointer border-t border-border"
                       onClick={() => setInlineCreateOpen(true)}
                     >
                       <TableCell colSpan={columns.length + 2} className="py-3">
-                        <div className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors">
+                        <div className="flex items-center gap-1 text-muted-foreground hover:text-primary transition-colors">
                           <Plus className="size-4" />
                           <span className="text-sm">Add new task...</span>
                         </div>
@@ -1111,7 +1111,7 @@ export default function TasksClient() {
               </Table>
             </div>
           </div>
-          
+
           {/* Footer */}
           <div className="px-4 py-2 border-t border-border bg-muted/30 flex items-center justify-between text-sm text-muted-foreground shrink-0">
             <span>{filteredTasks.length} tasks</span>

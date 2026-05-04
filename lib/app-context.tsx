@@ -81,6 +81,7 @@ type ModalType =
   | "resource-allocation"
   | "user-profile"
   | "client-detail"
+  | "create-user"
   | null;
 
 interface ModalState {
@@ -165,6 +166,9 @@ interface AppContextType extends AppState {
   addTeamMember: (teamId: string, userId: string) => void;
   removeTeamMember: (teamId: string, userId: string) => void;
   setTeamLead: (teamId: string, userId: string) => void;
+
+  // User actions
+  addUser: (user: { name: string; email: string; password: string; role?: string }) => Promise<User>;
 
   // Program actions
   addProgram: (program: Omit<Program, "id">) => void;
@@ -489,6 +493,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           story_points: task.storyPoints || 0,
           start_date: task.startDate || null,
           due_date: task.dueDate || null,
+          sprint_id: task.sprintId || null,
           status:
             task.status === "open"
               ? "TODO"
@@ -1053,9 +1058,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const addTeamMember = useCallback(
-    (teamId: string, userId: string) => {
+    async (teamId: string, userId: string) => {
       const user = users.find((u) => u.id === userId);
       if (!user) return;
+
+      // Optimistic UI update
       setTeams((prev) =>
         prev.map((team) =>
           team.id === teamId && !team.members.some((m) => m.id === userId)
@@ -1063,18 +1070,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
             : team,
         ),
       );
-      showToast({
-        title: "Member added",
-        description: user.name,
-        type: "success",
-      });
+
+      try {
+        const { fetchAPI } = await import("./api");
+        await fetchAPI(`/teams/${teamId}/members/${userId}`, {
+          method: "POST",
+        });
+        showToast({
+          title: "Member added",
+          description: user.name,
+          type: "success",
+        });
+      } catch (err) {
+        // Rollback on failure
+        setTeams((prev) =>
+          prev.map((team) =>
+            team.id === teamId
+              ? { ...team, members: team.members.filter((m) => m.id !== userId) }
+              : team,
+          ),
+        );
+        showToast({ title: "Failed to add member", type: "error" });
+      }
     },
     [users, showToast],
   );
 
   const removeTeamMember = useCallback(
-    (teamId: string, userId: string) => {
+    async (teamId: string, userId: string) => {
       const user = users.find((u) => u.id === userId);
+
+      // Optimistic UI update
       setTeams((prev) =>
         prev.map((team) =>
           team.id === teamId
@@ -1082,11 +1108,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
             : team,
         ),
       );
-      showToast({
-        title: "Member removed",
-        description: user?.name,
-        type: "success",
-      });
+
+      try {
+        const { fetchAPI } = await import("./api");
+        await fetchAPI(`/teams/${teamId}/members/${userId}`, {
+          method: "DELETE",
+        });
+        showToast({
+          title: "Member removed",
+          description: user?.name,
+          type: "success",
+        });
+      } catch (err) {
+        // Rollback on failure
+        if (user) {
+          setTeams((prev) =>
+            prev.map((team) =>
+              team.id === teamId
+                ? { ...team, members: [...team.members, user] }
+                : team,
+            ),
+          );
+        }
+        showToast({ title: "Failed to remove member", type: "error" });
+      }
     },
     [users, showToast],
   );
@@ -1107,6 +1152,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
     },
     [users, showToast],
+  );
+
+  // User actions
+  const addUser = useCallback(
+    async (userData: { name: string; email: string; password: string; role?: string }) => {
+      try {
+        const { fetchAPI } = await import("./api");
+        const savedUser = await fetchAPI("/users", {
+          method: "POST",
+          body: JSON.stringify({
+            name: userData.name,
+            email: userData.email,
+            password: userData.password,
+            role: userData.role || "MEMBER",
+          }),
+        });
+        const newUser: User = {
+          id: String(savedUser.id),
+          name: savedUser.name,
+          email: savedUser.email,
+          role: (savedUser.role?.toLowerCase()?.replace('_', '-') || 'contributor') as any,
+        };
+        setUsers((prev) => [...prev, newUser]);
+        showToast({
+          title: "User created",
+          description: savedUser.name,
+          type: "success",
+        });
+        return newUser;
+      } catch (error: any) {
+        showToast({
+          title: "User creation failed",
+          description: error.message || "An unexpected error occurred",
+          type: "error",
+        });
+        throw error;
+      }
+    },
+    [showToast],
   );
 
   // Program actions
@@ -1493,6 +1577,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addTeamMember,
     removeTeamMember,
     setTeamLead,
+    // User actions
+    addUser,
     // Program actions
     addProgram,
     updateProgram,

@@ -405,12 +405,6 @@ export default function CalendarPage() {
         <AppHeader
           title="Calendar"
           subtitle="View and manage your schedule"
-          actions={
-            <Button size="sm" className="gap-1" onClick={handleOpenModal}>
-              <Plus className="size-4" />
-              Add Event
-            </Button>
-          }
         />
         <main className="flex-1 overflow-auto">
           <div className="p-6">
@@ -682,6 +676,17 @@ export default function CalendarPage() {
 
               {/* Sidebar */}
               <div className="space-y-6">
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    className="gap-1 shadow-sm transition-all hover:shadow-md active:scale-[0.98]"
+                    onClick={handleOpenModal}
+                  >
+                    <Plus className="size-4" />
+                    Create Event
+                  </Button>
+                </div>
+
                 {/* Mini Calendar */}
                 <Card>
                   <CardHeader className="pb-2">

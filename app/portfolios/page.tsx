@@ -59,7 +59,7 @@ export default function PortfoliosPage() {
 
   const currentPortfolio = portfolios.find(p => p.id === selectedPortfolio) || portfolios[0];
   const portfolioPrograms = programs.filter(p => currentPortfolio?.programIds?.includes(p.id));
-  const portfolioProjects = portfolioPrograms.flatMap((prog: any) => 
+  const portfolioProjects = portfolioPrograms.flatMap((prog: any) =>
     projects.filter(p => prog.projectIds?.includes(p.id))
   );
 
@@ -72,21 +72,18 @@ export default function PortfoliosPage() {
     <div className="flex h-screen bg-background">
       <AppSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <AppHeader title="Portfolios" subtitle="Strategic overview of all investment portfolios" />
+        <AppHeader
+          title="Portfolios"
+          subtitle="Strategic overview of all investment portfolios"
+        />
         <main className="flex-1 overflow-auto">
           <div className="p-6">
-            {/* Page Header */}
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h1 className="text-2xl font-semibold text-foreground">Portfolios</h1>
-                <p className="text-muted-foreground">Strategic overview of all investment portfolios</p>
-              </div>
-              <Button className="gap-2" onClick={() => openModal('create-portfolio')}>
+            <div className="flex justify-end mb-4">
+              <Button size="sm" className="gap-1" onClick={() => openModal('create-portfolio')}>
                 <Plus className="size-4" />
-                New Portfolio
+                Create Portfolio
               </Button>
             </div>
-
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <Card>
@@ -155,7 +152,7 @@ export default function PortfoliosPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
               {portfolios.map((portfolio) => {
                 const pPrograms = programs.filter(p => portfolio.programIds.includes(p.id));
-                const pProjects = pPrograms.flatMap(prog => 
+                const pProjects = pPrograms.flatMap(prog =>
                   projects.filter(p => prog.projectIds.includes(p.id))
                 );
                 const budgetUsed = (portfolio.spent / portfolio.budget) * 100;
@@ -215,8 +212,8 @@ export default function PortfoliosPage() {
                           <span className="font-medium">{Math.round(budgetUsed)}%</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Progress 
-                            value={budgetUsed} 
+                          <Progress
+                            value={budgetUsed}
                             className={cn('h-2 flex-1', budgetUsed > 80 && '[&>div]:bg-warning')}
                           />
                         </div>
@@ -282,7 +279,7 @@ export default function PortfoliosPage() {
                       <div className="space-y-4">
                         {portfolioPrograms.map((program) => {
                           const programProjects = projects.filter(p => program.projectIds.includes(p.id));
-                          
+
                           return (
                             <div
                               key={program.id}

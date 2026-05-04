@@ -86,12 +86,12 @@ export default function ProductsPage() {
   });
 
   const filteredProducts = products.filter(product => {
-    const matchesSearch = 
+    const matchesSearch =
       product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       product.description?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter;
-    const matchesStatus = 
-      statusFilter === 'all' || 
+    const matchesStatus =
+      statusFilter === 'all' ||
       (statusFilter === 'active' && product.isActive) ||
       (statusFilter === 'inactive' && !product.isActive);
     return matchesSearch && matchesCategory && matchesStatus;
@@ -99,8 +99,8 @@ export default function ProductsPage() {
 
   const activeProducts = products.filter(p => p.isActive);
   const totalProducts = products.length;
-  const avgPrice = products.length > 0 
-    ? products.reduce((sum, p) => sum + p.unitPrice, 0) / products.length 
+  const avgPrice = products.length > 0
+    ? products.reduce((sum, p) => sum + p.unitPrice, 0) / products.length
     : 0;
 
   const handleOpenDialog = (product?: Product) => {
@@ -138,17 +138,17 @@ export default function ProductsPage() {
     if (editingProduct) {
       setProducts(prev => prev.map(p =>
         p.id === editingProduct.id
-          ? { 
-              ...p, 
-              name: formData.name.trim(),
-              description: formData.description.trim() || undefined,
-              unitPrice: parseFloat(formData.unitPrice),
-              unit: formData.unit,
-              taxRate: parseFloat(formData.taxRate),
-              category: formData.category || undefined,
-              isActive: formData.isActive,
-              updatedAt: now 
-            }
+          ? {
+            ...p,
+            name: formData.name.trim(),
+            description: formData.description.trim() || undefined,
+            unitPrice: parseFloat(formData.unitPrice),
+            unit: formData.unit,
+            taxRate: parseFloat(formData.taxRate),
+            category: formData.category || undefined,
+            isActive: formData.isActive,
+            updatedAt: now
+          }
           : p
       ));
       showToast({ title: 'Product updated', type: 'success' });
@@ -176,9 +176,9 @@ export default function ProductsPage() {
       p.id === id ? { ...p, isActive: !p.isActive, updatedAt: new Date().toISOString().split('T')[0] } : p
     ));
     const product = products.find(p => p.id === id);
-    showToast({ 
-      title: product?.isActive ? 'Product deactivated' : 'Product activated', 
-      type: 'success' 
+    showToast({
+      title: product?.isActive ? 'Product deactivated' : 'Product activated',
+      type: 'success'
     });
   };
 
@@ -195,18 +195,18 @@ export default function ProductsPage() {
     <div className="flex h-screen bg-background">
       <AppSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <AppHeader 
-          title="Products & Services" 
-          subtitle="Manage products and services for invoicing" 
-          actions={
-            <Button onClick={() => handleOpenDialog()} size="sm" className="gap-2">
-              <Plus className="size-4" />
-              Add Product
-            </Button>
-          }
+        <AppHeader
+          title="Products & Services"
+          subtitle="Manage products and services for invoicing"
         />
         <main className="flex-1 overflow-auto">
           <div className="p-6">
+            <div className="flex justify-end mb-4">
+              <Button onClick={() => handleOpenDialog()} size="sm" className="gap-1">
+                <Plus className="size-4" />
+                Create Product
+              </Button>
+            </div>
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <Card>
@@ -330,12 +330,12 @@ export default function ProductsPage() {
                           <TableCell className="text-right font-medium">{formatCurrency(product.unitPrice)}</TableCell>
                           <TableCell className="text-right">{product.taxRate}%</TableCell>
                           <TableCell>
-                            <Badge 
-                              variant="outline" 
+                            <Badge
+                              variant="outline"
                               className={cn(
                                 'text-xs gap-1',
-                                product.isActive 
-                                  ? 'bg-green-100 text-green-700 border-green-300 dark:bg-green-900/40 dark:text-green-300' 
+                                product.isActive
+                                  ? 'bg-green-100 text-green-700 border-green-300 dark:bg-green-900/40 dark:text-green-300'
                                   : 'bg-gray-100 text-gray-500 border-gray-300 dark:bg-gray-800 dark:text-gray-400'
                               )}
                             >
@@ -422,12 +422,12 @@ export default function ProductsPage() {
                           <span className="text-muted-foreground capitalize">/{product.unit}</span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <Badge 
-                            variant="outline" 
+                          <Badge
+                            variant="outline"
                             className={cn(
                               'text-[10px] gap-1',
-                              product.isActive 
-                                ? 'bg-green-100 text-green-700 border-green-300' 
+                              product.isActive
+                                ? 'bg-green-100 text-green-700 border-green-300'
                                 : 'bg-gray-100 text-gray-500 border-gray-300'
                             )}
                           >

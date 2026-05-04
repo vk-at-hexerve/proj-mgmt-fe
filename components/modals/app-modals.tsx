@@ -62,6 +62,8 @@ import type {
   ClientType,
   Client,
   Team,
+  User,
+  UserRole,
 } from "@/lib/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -101,6 +103,11 @@ import {
   Building2,
   Globe,
   Calendar,
+  Plus,
+  UserPlus,
+  Eye,
+  EyeOff,
+  Shield,
 } from "lucide-react";
 
 const getTodayDateInputValue = () => {
@@ -147,6 +154,7 @@ export function AppModals() {
     addPortfolio,
     addTimeEntry,
     addProject,
+    addUser,
     users,
     projects,
     portfolios,
@@ -337,6 +345,11 @@ export function AppModals() {
     return <CreateSprintModal onClose={closeModal} onSubmit={addSprint} />;
   }
 
+  // Create User Modal
+  if (modal.type === "create-user") {
+    return <CreateUserModal onClose={closeModal} onSubmit={addUser} />;
+  }
+
   return null;
 }
 
@@ -350,7 +363,8 @@ function CreateTaskModal({
   onSubmit: (task: Parameters<ReturnType<typeof useApp>["addTask"]>[0]) => void;
   projectId?: string;
 }) {
-  const { projects, users } = useApp();
+  const { projects, users, sprints } = useApp();
+  const [sprint, setSprint] = useState<string>("no-sprint");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState<"task" | "bug" | "story" | "epic">("task");
@@ -396,6 +410,7 @@ function CreateTaskModal({
       storyPoints: storyPoints ? parseInt(storyPoints) : undefined,
       startDate: startDate || undefined,
       dueDate: dueDate || undefined,
+      sprintId: sprint === "no-sprint" ? undefined : sprint,
       tags: [],
     });
     onClose();
@@ -487,6 +502,25 @@ function CreateTaskModal({
                       </span>
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Sprint</Label>
+              <Select value={sprint} onValueChange={setSprint}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Backlog / No Sprint" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="no-sprint">Backlog / No Sprint</SelectItem>
+                  {sprints
+                    .filter((s) => s.status === "active" && (!s.projectId || s.projectId === project))
+                    .map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -3423,7 +3457,158 @@ function LogTimeModal({
   );
 }
 
-// Add Member Modal Component
+// Create User Modal Component - Reusable for standalone and inline flows
+function CreateUserModal({
+  onClose,
+  onSubmit,
+  onUserCreated,
+}: {
+  onClose: () => void;
+  onSubmit: (user: { name: string; email: string; password: string; role?: string }) => Promise<User>;
+  onUserCreated?: (user: User) => void;
+}) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState("MEMBER");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+    if (!name.trim()) newErrors.name = "Name is required";
+    if (!email.trim()) newErrors.email = "Email is required";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = "Invalid email format";
+    if (!password) newErrors.password = "Password is required";
+    else if (password.length < 6) newErrors.password = "Password must be at least 6 characters";
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validate()) return;
+
+    setIsSubmitting(true);
+    try {
+      const newUser = await onSubmit({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password,
+        role,
+      });
+      onUserCreated?.(newUser);
+      onClose();
+    } catch {
+      // Error handling is done in the onSubmit (context-level toast)
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <UserPlus className="size-5" />
+            Create New User
+          </DialogTitle>
+          <DialogDescription>
+            Create a new user account. The user will be available for team assignment.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="user-name">Full Name *</Label>
+            <Input
+              id="user-name"
+              placeholder="e.g., John Doe"
+              value={name}
+              onChange={(e) => { setName(e.target.value); setErrors((p) => ({ ...p, name: "" })); }}
+              autoFocus
+              aria-invalid={!!errors.name}
+            />
+            {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="user-email">Email Address *</Label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <Input
+                id="user-email"
+                type="email"
+                placeholder="user@example.com"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); setErrors((p) => ({ ...p, email: "" })); }}
+                className="pl-9"
+                aria-invalid={!!errors.email}
+              />
+            </div>
+            {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="user-password">Password *</Label>
+            <div className="relative">
+              <Input
+                id="user-password"
+                type={showPassword ? "text" : "password"}
+                placeholder="Minimum 6 characters"
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); setErrors((p) => ({ ...p, password: "" })); }}
+                aria-invalid={!!errors.password}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 -translate-y-1/2 size-8"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </Button>
+            </div>
+            {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="user-role">
+              <span className="flex items-center gap-1.5">
+                <Shield className="size-3.5" />
+                Role
+              </span>
+            </Label>
+            <Select value={role} onValueChange={setRole}>
+              <SelectTrigger id="user-role">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ADMIN">Admin</SelectItem>
+                <SelectItem value="MANAGER">Manager</SelectItem>
+                <SelectItem value="MEMBER">Member</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting} className="gap-2">
+              {isSubmitting && <Loader2 className="size-4 animate-spin" />}
+              {isSubmitting ? "Creating..." : "Create User"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Add Member Modal Component - Enhanced with inline user creation
 function AddMemberModal({
   teamId,
   onClose,
@@ -3431,14 +3616,22 @@ function AddMemberModal({
   teamId: string;
   onClose: () => void;
 }) {
-  const { getTeam, addTeamMember, teams, users } = useApp();
+  const { getTeam, addTeamMember, addUser, teams, users } = useApp();
   const team = getTeam(teamId);
   const [selectedUser, setSelectedUser] = useState<string>("");
+  const [showCreateUser, setShowCreateUser] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   if (!team) return null;
 
   const availableUsers = users.filter(
     (u) => !team.members.some((m) => m.id === u.id),
+  );
+
+  const filteredUsers = availableUsers.filter(
+    (u) =>
+      u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      u.email.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   const handleAdd = () => {
@@ -3448,49 +3641,106 @@ function AddMemberModal({
     }
   };
 
+  const handleUserCreated = (newUser: User) => {
+    // The user is now in the global users state via addUser
+    // Auto-select the newly created user
+    setSelectedUser(newUser.id);
+    setShowCreateUser(false);
+    setSearchQuery("");
+  };
+
+  // Show the inline Create User modal as a stacked overlay
+  if (showCreateUser) {
+    return (
+      <CreateUserModal
+        onClose={() => setShowCreateUser(false)}
+        onSubmit={addUser}
+        onUserCreated={handleUserCreated}
+      />
+    );
+  }
+
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Add Team Member</DialogTitle>
-          <DialogDescription>Add a member to {team.name}</DialogDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <DialogTitle>Add Team Member</DialogTitle>
+              <DialogDescription>Add a member to {team.name}</DialogDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 shrink-0"
+              onClick={() => setShowCreateUser(true)}
+            >
+              <UserPlus className="size-3.5" />
+              Create User
+            </Button>
+          </div>
         </DialogHeader>
 
-        <div className="space-y-3 py-4">
-          {availableUsers.length > 0 ? (
-            availableUsers.map((user) => (
-              <button
-                key={user.id}
-                type="button"
-                onClick={() => setSelectedUser(user.id)}
-                className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${selectedUser === user.id
-                  ? "border-primary bg-primary/5"
-                  : "border-border hover:bg-muted"
-                  }`}
-              >
-                <Avatar className="size-8">
-                  <AvatarImage src={user.avatar || "/placeholder.svg"} />
-                  <AvatarFallback>
-                    {user.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="text-left">
-                  <p className="font-medium text-sm">{user.name}</p>
-                  <p className="text-xs text-muted-foreground capitalize">
+        {availableUsers.length > 3 && (
+          <div className="relative">
+            <Input
+              placeholder="Search users..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+            <Users className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          </div>
+        )}
+
+        <ScrollArea className={availableUsers.length > 5 ? "h-[280px]" : ""}>
+          <div className="space-y-2 py-2">
+            {filteredUsers.length > 0 ? (
+              filteredUsers.map((user) => (
+                <button
+                  key={user.id}
+                  type="button"
+                  onClick={() => setSelectedUser(user.id)}
+                  className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${selectedUser === user.id
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:bg-muted"
+                    }`}
+                >
+                  <Avatar className="size-8">
+                    <AvatarImage src={user.avatar || "/placeholder.svg"} />
+                    <AvatarFallback>
+                      {user.name
+                        .split(" ")
+                        .map((n) => n[0])
+                        .join("")}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="text-left flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{user.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                  </div>
+                  <Badge variant="outline" className="text-[10px] capitalize shrink-0">
                     {user.role?.replace("-", " ") || "Contributor"}
-                  </p>
-                </div>
-              </button>
-            ))
-          ) : (
-            <p className="text-center text-muted-foreground py-4">
-              All users are already team members
-            </p>
-          )}
-        </div>
+                  </Badge>
+                </button>
+              ))
+            ) : availableUsers.length === 0 ? (
+              <div className="text-center py-6">
+                <Users className="size-10 mx-auto mb-2 text-muted-foreground/40" />
+                <p className="text-sm text-muted-foreground">
+                  All users are already team members
+                </p>
+              </div>
+            ) : (
+              <div className="text-center py-6">
+                <Users className="size-10 mx-auto mb-2 text-muted-foreground/40" />
+                <p className="text-sm text-muted-foreground">
+                  No users match &quot;{searchQuery}&quot;
+                </p>
+              </div>
+            )}
+          </div>
+        </ScrollArea>
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
