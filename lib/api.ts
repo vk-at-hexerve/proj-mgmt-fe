@@ -21,7 +21,11 @@ export async function fetchAPI(endpoint: string, options: RequestInit = {}) {
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.detail || `API error: ${response.status} ${response.statusText}`);
+    throw new Error(
+      typeof errorData.detail === "object"
+        ? JSON.stringify(errorData.detail)
+        : errorData.detail || `API error: ${response.status} ${response.statusText}`,
+    );
   }
 
   // Some endpoints might return empty responses for 204 or similar
@@ -43,6 +47,7 @@ export function mapBackendProject(backendProject: BackendProject): Project {
     aiConfidence: backendProject.ai_confidence || 85,
     riskLevel: backendProject.risk_level || 'low',
     startDate: backendProject.start_date || new Date().toISOString(),
+    endDate: backendProject.end_date,
     owner: backendProject.owner ? {
       id: String(backendProject.owner.id),
       name: backendProject.owner.name,
@@ -100,12 +105,16 @@ export function mapBackendTask(backendTask: BackendTask): Task {
       role: (backendTask.reporter.role || 'contributor') as UserRole
     } : { id: 'u1', name: 'System Admin', email: 'admin@hexerve.com', role: 'super-admin' as UserRole },
     tags: [],
+    startDate: backendTask.start_date,
+    dueDate: backendTask.due_date,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   };
 }
 
 export function mapBackendTeam(backendTeam: BackendTeam): Team {
+  const defaultUser = { id: 'u1', name: 'System Admin', email: 'admin@hexerve.com', role: 'super-admin' as UserRole };
+
   return {
     ...backendTeam,
     projects: [], // Placeholder
@@ -113,12 +122,24 @@ export function mapBackendTeam(backendTeam: BackendTeam): Team {
     name: backendTeam.name || "Unnamed Team",
     description: backendTeam.description || "",
     avatar: undefined,
+    projectManager: backendTeam.project_manager ? {
+      id: String(backendTeam.project_manager.id),
+      name: backendTeam.project_manager.name,
+      email: backendTeam.project_manager.email,
+      role: (backendTeam.project_manager.role || 'project-manager') as UserRole
+    } : { id: 'unknown', name: 'Not Assigned', email: '', role: 'project-manager' as UserRole },
     lead: backendTeam.lead ? {
       id: String(backendTeam.lead.id),
       name: backendTeam.lead.name,
       email: backendTeam.lead.email,
       role: (backendTeam.lead.role || 'team-lead') as UserRole
-    } : { id: 'u1', name: 'System Admin', email: 'admin@hexerve.com', role: 'super-admin' as UserRole },
+    } : undefined,
+    productManager: backendTeam.product_manager ? {
+      id: String(backendTeam.product_manager.id),
+      name: backendTeam.product_manager.name,
+      email: backendTeam.product_manager.email,
+      role: (backendTeam.product_manager.role || 'portfolio-manager') as UserRole
+    } : undefined,
     members: backendTeam.members ? backendTeam.members.map((m: BackendUser) => ({
       id: String(m.id),
       name: m.name,
@@ -127,8 +148,8 @@ export function mapBackendTeam(backendTeam: BackendTeam): Team {
       role: (m.role || 'contributor') as UserRole
     })) : [],
     projectIds: backendTeam.project_ids ? backendTeam.project_ids.map(String) : [],
-    velocity: 0,
-    capacity: 100,
+    velocity: Number(backendTeam.velocity) || 0,
+    capacity: Number(backendTeam.capacity) || 0,
   };
 }
 
@@ -171,6 +192,11 @@ export function mapBackendClient(backendClient: any) {
     id: String(backendClient.id),
     name: backendClient.name,
     email: backendClient.email || "",
+    phone: backendClient.phone || "",
+    company: backendClient.company || "",
+    type: backendClient.type || "external",
+    address: backendClient.address || "",
+    notes: backendClient.notes || "",
   };
 }
 

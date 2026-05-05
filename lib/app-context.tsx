@@ -17,6 +17,7 @@ import type {
   Program,
   Portfolio,
   Sprint,
+  Client,
   UserRole,
 } from "./types";
 
@@ -79,6 +80,8 @@ type ModalType =
   | "log-time"
   | "resource-allocation"
   | "user-profile"
+  | "client-detail"
+  | "create-user"
   | null;
 
 interface ModalState {
@@ -120,6 +123,7 @@ interface AppState {
   teams: Team[];
   programs: Program[];
   portfolios: Portfolio[];
+  clients: Client[];
   users: User[];
   timeEntries: TimeEntry[];
   resourceAllocations: ResourceAllocation[];
@@ -156,12 +160,15 @@ interface AppContextType extends AppState {
   deleteProject: (id: string) => void;
 
   // Team actions
-  addTeam: (team: Omit<Team, "id">) => void;
+  addTeam: (team: Omit<Team, "id">) => Promise<Team>;
   updateTeam: (id: string, updates: Partial<Team>) => void;
   deleteTeam: (id: string) => void;
   addTeamMember: (teamId: string, userId: string) => void;
   removeTeamMember: (teamId: string, userId: string) => void;
   setTeamLead: (teamId: string, userId: string) => void;
+
+  // User actions
+  addUser: (user: { name: string; email: string; password: string; role?: string }) => Promise<User>;
 
   // Program actions
   addProgram: (program: Omit<Program, "id">) => void;
@@ -172,6 +179,11 @@ interface AppContextType extends AppState {
   addPortfolio: (portfolio: Omit<Portfolio, "id">) => void;
   updatePortfolio: (id: string, updates: Partial<Portfolio>) => void;
   deletePortfolio: (id: string) => void;
+
+  // Client actions
+  addClient: (client: Omit<Client, "id" | "createdAt" | "updatedAt">) => Promise<Client>;
+  updateClient: (id: string, updates: Partial<Client>) => Promise<void>;
+  deleteClient: (id: string) => Promise<void>;
 
   // Sprint actions
   addSprint: (sprint: Omit<Sprint, "id">) => void;
@@ -245,6 +257,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [teams, setTeams] = useState<Team[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [sprints, setSprints] = useState<Sprint[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
@@ -343,6 +356,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         mapBackendPortfolio,
         mapBackendProgram,
         mapBackendSprint,
+        mapBackendClient,
       }) => {
         // Load from the API
         Promise.all([
@@ -352,6 +366,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           fetchAPI("/time-entries").catch(() => null),
           fetchAPI("/portfolios").catch(() => null),
           fetchAPI("/programs").catch(() => null),
+          fetchAPI("/clients").catch(() => null),
           fetchAPI("/users").catch(() => null),
           fetchAPI("/users/me").catch(() => null),
           fetchAPI("/sprints").catch(() => null),
@@ -363,6 +378,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             timeEntriesData,
             portfoliosData,
             programsData,
+            clientsData,
             usersData,
             meData,
             sprintsData,
@@ -385,6 +401,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
             }
             if (programsData && Array.isArray(programsData)) {
               setPrograms(programsData.map(mapBackendProgram) as any);
+            }
+            if (clientsData && Array.isArray(clientsData)) {
+              setClients(clientsData.map(mapBackendClient) as any);
             }
             if (usersData && Array.isArray(usersData)) {
               setUsers(usersData as any);
@@ -472,6 +491,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
           description: task.description || "",
           project_id: task.projectId,
           story_points: task.storyPoints || 0,
+          start_date: task.startDate || null,
+          due_date: task.dueDate || null,
+          sprint_id: task.sprintId || null,
           status:
             task.status === "open"
               ? "TODO"
@@ -507,9 +529,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
           description: savedTask.task_code || savedTask.title,
           type: "success",
         });
-      } catch (error) {
+      } catch (error: any) {
         setTasks((prev) => prev.filter((t) => t.id !== tempId));
-        showToast({ title: "Task creation failed", type: "error" });
+        showToast({
+          title: "Task creation failed",
+          description: error.message || "An unexpected error occurred",
+          type: "error"
+        });
       }
     },
     [projects, taskCounter, showToast],
@@ -554,6 +580,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (payload.storyPoints !== undefined) {
           payload.story_points = payload.storyPoints;
           delete payload.storyPoints;
+        }
+
+        if (payload.startDate !== undefined) {
+          payload.start_date = payload.startDate;
+          delete payload.startDate;
+        }
+
+        if (payload.dueDate !== undefined) {
+          payload.due_date = payload.dueDate;
+          delete payload.dueDate;
         }
 
         if (payload.assignee) {
@@ -783,7 +819,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           description: savedSprint.name,
           type: "success",
         });
-      } catch (error) {
+      } catch (error: any) {
         setSprints((prev) => prev.filter((s) => s.id !== tempId));
         if (taskIds.length > 0) {
           setTasks((prev) =>
@@ -794,7 +830,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
             ),
           );
         }
-        showToast({ title: "Sprint creation failed", type: "error" });
+        showToast({
+          title: "Sprint creation failed",
+          description: error.message || "An unexpected error occurred",
+          type: "error"
+        });
       }
     },
     [showToast],
@@ -826,7 +866,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
           body: JSON.stringify({
             name: project.name,
             project_key: project.key,
+            description: project.description || "",
+            start_date: project.startDate || null,
+            end_date: project.endDate || null,
             status: "PLANNING",
+            client_id: (project as any).clientId || null,
+            team_id: (project as any).teamId || null,
           }),
         });
 
@@ -840,9 +885,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
           description: savedProject.name,
           type: "success",
         });
-      } catch (error) {
+      } catch (error: any) {
         setProjects((prev) => prev.filter((p) => p.id !== tempId));
-        showToast({ title: "Project creation failed", type: "error" });
+        showToast({
+          title: "Project creation failed",
+          description: error.message || "An unexpected error occurred",
+          type: "error"
+        });
       }
     },
     [showToast],
@@ -863,6 +912,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // Map UI names to DB names if necessary
         if (payload.status)
           payload.status = payload.status.replace("-", "_").toUpperCase();
+
+        if (payload.startDate !== undefined) {
+          payload.start_date = payload.startDate;
+          delete payload.startDate;
+        }
+
+        if (payload.endDate !== undefined) {
+          payload.end_date = payload.endDate;
+          delete payload.endDate;
+        }
 
         await fetchAPI(`/projects/${id}`, {
           method: "PATCH",
@@ -912,12 +971,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const { fetchAPI, mapBackendTeam } = await import("./api");
         const savedTeam = await fetchAPI("/teams", {
           method: "POST",
-          body: JSON.stringify({ name: team.name }),
+          body: JSON.stringify({
+            name: team.name,
+            description: team.description || "",
+            project_manager_id: team.projectManager.id,
+            lead_id: team.lead?.id || null,
+            product_manager_id: team.productManager?.id || null,
+            project_ids: team.projectIds,
+            capacity: team.capacity || 40,
+            member_ids: team.members.map(m => m.id),
+          }),
         });
         if (!savedTeam) throw new Error("No response from server");
+        const savedTeamMapped = mapBackendTeam(savedTeam as any);
         setTeams((prev) =>
           prev.map((t) =>
-            t.id === tempId ? mapBackendTeam(savedTeam as any) : t,
+            t.id === tempId ? savedTeamMapped : t,
           ),
         );
         showToast({
@@ -925,9 +994,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           description: savedTeam.name,
           type: "success",
         });
+        return savedTeamMapped;
       } catch (err) {
         setTeams((prev) => prev.filter((t) => t.id !== tempId));
         showToast({ title: "Team creation failed", type: "error" });
+        throw err;
       }
     },
     [showToast],
@@ -941,9 +1012,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       try {
         const { fetchAPI } = await import("./api");
+
+        // Map updates to backend schema
+        const backendUpdates: any = { ...updates };
+        if (updates.name) backendUpdates.name = updates.name;
+        if (updates.description !== undefined) backendUpdates.description = updates.description;
+        if (updates.projectManager) backendUpdates.project_manager_id = updates.projectManager.id;
+        if (updates.lead !== undefined) backendUpdates.lead_id = updates.lead?.id || null;
+        if (updates.productManager !== undefined) backendUpdates.product_manager_id = updates.productManager?.id || null;
+        if (updates.projectIds) backendUpdates.project_ids = updates.projectIds;
+        if (updates.capacity !== undefined) backendUpdates.capacity = updates.capacity;
+        if (updates.members) backendUpdates.member_ids = updates.members.map(m => m.id);
+
         await fetchAPI(`/teams/${id}`, {
           method: "PATCH",
-          body: JSON.stringify(updates),
+          body: JSON.stringify(backendUpdates),
         });
         showToast({ title: "Team updated", type: "success" });
       } catch (err) {
@@ -975,9 +1058,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const addTeamMember = useCallback(
-    (teamId: string, userId: string) => {
+    async (teamId: string, userId: string) => {
       const user = users.find((u) => u.id === userId);
       if (!user) return;
+
+      // Optimistic UI update
       setTeams((prev) =>
         prev.map((team) =>
           team.id === teamId && !team.members.some((m) => m.id === userId)
@@ -985,18 +1070,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
             : team,
         ),
       );
-      showToast({
-        title: "Member added",
-        description: user.name,
-        type: "success",
-      });
+
+      try {
+        const { fetchAPI } = await import("./api");
+        await fetchAPI(`/teams/${teamId}/members/${userId}`, {
+          method: "POST",
+        });
+        showToast({
+          title: "Member added",
+          description: user.name,
+          type: "success",
+        });
+      } catch (err) {
+        // Rollback on failure
+        setTeams((prev) =>
+          prev.map((team) =>
+            team.id === teamId
+              ? { ...team, members: team.members.filter((m) => m.id !== userId) }
+              : team,
+          ),
+        );
+        showToast({ title: "Failed to add member", type: "error" });
+      }
     },
     [users, showToast],
   );
 
   const removeTeamMember = useCallback(
-    (teamId: string, userId: string) => {
+    async (teamId: string, userId: string) => {
       const user = users.find((u) => u.id === userId);
+
+      // Optimistic UI update
       setTeams((prev) =>
         prev.map((team) =>
           team.id === teamId
@@ -1004,11 +1108,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
             : team,
         ),
       );
-      showToast({
-        title: "Member removed",
-        description: user?.name,
-        type: "success",
-      });
+
+      try {
+        const { fetchAPI } = await import("./api");
+        await fetchAPI(`/teams/${teamId}/members/${userId}`, {
+          method: "DELETE",
+        });
+        showToast({
+          title: "Member removed",
+          description: user?.name,
+          type: "success",
+        });
+      } catch (err) {
+        // Rollback on failure
+        if (user) {
+          setTeams((prev) =>
+            prev.map((team) =>
+              team.id === teamId
+                ? { ...team, members: [...team.members, user] }
+                : team,
+            ),
+          );
+        }
+        showToast({ title: "Failed to remove member", type: "error" });
+      }
     },
     [users, showToast],
   );
@@ -1029,6 +1152,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
     },
     [users, showToast],
+  );
+
+  // User actions
+  const addUser = useCallback(
+    async (userData: { name: string; email: string; password: string; role?: string }) => {
+      try {
+        const { fetchAPI } = await import("./api");
+        const savedUser = await fetchAPI("/users", {
+          method: "POST",
+          body: JSON.stringify({
+            name: userData.name,
+            email: userData.email,
+            password: userData.password,
+            role: userData.role || "MEMBER",
+          }),
+        });
+        const newUser: User = {
+          id: String(savedUser.id),
+          name: savedUser.name,
+          email: savedUser.email,
+          role: (savedUser.role?.toLowerCase()?.replace('_', '-') || 'contributor') as any,
+        };
+        setUsers((prev) => [...prev, newUser]);
+        showToast({
+          title: "User created",
+          description: savedUser.name,
+          type: "success",
+        });
+        return newUser;
+      } catch (error: any) {
+        showToast({
+          title: "User creation failed",
+          description: error.message || "An unexpected error occurred",
+          type: "error",
+        });
+        throw error;
+      }
+    },
+    [showToast],
   );
 
   // Program actions
@@ -1113,6 +1275,89 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
     },
     [portfolios, showToast],
+  );
+
+  // Client actions
+  const addClient = useCallback(
+    async (client: Omit<Client, "id" | "createdAt" | "updatedAt">) => {
+      const tempId = `client-temp-${Date.now()}`;
+      const now = new Date().toISOString();
+      const newClient: Client = {
+        ...client,
+        id: tempId,
+        createdAt: now,
+        updatedAt: now,
+      };
+      setClients((prev) => [...prev, newClient]);
+
+      try {
+        const { fetchAPI, mapBackendClient } = await import("./api");
+        const savedClient = await fetchAPI("/clients", {
+          method: "POST",
+          body: JSON.stringify(client),
+        });
+        const savedClientMapped = mapBackendClient(savedClient);
+        setClients((prev) =>
+          prev.map((c) => (c.id === tempId ? savedClientMapped : c)),
+        );
+        showToast({
+          title: "Client created",
+          description: savedClient.name,
+          type: "success",
+        });
+        return savedClientMapped;
+      } catch (err) {
+        setClients((prev) => prev.filter((c) => c.id !== tempId));
+        showToast({ title: "Client creation failed", type: "error" });
+        throw err;
+      }
+    },
+    [showToast],
+  );
+
+  const updateClient = useCallback(
+    async (id: string, updates: Partial<Client>) => {
+      setClients((prev) =>
+        prev.map((client) =>
+          client.id === id
+            ? { ...client, ...updates, updatedAt: new Date().toISOString() }
+            : client,
+        ),
+      );
+
+      try {
+        const { fetchAPI } = await import("./api");
+        await fetchAPI(`/clients/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify(updates),
+        });
+        showToast({ title: "Client updated", type: "success" });
+      } catch (err) {
+        showToast({ title: "Client update failed", type: "error" });
+      }
+    },
+    [showToast],
+  );
+
+  const deleteClient = useCallback(
+    async (id: string) => {
+      const client = clients.find((c) => c.id === id);
+      setClients((prev) => prev.filter((c) => c.id !== id));
+
+      try {
+        const { fetchAPI } = await import("./api");
+        await fetchAPI(`/clients/${id}`, { method: "DELETE" });
+        showToast({
+          title: "Client deleted",
+          description: client?.name,
+          type: "success",
+        });
+      } catch (err) {
+        if (client) setClients((prev) => [...prev, client]);
+        showToast({ title: "Delete failed", type: "error" });
+      }
+    },
+    [clients, showToast],
   );
 
   // Time tracking actions
@@ -1294,6 +1539,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     teams,
     programs,
     portfolios,
+    clients,
     users,
     timeEntries,
     resourceAllocations,
@@ -1331,6 +1577,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addTeamMember,
     removeTeamMember,
     setTeamLead,
+    // User actions
+    addUser,
     // Program actions
     addProgram,
     updateProgram,
@@ -1339,6 +1587,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addPortfolio,
     updatePortfolio,
     deletePortfolio,
+    // Client actions
+    addClient,
+    updateClient,
+    deleteClient,
     // Sprint actions
     addSprint,
     updateSprint,

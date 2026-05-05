@@ -64,9 +64,11 @@ export default function TeamsClient() {
   const teamProjects = currentTeam ? projects.filter(p => currentTeam.projectIds.includes(p.id)) : [];
 
   const totalMembers = teams.reduce((sum, t) => sum + t.members.length, 0);
-  const avgVelocity = teams.reduce((sum, t) => sum + t.velocity, 0) / teams.length;
+  const avgVelocity = teams.length > 0 ? teams.reduce((sum, t) => sum + t.velocity, 0) / teams.length : 0;
   const totalCapacity = teams.reduce((sum, t) => sum + t.capacity, 0);
-  const utilizationRate = teams.reduce((sum, t) => sum + (t.velocity / t.capacity) * 100, 0) / teams.length;
+  const utilizationRate = teams.length > 0
+    ? teams.reduce((sum, t) => sum + (t.capacity > 0 ? (t.velocity / t.capacity) * 100 : 0), 0) / teams.length
+    : 0;
 
   const handleRemoveMember = () => {
     if (memberToRemove) {
@@ -101,21 +103,22 @@ export default function TeamsClient() {
     <div className="flex h-screen bg-background">
       <AppSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <AppHeader title="Teams" subtitle="Manage and coordinate work across teams" />
+        <AppHeader
+          title="Teams"
+          subtitle="Manage and coordinate work across teams"
+        />
         <main className="flex-1 overflow-auto">
           <div className="p-6">
-            {/* Page Header */}
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h1 className="text-2xl font-semibold text-foreground">Teams</h1>
-                <p className="text-muted-foreground">Manage team capacity, performance, and assignments</p>
-              </div>
-              <Button className="gap-2" onClick={() => openModal('create-team')}>
+            <div className="flex justify-end gap-2 mb-4">
+              <Button variant="outline" size="sm" className="gap-1" onClick={() => openModal('create-user')}>
+                <UserPlus className="size-4" />
+                Create User
+              </Button>
+              <Button size="sm" className="gap-1" onClick={() => openModal('create-team')}>
                 <Plus className="size-4" />
-                New Team
+                Create Team
               </Button>
             </div>
-
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <Card>
@@ -194,7 +197,7 @@ export default function TeamsClient() {
               <div className="space-y-4">
                 {filteredTeams.map((team: any) => {
                   const teamProjectsList = projects.filter((p: any) => team.projectIds.includes(p.id));
-                  const utilization = (team.velocity / team.capacity) * 100;
+                  const utilization = team.capacity > 0 ? (team.velocity / team.capacity) * 100 : 0;
 
                   return (
                     <Card
@@ -223,7 +226,7 @@ export default function TeamsClient() {
                                   <DropdownMenuItem onClick={() => showToast({ title: 'Team Details', description: 'Click the team card to view details', type: 'info' })}>
                                     View Details
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => showToast({ title: 'Edit Team', description: 'Team editing coming soon', type: 'info' })}>
+                                  <DropdownMenuItem onClick={() => openModal('edit-team', { teamId: team.id })}>
                                     <Edit className="size-4 mr-2" />
                                     Edit Team
                                   </DropdownMenuItem>
@@ -232,7 +235,7 @@ export default function TeamsClient() {
                                     Add Member
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
-                                  <DropdownMenuItem 
+                                  <DropdownMenuItem
                                     className="text-destructive"
                                     onClick={() => setTeamToDelete({ id: team.id, name: team.name })}
                                   >
@@ -264,8 +267,8 @@ export default function TeamsClient() {
                                 <span className="text-muted-foreground">Utilization</span>
                                 <span className="font-medium">{Math.round(utilization)}%</span>
                               </div>
-                              <Progress 
-                                value={utilization} 
+                              <Progress
+                                value={utilization}
                                 className={cn('h-1.5', utilization > 90 && '[&>div]:bg-warning')}
                               />
                             </div>
@@ -297,25 +300,44 @@ export default function TeamsClient() {
                           <div>
                             <CardTitle>{currentTeam.name}</CardTitle>
                             <CardDescription>{currentTeam.description}</CardDescription>
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-muted-foreground">PM:</span>
+                                <span className="text-xs font-medium">{currentTeam.projectManager.name}</span>
+                              </div>
+                              {currentTeam.lead && (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs text-muted-foreground">Lead:</span>
+                                  <span className="text-xs font-medium">{currentTeam.lead.name}</span>
+                                </div>
+                              )}
+                              {currentTeam.productManager && (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs text-muted-foreground">Product:</span>
+                                  <span className="text-xs font-medium">{currentTeam.productManager.name}</span>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
+                          <Button
+                            variant="outline"
+                            size="sm"
                             className="gap-2 bg-transparent"
                             onClick={() => openModal('add-member', { teamId: currentTeam.id })}
                           >
                             <UserPlus className="size-4" />
                             Add Member
                           </Button>
-                          <Button 
-                            variant="outline" 
-                            size="icon" 
+                          <Button
+                            variant="outline"
+                            size="icon"
                             className="size-8 bg-transparent"
-                            onClick={() => showToast({ title: 'Team Settings', description: 'Team settings coming soon', type: 'info' })}
+                            onClick={() => openModal('edit-team', { teamId: currentTeam.id })}
+                            title="Edit Team"
                           >
-                            <Settings className="size-4" />
+                            <Edit className="size-4" />
                           </Button>
                         </div>
                       </div>
@@ -331,7 +353,9 @@ export default function TeamsClient() {
                         <TabsContent value="members" className="mt-4">
                           <div className="space-y-3">
                             {currentTeam.members.map((member) => {
-                              const isLead = member.id === currentTeam.lead.id;
+                              const isLead = member.id === currentTeam.lead?.id;
+                              const isPM = member.id === currentTeam.projectManager.id;
+                              const isProdM = member.id === currentTeam.productManager?.id;
                               const memberTasks = tasks.filter(t => t.assignee?.id === member.id);
                               const inProgressTasks = memberTasks.filter(t => t.status === 'in-progress').length;
 
@@ -349,15 +373,27 @@ export default function TeamsClient() {
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2">
                                       <p className="font-medium">{member.name}</p>
-                                      {isLead && (
-                                        <Badge variant="outline" className="gap-1 text-warning border-warning/30">
-                                          <Crown className="size-3" />
-                                          Lead
-                                        </Badge>
-                                      )}
+                                      <div className="flex gap-1 flex-wrap">
+                                        {isPM && (
+                                          <Badge variant="outline" className="gap-1 text-primary border-primary/30">
+                                            PM
+                                          </Badge>
+                                        )}
+                                        {isLead && (
+                                          <Badge variant="outline" className="gap-1 text-warning border-warning/30">
+                                            <Crown className="size-3" />
+                                            Lead
+                                          </Badge>
+                                        )}
+                                        {isProdM && (
+                                          <Badge variant="outline" className="gap-1 text-accent border-accent/30">
+                                            Product
+                                          </Badge>
+                                        )}
+                                      </div>
                                     </div>
                                     <div className="flex items-center gap-2 mt-0.5">
-                                        {member.role?.replace('-', ' ') || 'Member'}
+                                      {member.role?.replace('-', ' ') || 'Member'}
                                       <span className="text-border">|</span>
                                       <span className="text-sm text-muted-foreground flex items-center gap-1">
                                         <Mail className="size-3" />
@@ -392,12 +428,12 @@ export default function TeamsClient() {
                                             <Crown className="size-4 mr-2" />
                                             Make Team Lead
                                           </DropdownMenuItem>
-                                          <DropdownMenuItem 
+                                          <DropdownMenuItem
                                             className="text-destructive"
-                                            onClick={() => setMemberToRemove({ 
-                                              teamId: currentTeam.id, 
-                                              userId: member.id, 
-                                              userName: member.name 
+                                            onClick={() => setMemberToRemove({
+                                              teamId: currentTeam.id,
+                                              userId: member.id,
+                                              userName: member.name
                                             })}
                                           >
                                             <UserMinus className="size-4 mr-2" />
@@ -482,7 +518,11 @@ export default function TeamsClient() {
                                 <div className="mt-3 pt-3 border-t border-border">
                                   <div className="flex items-center justify-between text-sm">
                                     <span className="text-muted-foreground">Utilization</span>
-                                    <span className="font-medium">{Math.round((currentTeam.velocity / currentTeam.capacity) * 100)}%</span>
+                                    <span className="font-medium">
+                                      {currentTeam.capacity > 0
+                                        ? Math.round((currentTeam.velocity / currentTeam.capacity) * 100)
+                                        : 0}%
+                                    </span>
                                   </div>
                                 </div>
                               </CardContent>
@@ -524,7 +564,7 @@ export default function TeamsClient() {
           <AlertDialogHeader>
             <AlertDialogTitle>Remove team member?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to remove {memberToRemove?.userName} from the team? 
+              Are you sure you want to remove {memberToRemove?.userName} from the team?
               This will not delete their account or tasks.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -541,13 +581,13 @@ export default function TeamsClient() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete team?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{teamToDelete?.name}"? 
+              Are you sure you want to delete "{teamToDelete?.name}"?
               This action cannot be undone. Team members will not be deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={handleDeleteTeam}
             >

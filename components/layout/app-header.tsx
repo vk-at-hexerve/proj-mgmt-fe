@@ -180,7 +180,7 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
                 <Avatar className="size-8">
                   <AvatarImage src={currentUser.avatar || "/placeholder.svg"} alt={currentUser.name} />
                   <AvatarFallback className="text-xs">
-                    {currentUser.name.split(' ').map((n: string) => n[0]).join('')}
+                    {(currentUser?.name || "User").split(' ').map((n: string) => n[0]).join('')}
                   </AvatarFallback>
                 </Avatar>
               </Button>
@@ -190,7 +190,7 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
                 <Avatar className="size-8">
                   <AvatarImage src={currentUser.avatar || "/placeholder.svg"} alt={currentUser.name} />
                   <AvatarFallback className="text-xs">
-                    {currentUser.name.split(' ').map((n: string) => n[0]).join('')}
+                    {(currentUser?.name || "User").split(' ').map((n: string) => n[0]).join('')}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col space-y-0.5">

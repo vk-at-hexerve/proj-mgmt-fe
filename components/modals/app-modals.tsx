@@ -44,7 +44,6 @@ import {
   portfolios as contextPortfolios,
   tags as availableTags,
   projectTemplates,
-  clients,
 } from "@/lib/mock-data";
 // const availableTags: any[] = []; // Placeholder for tags logic
 // const projectTemplates: any[] = [];
@@ -60,6 +59,11 @@ import type {
   ProjectTemplate,
   ProjectType,
   RiskLevel,
+  ClientType,
+  Client,
+  Team,
+  User,
+  UserRole,
 } from "@/lib/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -90,6 +94,20 @@ import {
   UserCircle,
   Building,
   ExternalLink,
+  Users,
+  PlusCircle,
+  Loader2,
+  Mail,
+  Phone,
+  MapPin,
+  Building2,
+  Globe,
+  Calendar,
+  Plus,
+  UserPlus,
+  Eye,
+  EyeOff,
+  Shield,
 } from "lucide-react";
 
 const getTodayDateInputValue = () => {
@@ -131,10 +149,12 @@ export function AppModals() {
     getTask,
     tasks,
     addTeam,
+    updateTeam,
     addProgram,
     addPortfolio,
     addTimeEntry,
     addProject,
+    addUser,
     users,
     projects,
     portfolios,
@@ -144,7 +164,6 @@ export function AppModals() {
     isMounted,
     addSprint,
   } = useApp();
-
 
   if (!isMounted) return null;
 
@@ -273,6 +292,18 @@ export function AppModals() {
     return <CreateTeamModal onClose={closeModal} onSubmit={addTeam} />;
   }
 
+  // Edit Team Modal
+  if (modal.type === "edit-team") {
+    const teamId = modal.data?.teamId as string;
+    return (
+      <EditTeamModal
+        teamId={teamId}
+        onClose={closeModal}
+        onSubmit={updateTeam}
+      />
+    );
+  }
+
   // Create Program Modal
   if (modal.type === "create-program") {
     return <CreateProgramModal onClose={closeModal} onSubmit={addProgram} />;
@@ -303,19 +334,24 @@ export function AppModals() {
     return <AddMemberModal teamId={teamId} onClose={closeModal} />;
   }
 
+  // Client Detail Modal
+  if (modal.type === "client-detail") {
+    const clientId = modal.data?.clientId as string;
+    return <ClientDetailModal clientId={clientId} onClose={closeModal} />;
+  }
+
   // Create Sprint Modal
   if (modal.type === "create-sprint") {
-    return (
-      <CreateSprintModal
-        onClose={closeModal}
-        onSubmit={addSprint}
-      />
-    );
+    return <CreateSprintModal onClose={closeModal} onSubmit={addSprint} />;
+  }
+
+  // Create User Modal
+  if (modal.type === "create-user") {
+    return <CreateUserModal onClose={closeModal} onSubmit={addUser} />;
   }
 
   return null;
 }
-
 
 // Create Task Modal Component
 function CreateTaskModal({
@@ -327,7 +363,8 @@ function CreateTaskModal({
   onSubmit: (task: Parameters<ReturnType<typeof useApp>["addTask"]>[0]) => void;
   projectId?: string;
 }) {
-  const { projects, users } = useApp();
+  const { projects, users, sprints } = useApp();
+  const [sprint, setSprint] = useState<string>("no-sprint");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState<"task" | "bug" | "story" | "epic">("task");
@@ -335,15 +372,27 @@ function CreateTaskModal({
   const [project, setProject] = useState(projectId || projects[0]?.id || "");
   const [assignee, setAssignee] = useState<string>("");
   const [storyPoints, setStoryPoints] = useState<string>("");
+  const [startDate, setStartDate] = useState<string>(getTodayDateInputValue());
   const [dueDate, setDueDate] = useState<string>("");
+  const [startDateError, setStartDateError] = useState<string>("");
   const [dueDateError, setDueDateError] = useState<string>("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
 
+    if (isPastDate(startDate)) {
+      setStartDateError("Please select today's date or a future start date.");
+      return;
+    }
+
     if (isPastDate(dueDate)) {
       setDueDateError("Please select today's date or a future due date.");
+      return;
+    }
+
+    if (startDate && dueDate && new Date(startDate) > new Date(dueDate)) {
+      setDueDateError("Due date cannot be before the start date.");
       return;
     }
 
@@ -359,7 +408,9 @@ function CreateTaskModal({
       assignee: selectedUser,
       reporter: users[0],
       storyPoints: storyPoints ? parseInt(storyPoints) : undefined,
+      startDate: startDate || undefined,
       dueDate: dueDate || undefined,
+      sprintId: sprint === "no-sprint" ? undefined : sprint,
       tags: [],
     });
     onClose();
@@ -456,6 +507,25 @@ function CreateTaskModal({
             </div>
 
             <div className="space-y-2">
+              <Label>Sprint</Label>
+              <Select value={sprint} onValueChange={setSprint}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Backlog / No Sprint" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="no-sprint">Backlog / No Sprint</SelectItem>
+                  {sprints
+                    .filter((s) => s.status === "active" && (!s.projectId || s.projectId === project))
+                    .map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <Label>Story Points</Label>
               <Input
                 type="number"
@@ -468,7 +538,7 @@ function CreateTaskModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label>Assignee</Label>
               <Select value={assignee} onValueChange={setAssignee}>
@@ -500,19 +570,59 @@ function CreateTaskModal({
             </div>
 
             <div className="space-y-2">
+              <Label>Start Date</Label>
+              <Input
+                type="date"
+                value={startDate}
+                min={getTodayDateInputValue()}
+                onChange={(e) => {
+                  const nextValue = e.target.value;
+                  setStartDate(nextValue);
+                  setStartDateError(
+                    isPastDate(nextValue)
+                      ? "Please select today's date or a future start date."
+                      : "",
+                  );
+                  if (dueDate && new Date(nextValue) > new Date(dueDate)) {
+                    setDueDateError(
+                      "Due date cannot be before the start date.",
+                    );
+                  } else if (
+                    dueDateError === "Due date cannot be before the start date."
+                  ) {
+                    setDueDateError("");
+                  }
+                }}
+                aria-invalid={!!startDateError}
+              />
+              {startDateError && (
+                <p className="text-sm text-destructive">{startDateError}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
               <Label>Due Date</Label>
               <Input
                 type="date"
                 value={dueDate}
-                min={getTodayDateInputValue()}
+                min={startDate || getTodayDateInputValue()}
                 onChange={(e) => {
                   const nextValue = e.target.value;
                   setDueDate(nextValue);
-                  setDueDateError(
-                    isPastDate(nextValue)
-                      ? "Please select today's date or a future due date."
-                      : "",
-                  );
+                  if (isPastDate(nextValue)) {
+                    setDueDateError(
+                      "Please select today's date or a future due date.",
+                    );
+                  } else if (
+                    startDate &&
+                    new Date(nextValue) < new Date(startDate)
+                  ) {
+                    setDueDateError(
+                      "Due date cannot be before the start date.",
+                    );
+                  } else {
+                    setDueDateError("");
+                  }
                 }}
                 aria-invalid={!!dueDateError}
               />
@@ -526,7 +636,10 @@ function CreateTaskModal({
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!title.trim() || !!dueDateError}>
+            <Button
+              type="submit"
+              disabled={!title.trim() || !!dueDateError || !!startDateError}
+            >
               Create Task
             </Button>
           </DialogFooter>
@@ -562,7 +675,9 @@ function EditTaskModal({
   const [startDate, setStartDate] = useState<string>(
     toDateInputValue(task?.startDate),
   );
-  const [dueDate, setDueDate] = useState<string>(toDateInputValue(task?.dueDate));
+  const [dueDate, setDueDate] = useState<string>(
+    toDateInputValue(task?.dueDate),
+  );
   const [dueDateError, setDueDateError] = useState<string>(
     task?.dueDate && isPastDate(task.dueDate)
       ? "Please select today's date or a future due date."
@@ -1368,7 +1483,10 @@ function EditTaskModal({
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={!title.trim() || !!dueDateError}>
+          <Button
+            onClick={handleSubmit}
+            disabled={!title.trim() || !!dueDateError}
+          >
             Save Changes
           </Button>
         </DialogFooter>
@@ -1664,19 +1782,31 @@ function CreateProjectModal({
     project: Parameters<ReturnType<typeof useApp>["addProject"]>[0],
   ) => void;
 }) {
-  const { users } = useApp();
+  const { users, clients, teams, addClient, addTeam } = useApp();
   const [step, setStep] = useState<"template" | "details">("template");
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [key, setKey] = useState("");
+  const [isKeyManual, setIsKeyManual] = useState(false);
   const [description, setDescription] = useState("");
   const [type, setType] = useState<
     "agile-scrum" | "agile-kanban" | "waterfall" | "hybrid"
   >("agile-scrum");
+  const [startDate, setStartDate] = useState(getTodayDateInputValue());
   const [dueDate, setDueDate] = useState("");
+  const [startDateError, setStartDateError] = useState("");
   const [dueDateError, setDueDateError] = useState("");
   const [budget, setBudget] = useState("");
   const [clientId, setClientId] = useState<string>("");
+  const [teamId, setTeamId] = useState<string>("");
+  const [stakeholderType, setStakeholderType] = useState<"client" | "team">(
+    "client",
+  );
+  const [showFullCreateClient, setShowFullCreateClient] = useState(false);
+  const [showFullCreateTeam, setShowFullCreateTeam] = useState(false);
+
+  const selectedClient = clients.find((c) => c.id === clientId);
+  const selectedTeamData = teams.find((t) => t.id === teamId);
 
   const blankProjectTemplate: ProjectTemplate = {
     id: "blank",
@@ -1707,8 +1837,18 @@ function CreateProjectModal({
     e.preventDefault();
     if (!name.trim() || !key.trim()) return;
 
+    if (isPastDate(startDate)) {
+      setStartDateError("Please select today's date or a future start date.");
+      return;
+    }
+
     if (isPastDate(dueDate)) {
       setDueDateError("Please select today's date or a future due date.");
+      return;
+    }
+
+    if (startDate && dueDate && new Date(startDate) > new Date(dueDate)) {
+      setDueDateError("End date cannot be before the start date.");
       return;
     }
 
@@ -1718,7 +1858,7 @@ function CreateProjectModal({
       description: description.trim(),
       type,
       status: "active",
-      startDate: getTodayDateInputValue(),
+      startDate: startDate || getTodayDateInputValue(),
       endDate: dueDate || undefined,
       owner: users[0],
       members: [users[0]],
@@ -1727,7 +1867,18 @@ function CreateProjectModal({
       progress: 0,
       budget: budget ? parseInt(budget) : 100000,
       spent: 0,
-      clientId: clientId || undefined,
+      clientId:
+        stakeholderType === "client"
+          ? clientId === "none"
+            ? undefined
+            : clientId
+          : undefined,
+      teamId:
+        stakeholderType === "team"
+          ? teamId === "none"
+            ? undefined
+            : teamId
+          : undefined,
       templateId: selectedTemplate || undefined,
     });
     onClose();
@@ -1789,8 +1940,8 @@ function CreateProjectModal({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl p-0 overflow-hidden flex flex-col max-h-[95vh]">
+        <DialogHeader className="p-6 pb-2">
           <div className="flex items-center gap-2 mb-1">
             {template && (
               <Badge
@@ -1813,88 +1964,318 @@ function CreateProjectModal({
           <DialogTitle>Create New Project</DialogTitle>
           <DialogDescription>Set up your project details</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+
+        <form
+          onSubmit={handleSubmit}
+          className="flex-1 flex flex-col min-h-0 overflow-hidden"
+        >
+          <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-4 custom-scrollbar">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="project-name">Project Name *</Label>
+                <Input
+                  id="project-name"
+                  value={name}
+                  onChange={(e) => {
+                    const newName = e.target.value;
+                    setName(newName);
+                    if (newName.trim() === "") {
+                      setIsKeyManual(false);
+                      setKey("");
+                    } else if (!isKeyManual) {
+                      const generatedKey = newName
+                        .trim()
+                        .substring(0, 3)
+                        .toUpperCase()
+                        .replace(/[^A-Z0-9]/g, "");
+                      setKey(generatedKey);
+                    }
+                  }}
+                  placeholder="My Project"
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="project-key">Project Key *</Label>
+                <Input
+                  id="project-key"
+                  value={key}
+                  onChange={(e) => {
+                    setKey(e.target.value.toUpperCase());
+                    setIsKeyManual(true);
+                  }}
+                  placeholder="PRJ"
+                  maxLength={5}
+                />
+              </div>
+            </div>
+
             <div className="space-y-2">
-              <Label htmlFor="project-name">Project Name *</Label>
-              <Input
-                id="project-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="My Project"
-                autoFocus
+              <Label htmlFor="project-description">Description</Label>
+              <Textarea
+                id="project-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Project description..."
+                rows={3}
               />
             </div>
+
+            {/* Stakeholder Selection */}
             <div className="space-y-2">
-              <Label htmlFor="project-key">Project Key *</Label>
-              <Input
-                id="project-key"
-                value={key}
-                onChange={(e) => setKey(e.target.value.toUpperCase())}
-                placeholder="PRJ"
-                maxLength={5}
-              />
-            </div>
-          </div>
+              <Label>Project Stakeholder (Optional)</Label>
+              <Tabs
+                value={stakeholderType}
+                onValueChange={(v) =>
+                  setStakeholderType(v as "client" | "team")
+                }
+                className="w-full"
+              >
+                <TabsList className="grid w-full grid-cols-2 h-9">
+                  <TabsTrigger value="client" className="text-xs">
+                    External Client
+                  </TabsTrigger>
+                  <TabsTrigger value="team" className="text-xs">
+                    Internal Team
+                  </TabsTrigger>
+                </TabsList>
 
-          <div className="space-y-2">
-            <Label htmlFor="project-description">Description</Label>
-            <Textarea
-              id="project-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Project description..."
-              rows={2}
-            />
-          </div>
-
-          {/* Client Selection */}
-          <div className="space-y-2">
-            <Label>Client (Optional)</Label>
-            <Select value={clientId} onValueChange={setClientId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a client..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">
-                  <span className="text-muted-foreground">No client</span>
-                </SelectItem>
-                <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                  External Clients
-                </div>
-                {clients
-                  .filter((c) => c.type === "external")
-                  .map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      <div className="flex items-center gap-2">
-                        <ExternalLink className="size-3.5 text-blue-500" />
-                        <span>{client.name}</span>
-                        {client.company && (
-                          <span className="text-xs text-muted-foreground">
-                            ({client.company})
+                <TabsContent value="client" className="mt-2 space-y-2">
+                  <div className="w-full">
+                    <Select
+                      value={clientId}
+                      onValueChange={(v) => {
+                        if (v === "create-new") {
+                          setShowFullCreateClient(true);
+                        } else {
+                          setClientId(v);
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a client..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">
+                          <span className="text-muted-foreground">
+                            No client
                           </span>
+                        </SelectItem>
+                        <SelectItem
+                          value="create-new"
+                          className="text-primary font-semibold border-b rounded-none mb-1"
+                        >
+                          <div className="flex items-center gap-2">
+                            <PlusCircle className="size-3.5" />
+                            Create New Client
+                          </div>
+                        </SelectItem>
+                        {clients.length === 0 ? (
+                          <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                            No clients available
+                          </div>
+                        ) : (
+                          clients.map((client) => (
+                            <SelectItem key={client.id} value={client.id}>
+                              <div className="flex items-center gap-2">
+                                {client.type === "external" ? (
+                                  <ExternalLink className="size-3.5 text-blue-500" />
+                                ) : (
+                                  <Building className="size-3.5 text-green-500" />
+                                )}
+                                <span>{client.name}</span>
+                                {client.company && (
+                                  <span className="text-xs text-muted-foreground ml-1">
+                                    ({client.company})
+                                  </span>
+                                )}
+                              </div>
+                            </SelectItem>
+                          ))
                         )}
-                      </div>
-                    </SelectItem>
-                  ))}
-                <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                  Internal Departments
-                </div>
-                {clients
-                  .filter((c) => c.type === "internal")
-                  .map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      <div className="flex items-center gap-2">
-                        <Building className="size-3.5 text-green-500" />
-                        <span>{client.name}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-          </div>
+                      </SelectContent>
+                    </Select>
 
-          <div className="grid grid-cols-2 gap-4">
+
+
+                    {selectedClient && clientId !== "none" && (
+                      <div className="mt-3 p-3 rounded-lg bg-muted/40 border border-border/50 animate-in fade-in slide-in-from-top-2 duration-300">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 min-w-0 grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1">
+                                Client Email
+                              </p>
+                              <div className="flex items-center gap-1.5 text-sm">
+                                <Mail className="size-3.5 text-primary/70" />
+                                <span className="truncate font-medium">
+                                  {selectedClient.email}
+                                </span>
+                              </div>
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1">
+                                Phone Number
+                              </p>
+                              <div className="flex items-center gap-1.5 text-sm">
+                                <Smartphone className="size-3.5 text-primary/70" />
+                                <span className="font-medium">
+                                  {selectedClient.phone || "Not provided"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="team" className="mt-2 space-y-2">
+                  <div className="w-full">
+                    <Select
+                      value={teamId}
+                      onValueChange={(v) => {
+                        if (v === "create-new") {
+                          setShowFullCreateTeam(true);
+                        } else {
+                          setTeamId(v);
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a team..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">
+                          <span className="text-muted-foreground">No team</span>
+                        </SelectItem>
+                        <SelectItem
+                          value="create-new"
+                          className="text-primary font-semibold border-b rounded-none mb-1"
+                        >
+                          <div className="flex items-center gap-2">
+                            <PlusCircle className="size-3.5" />
+                            Create New Team
+                          </div>
+                        </SelectItem>
+                        {teams.length === 0 ? (
+                          <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                            No teams available
+                          </div>
+                        ) : (
+                          teams.map((team: any) => (
+                            <SelectItem key={team.id} value={team.id}>
+                              <div className="flex items-center gap-2">
+                                <Users className="size-3.5 text-primary" />
+                                <span>{team.name}</span>
+                              </div>
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+
+
+
+                    {selectedTeamData && teamId !== "none" && (
+                      <div className="mt-3 p-3 rounded-lg bg-muted/40 border border-border/50 animate-in fade-in slide-in-from-top-2 duration-300">
+                        <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-2">
+                          Team Leadership
+                        </p>
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="space-y-1">
+                            <p className="text-[10px] text-muted-foreground">
+                              Project Manager
+                            </p>
+                            <div className="flex items-center gap-1.5">
+                              <Avatar className="size-5 border border-border">
+                                <AvatarImage
+                                  src={
+                                    selectedTeamData.projectManager.avatar ||
+                                    "/placeholder.svg"
+                                  }
+                                />
+                                <AvatarFallback className="text-[8px]">
+                                  {selectedTeamData.projectManager.name
+                                    .split(" ")
+                                    .map((n) => n[0])
+                                    .join("")}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="text-xs font-medium truncate">
+                                {selectedTeamData.projectManager.name}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-[10px] text-muted-foreground">
+                              Team Lead
+                            </p>
+                            {selectedTeamData.lead ? (
+                              <div className="flex items-center gap-1.5">
+                                <Avatar className="size-5 border border-border">
+                                  <AvatarImage
+                                    src={
+                                      selectedTeamData.lead.avatar ||
+                                      "/placeholder.svg"
+                                    }
+                                  />
+                                  <AvatarFallback className="text-[8px]">
+                                    {selectedTeamData.lead.name
+                                      .split(" ")
+                                      .map((n) => n[0])
+                                      .join("")}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="text-xs font-medium truncate">
+                                  {selectedTeamData.lead.name}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground italic">
+                                Unassigned
+                              </span>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-[10px] text-muted-foreground">
+                              Product Manager
+                            </p>
+                            {selectedTeamData.productManager ? (
+                              <div className="flex items-center gap-1.5">
+                                <Avatar className="size-5 border border-border">
+                                  <AvatarImage
+                                    src={
+                                      selectedTeamData.productManager.avatar ||
+                                      "/placeholder.svg"
+                                    }
+                                  />
+                                  <AvatarFallback className="text-[8px]">
+                                    {selectedTeamData.productManager.name
+                                      .split(" ")
+                                      .map((n) => n[0])
+                                      .join("")}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="text-xs font-medium truncate">
+                                  {selectedTeamData.productManager.name}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground italic">
+                                Unassigned
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </div>
+
             <div className="space-y-2">
               <Label>Methodology</Label>
               <Select
@@ -1912,71 +2293,289 @@ function CreateProjectModal({
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Start Date</Label>
+                <Input
+                  type="date"
+                  value={startDate}
+                  min={getTodayDateInputValue()}
+                  onChange={(e) => {
+                    const nextValue = e.target.value;
+                    setStartDate(nextValue);
+                    setStartDateError(
+                      isPastDate(nextValue)
+                        ? "Please select today's date or a future start date."
+                        : "",
+                    );
+                    if (dueDate && new Date(nextValue) > new Date(dueDate)) {
+                      setDueDateError(
+                        "End date cannot be before the start date.",
+                      );
+                    } else if (
+                      dueDateError ===
+                      "End date cannot be before the start date."
+                    ) {
+                      setDueDateError("");
+                    }
+                  }}
+                  aria-invalid={!!startDateError}
+                />
+                {startDateError && (
+                  <p className="text-sm text-destructive">{startDateError}</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label>End Date</Label>
+                <Input
+                  type="date"
+                  value={dueDate}
+                  min={startDate || getTodayDateInputValue()}
+                  onChange={(e) => {
+                    const nextValue = e.target.value;
+                    setDueDate(nextValue);
+                    if (isPastDate(nextValue)) {
+                      setDueDateError(
+                        "Please select today's date or a future due date.",
+                      );
+                    } else if (
+                      startDate &&
+                      new Date(nextValue) < new Date(startDate)
+                    ) {
+                      setDueDateError(
+                        "End date cannot be before the start date.",
+                      );
+                    } else {
+                      setDueDateError("");
+                    }
+                  }}
+                  aria-invalid={!!dueDateError}
+                />
+                {dueDateError && (
+                  <p className="text-sm text-destructive">{dueDateError}</p>
+                )}
+              </div>
+            </div>
+
             <div className="space-y-2">
-              <Label>Due Date</Label>
+              <Label>Budget ($)</Label>
               <Input
-                type="date"
-                value={dueDate}
-                min={getTodayDateInputValue()}
-                onChange={(e) => {
-                  const nextValue = e.target.value;
-                  setDueDate(nextValue);
-                  setDueDateError(
-                    isPastDate(nextValue)
-                      ? "Please select today's date or a future due date."
-                      : "",
-                  );
-                }}
-                aria-invalid={!!dueDateError}
+                type="number"
+                value={budget}
+                onChange={(e) => setBudget(e.target.value)}
+                placeholder="100000"
               />
-              {dueDateError && (
-                <p className="text-sm text-destructive">{dueDateError}</p>
+            </div>
+
+            {template &&
+              (template as any).defaultTasks &&
+              (template as any).defaultTasks.length > 0 && (
+                <div className="rounded-lg border border-border p-3 bg-muted/30">
+                  <p className="text-xs font-medium mb-2">
+                    This template includes:
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    <Badge variant="secondary" className="text-[10px]">
+                      {(template as any).defaultTasks.length} starter tasks
+                    </Badge>
+                    {(template as any).defaultSprints && (
+                      <Badge variant="secondary" className="text-[10px]">
+                        {(template as any).defaultSprints.length} sprints
+                      </Badge>
+                    )}
+                    {(template as any).suggestedTags &&
+                      (template as any).suggestedTags.length > 0 && (
+                        <Badge variant="secondary" className="text-[10px]">
+                          {(template as any).suggestedTags.length} tags
+                        </Badge>
+                      )}
+                  </div>
+                </div>
               )}
+          </div>
+
+          <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={
+                !name.trim() ||
+                !key.trim() ||
+                !!dueDateError ||
+                !!startDateError
+              }
+              className="bg-[#6366F1] hover:bg-[#5558E3]"
+            >
+              Create Project
+            </Button>
+          </DialogFooter>
+        </form>
+
+        {showFullCreateClient && (
+          <CreateClientModal
+            onClose={() => setShowFullCreateClient(false)}
+            onSubmit={async (clientData) => {
+              try {
+                const newC = await addClient(clientData);
+                setClientId(newC.id);
+              } catch (error) {
+                console.error("Failed to create client", error);
+              }
+            }}
+          />
+        )}
+
+        {showFullCreateTeam && (
+          <CreateTeamModal
+            onClose={() => setShowFullCreateTeam(false)}
+            onSubmit={async (teamData) => {
+              try {
+                const newT = await addTeam(teamData);
+                setTeamId(newT.id);
+              } catch (error) {
+                console.error("Failed to create team", error);
+              }
+            }}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Create Client Modal Component
+function CreateClientModal({
+  onClose,
+  onSubmit,
+}: {
+  onClose: () => void;
+  onSubmit: (client: Omit<Client, "id" | "createdAt" | "updatedAt">) => void;
+}) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [company, setCompany] = useState("");
+  const [type, setType] = useState<ClientType>("external");
+  const [address, setAddress] = useState("");
+  const [notes, setNotes] = useState("");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!name.trim() || !email.trim()) return;
+
+    onSubmit({
+      name: name.trim(),
+      email: email.trim(),
+      phone: phone.trim() || undefined,
+      company: company.trim() || undefined,
+      type,
+      address: address.trim() || undefined,
+      notes: notes.trim() || undefined,
+    });
+    onClose();
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Create New Client</DialogTitle>
+          <DialogDescription>
+            Add a new external client or internal stakeholder
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2 col-span-2">
+              <Label htmlFor="client-name">Full Name *</Label>
+              <Input
+                id="client-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="John Doe"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="client-email">Email *</Label>
+              <Input
+                id="client-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="john@example.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="client-phone">Phone</Label>
+              <Input
+                id="client-phone"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+1 (555) 000-0000"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="client-company">Company</Label>
+              <Input
+                id="client-company"
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
+                placeholder="Acme Inc."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Client Type</Label>
+              <Select
+                value={type}
+                onValueChange={(v) => setType(v as ClientType)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="external">External</SelectItem>
+                  <SelectItem value="internal">Internal</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label>Budget ($)</Label>
-            <Input
-              type="number"
-              value={budget}
-              onChange={(e) => setBudget(e.target.value)}
-              placeholder="100000"
+            <Label htmlFor="client-address">Address</Label>
+            <Textarea
+              id="client-address"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="123 Street, City, Country"
+              rows={2}
             />
           </div>
 
-          {template &&
-            (template as any).defaultTasks &&
-            (template as any).defaultTasks.length > 0 && (
-              <div className="rounded-lg border border-border p-3 bg-muted/30">
-                <p className="text-xs font-medium mb-2">
-                  This template includes:
-                </p>
-                <div className="flex flex-wrap gap-1">
-                  <Badge variant="secondary" className="text-[10px]">
-                    {(template as any).defaultTasks.length} starter tasks
-                  </Badge>
-                  {(template as any).defaultSprints && (
-                    <Badge variant="secondary" className="text-[10px]">
-                      {(template as any).defaultSprints.length} sprints
-                    </Badge>
-                  )}
-                  {(template as any).suggestedTags &&
-                    (template as any).suggestedTags.length > 0 && (
-                      <Badge variant="secondary" className="text-[10px]">
-                        {(template as any).suggestedTags.length} tags
-                      </Badge>
-                    )}
-                </div>
-              </div>
-            )}
+          <div className="space-y-2">
+            <Label htmlFor="client-notes">Notes</Label>
+            <Textarea
+              id="client-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Any additional information..."
+              rows={2}
+            />
+          </div>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!name.trim() || !key.trim() || !!dueDateError}>
-              Create Project
+            <Button type="submit" disabled={!name.trim() || !email.trim()}>
+              Create Client
             </Button>
           </DialogFooter>
         </form>
@@ -1996,7 +2595,9 @@ function CreateTeamModal({
   const { users, projects } = useApp();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [leadId, setLeadId] = useState(users[0]?.id || "");
+  const [projectManagerId, setProjectManagerId] = useState(users[0]?.id || "");
+  const [leadId, setLeadId] = useState<string>("");
+  const [productManagerId, setProductManagerId] = useState<string>("");
   const [selectedMembers, setSelectedMembers] = useState<string[]>(
     users[0] ? [users[0].id] : [],
   );
@@ -2005,15 +2606,20 @@ function CreateTeamModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    e.stopPropagation();
+    if (!name.trim() || !projectManagerId) return;
 
-    const lead = users.find((u) => u.id === leadId) || users[0];
+    const projectManager = users.find((u) => u.id === projectManagerId)!;
+    const lead = users.find((u) => u.id === leadId);
+    const productManager = users.find((u) => u.id === productManagerId);
     const members = users.filter((u) => selectedMembers.includes(u.id));
 
     onSubmit({
       name: name.trim(),
       description: description.trim(),
+      projectManager,
       lead,
+      productManager,
       members,
       projects: projects.filter((p) => selectedProjects.includes(p.id)),
       projectIds: selectedProjects,
@@ -2042,23 +2648,34 @@ function CreateTeamModal({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Create New Team</DialogTitle>
           <DialogDescription>
-            Set up a new team with members and projects
+            Set up a new team with roles, members, and projects
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="team-name">Team Name *</Label>
-            <Input
-              id="team-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Engineering Team"
-              autoFocus
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="team-name">Team Name *</Label>
+              <Input
+                id="team-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Engineering Team"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Sprint Capacity</Label>
+              <Input
+                type="number"
+                value={capacity}
+                onChange={(e) => setCapacity(e.target.value)}
+                placeholder="40"
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -2072,43 +2689,83 @@ function CreateTeamModal({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Team Lead</Label>
-              <Select value={leadId} onValueChange={setLeadId}>
+              <Label className="flex items-center gap-1">
+                Project Manager <span className="text-destructive">*</span>
+              </Label>
+              <Select value={projectManagerId} onValueChange={setProjectManagerId}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Select PM" />
                 </SelectTrigger>
                 <SelectContent>
                   {users.map((user) => (
                     <SelectItem key={user.id} value={user.id}>
                       <span className="flex items-center gap-2">
-                        <Avatar className="size-5">
-                          <AvatarImage
-                            src={user.avatar || "/placeholder.svg"}
-                          />
-                          <AvatarFallback className="text-xs">
-                            {user.name
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")}
+                        <Avatar className="size-4">
+                          <AvatarImage src={user.avatar || "/placeholder.svg"} />
+                          <AvatarFallback className="text-[10px]">
+                            {user.name.split(" ").map((n) => n[0]).join("")}
                           </AvatarFallback>
                         </Avatar>
-                        {user.name}
+                        <span className="truncate">{user.name}</span>
                       </span>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Sprint Capacity</Label>
-              <Input
-                type="number"
-                value={capacity}
-                onChange={(e) => setCapacity(e.target.value)}
-                placeholder="40"
-              />
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Team Lead (Optional)</Label>
+                <Select value={leadId} onValueChange={setLeadId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Optional" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {users.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        <span className="flex items-center gap-2">
+                          <Avatar className="size-4">
+                            <AvatarImage src={user.avatar || "/placeholder.svg"} />
+                            <AvatarFallback className="text-[10px]">
+                              {user.name.split(" ").map((n) => n[0]).join("")}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="truncate">{user.name}</span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Product Manager (Optional)</Label>
+                <Select value={productManagerId} onValueChange={setProductManagerId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Optional" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {users.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        <span className="flex items-center gap-2">
+                          <Avatar className="size-4">
+                            <AvatarImage src={user.avatar || "/placeholder.svg"} />
+                            <AvatarFallback className="text-[10px]">
+                              {user.name.split(" ").map((n) => n[0]).join("")}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="truncate">{user.name}</span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 
@@ -2154,6 +2811,258 @@ function CreateTeamModal({
             </Button>
             <Button type="submit" disabled={!name.trim()}>
               Create Team
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Edit Team Modal Component
+function EditTeamModal({
+  teamId,
+  onClose,
+  onSubmit,
+}: {
+  teamId: string;
+  onClose: () => void;
+  onSubmit: (id: string, updates: Partial<Team>) => void;
+}) {
+  const { users, projects, teams } = useApp();
+  const team = teams.find((t) => t.id === teamId);
+
+  const [name, setName] = useState(team?.name || "");
+  const [description, setDescription] = useState(team?.description || "");
+  const [projectManagerId, setProjectManagerId] = useState(team?.projectManager?.id || "");
+  const [leadId, setLeadId] = useState(team?.lead?.id || "none");
+  const [productManagerId, setProductManagerId] = useState(team?.productManager?.id || "none");
+  const [selectedMembers, setSelectedMembers] = useState<string[]>(
+    team?.members.map((m) => m.id) || []
+  );
+  const [selectedProjects, setSelectedProjects] = useState<string[]>(
+    team?.projectIds || []
+  );
+  const [capacity, setCapacity] = useState(String(team?.capacity || "40"));
+
+  useEffect(() => {
+    if (team) {
+      setName(team.name);
+      setDescription(team.description || "");
+      setProjectManagerId(team.projectManager?.id || "");
+      setLeadId(team.lead?.id || "none");
+      setProductManagerId(team.productManager?.id || "none");
+      setSelectedMembers(team.members.map((m) => m.id));
+      setSelectedProjects(team.projectIds || []);
+      setCapacity(String(team.capacity || "40"));
+    }
+  }, [team]);
+
+  if (!team) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !projectManagerId) return;
+
+    const projectManager = users.find((u) => u.id === projectManagerId)!;
+    const lead = users.find((u) => u.id === leadId);
+    const productManager = users.find((u) => u.id === productManagerId);
+    const members = users.filter((u) => selectedMembers.includes(u.id));
+
+    onSubmit(teamId, {
+      name: name.trim(),
+      description: description.trim(),
+      projectManager,
+      lead: leadId === "none" ? undefined : lead,
+      productManager: productManagerId === "none" ? undefined : productManager,
+      members,
+      projectIds: selectedProjects,
+      capacity: Number(capacity) || 40,
+    });
+
+    onClose();
+  };
+
+  const toggleMember = (userId: string) => {
+    setSelectedMembers((prev) =>
+      prev.includes(userId)
+        ? prev.filter((id) => id !== userId)
+        : [...prev, userId]
+    );
+  };
+
+  const toggleProject = (projectId: string) => {
+    setSelectedProjects((prev) =>
+      prev.includes(projectId)
+        ? prev.filter((id) => id !== projectId)
+        : [...prev, projectId]
+    );
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Edit Team</DialogTitle>
+          <DialogDescription>
+            Update team roles, members, and project assignments
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-team-name">Team Name *</Label>
+              <Input
+                id="edit-team-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Engineering Team"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Sprint Capacity</Label>
+              <Input
+                type="number"
+                value={capacity}
+                onChange={(e) => setCapacity(e.target.value)}
+                placeholder="40"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit-team-description">Description</Label>
+            <Textarea
+              id="edit-team-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Team description..."
+              rows={2}
+            />
+          </div>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1">
+                Project Manager <span className="text-destructive">*</span>
+              </Label>
+              <Select value={projectManagerId} onValueChange={setProjectManagerId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select PM" />
+                </SelectTrigger>
+                <SelectContent>
+                  {users.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      <span className="flex items-center gap-2">
+                        <Avatar className="size-4">
+                          <AvatarImage src={user.avatar || "/placeholder.svg"} />
+                          <AvatarFallback className="text-[10px]">
+                            {user.name.split(" ").map((n) => n[0]).join("")}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="truncate">{user.name}</span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Team Lead (Optional)</Label>
+                <Select value={leadId} onValueChange={setLeadId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Optional" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {users.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        <span className="flex items-center gap-2">
+                          <Avatar className="size-4">
+                            <AvatarImage src={user.avatar || "/placeholder.svg"} />
+                            <AvatarFallback className="text-[10px]">
+                              {user.name.split(" ").map((n) => n[0]).join("")}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="truncate">{user.name}</span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Product Manager (Optional)</Label>
+                <Select value={productManagerId} onValueChange={setProductManagerId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Optional" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {users.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        <span className="flex items-center gap-2">
+                          <Avatar className="size-4">
+                            <AvatarImage src={user.avatar || "/placeholder.svg"} />
+                            <AvatarFallback className="text-[10px]">
+                              {user.name.split(" ").map((n) => n[0]).join("")}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="truncate">{user.name}</span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Team Members</Label>
+            <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 border border-border rounded-lg">
+              {users.map((user) => (
+                <label
+                  key={user.id}
+                  className="flex items-center gap-2 cursor-pointer"
+                >
+                  <Checkbox
+                    checked={selectedMembers.includes(user.id)}
+                    onCheckedChange={() => toggleMember(user.id)}
+                  />
+                  <span className="text-sm">{user.name}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Assigned Projects</Label>
+            <div className="grid grid-cols-2 gap-2 max-h-24 overflow-y-auto p-2 border border-border rounded-lg">
+              {projects.map((project) => (
+                <label
+                  key={project.id}
+                  className="flex items-center gap-2 cursor-pointer"
+                >
+                  <Checkbox
+                    checked={selectedProjects.includes(project.id)}
+                    onCheckedChange={() => toggleProject(project.id)}
+                  />
+                  <span className="text-sm">{project.name}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={!name.trim() || !projectManagerId}>
+              Save Changes
             </Button>
           </DialogFooter>
         </form>
@@ -2548,7 +3457,158 @@ function LogTimeModal({
   );
 }
 
-// Add Member Modal Component
+// Create User Modal Component - Reusable for standalone and inline flows
+function CreateUserModal({
+  onClose,
+  onSubmit,
+  onUserCreated,
+}: {
+  onClose: () => void;
+  onSubmit: (user: { name: string; email: string; password: string; role?: string }) => Promise<User>;
+  onUserCreated?: (user: User) => void;
+}) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState("MEMBER");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+    if (!name.trim()) newErrors.name = "Name is required";
+    if (!email.trim()) newErrors.email = "Email is required";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = "Invalid email format";
+    if (!password) newErrors.password = "Password is required";
+    else if (password.length < 6) newErrors.password = "Password must be at least 6 characters";
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validate()) return;
+
+    setIsSubmitting(true);
+    try {
+      const newUser = await onSubmit({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password,
+        role,
+      });
+      onUserCreated?.(newUser);
+      onClose();
+    } catch {
+      // Error handling is done in the onSubmit (context-level toast)
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <UserPlus className="size-5" />
+            Create New User
+          </DialogTitle>
+          <DialogDescription>
+            Create a new user account. The user will be available for team assignment.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="user-name">Full Name *</Label>
+            <Input
+              id="user-name"
+              placeholder="e.g., John Doe"
+              value={name}
+              onChange={(e) => { setName(e.target.value); setErrors((p) => ({ ...p, name: "" })); }}
+              autoFocus
+              aria-invalid={!!errors.name}
+            />
+            {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="user-email">Email Address *</Label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <Input
+                id="user-email"
+                type="email"
+                placeholder="user@example.com"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); setErrors((p) => ({ ...p, email: "" })); }}
+                className="pl-9"
+                aria-invalid={!!errors.email}
+              />
+            </div>
+            {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="user-password">Password *</Label>
+            <div className="relative">
+              <Input
+                id="user-password"
+                type={showPassword ? "text" : "password"}
+                placeholder="Minimum 6 characters"
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); setErrors((p) => ({ ...p, password: "" })); }}
+                aria-invalid={!!errors.password}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 -translate-y-1/2 size-8"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </Button>
+            </div>
+            {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="user-role">
+              <span className="flex items-center gap-1.5">
+                <Shield className="size-3.5" />
+                Role
+              </span>
+            </Label>
+            <Select value={role} onValueChange={setRole}>
+              <SelectTrigger id="user-role">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ADMIN">Admin</SelectItem>
+                <SelectItem value="MANAGER">Manager</SelectItem>
+                <SelectItem value="MEMBER">Member</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting} className="gap-2">
+              {isSubmitting && <Loader2 className="size-4 animate-spin" />}
+              {isSubmitting ? "Creating..." : "Create User"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Add Member Modal Component - Enhanced with inline user creation
 function AddMemberModal({
   teamId,
   onClose,
@@ -2556,14 +3616,22 @@ function AddMemberModal({
   teamId: string;
   onClose: () => void;
 }) {
-  const { getTeam, addTeamMember, teams, users } = useApp();
+  const { getTeam, addTeamMember, addUser, teams, users } = useApp();
   const team = getTeam(teamId);
   const [selectedUser, setSelectedUser] = useState<string>("");
+  const [showCreateUser, setShowCreateUser] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   if (!team) return null;
 
   const availableUsers = users.filter(
     (u) => !team.members.some((m) => m.id === u.id),
+  );
+
+  const filteredUsers = availableUsers.filter(
+    (u) =>
+      u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      u.email.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   const handleAdd = () => {
@@ -2573,49 +3641,106 @@ function AddMemberModal({
     }
   };
 
+  const handleUserCreated = (newUser: User) => {
+    // The user is now in the global users state via addUser
+    // Auto-select the newly created user
+    setSelectedUser(newUser.id);
+    setShowCreateUser(false);
+    setSearchQuery("");
+  };
+
+  // Show the inline Create User modal as a stacked overlay
+  if (showCreateUser) {
+    return (
+      <CreateUserModal
+        onClose={() => setShowCreateUser(false)}
+        onSubmit={addUser}
+        onUserCreated={handleUserCreated}
+      />
+    );
+  }
+
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Add Team Member</DialogTitle>
-          <DialogDescription>Add a member to {team.name}</DialogDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <DialogTitle>Add Team Member</DialogTitle>
+              <DialogDescription>Add a member to {team.name}</DialogDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 shrink-0"
+              onClick={() => setShowCreateUser(true)}
+            >
+              <UserPlus className="size-3.5" />
+              Create User
+            </Button>
+          </div>
         </DialogHeader>
 
-        <div className="space-y-3 py-4">
-          {availableUsers.length > 0 ? (
-            availableUsers.map((user) => (
-              <button
-                key={user.id}
-                type="button"
-                onClick={() => setSelectedUser(user.id)}
-                className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${selectedUser === user.id
-                  ? "border-primary bg-primary/5"
-                  : "border-border hover:bg-muted"
-                  }`}
-              >
-                <Avatar className="size-8">
-                  <AvatarImage src={user.avatar || "/placeholder.svg"} />
-                  <AvatarFallback>
-                    {user.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="text-left">
-                  <p className="font-medium text-sm">{user.name}</p>
-                  <p className="text-xs text-muted-foreground capitalize">
+        {availableUsers.length > 3 && (
+          <div className="relative">
+            <Input
+              placeholder="Search users..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+            <Users className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          </div>
+        )}
+
+        <ScrollArea className={availableUsers.length > 5 ? "h-[280px]" : ""}>
+          <div className="space-y-2 py-2">
+            {filteredUsers.length > 0 ? (
+              filteredUsers.map((user) => (
+                <button
+                  key={user.id}
+                  type="button"
+                  onClick={() => setSelectedUser(user.id)}
+                  className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${selectedUser === user.id
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:bg-muted"
+                    }`}
+                >
+                  <Avatar className="size-8">
+                    <AvatarImage src={user.avatar || "/placeholder.svg"} />
+                    <AvatarFallback>
+                      {user.name
+                        .split(" ")
+                        .map((n) => n[0])
+                        .join("")}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="text-left flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{user.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                  </div>
+                  <Badge variant="outline" className="text-[10px] capitalize shrink-0">
                     {user.role?.replace("-", " ") || "Contributor"}
-                  </p>
-                </div>
-              </button>
-            ))
-          ) : (
-            <p className="text-center text-muted-foreground py-4">
-              All users are already team members
-            </p>
-          )}
-        </div>
+                  </Badge>
+                </button>
+              ))
+            ) : availableUsers.length === 0 ? (
+              <div className="text-center py-6">
+                <Users className="size-10 mx-auto mb-2 text-muted-foreground/40" />
+                <p className="text-sm text-muted-foreground">
+                  All users are already team members
+                </p>
+              </div>
+            ) : (
+              <div className="text-center py-6">
+                <Users className="size-10 mx-auto mb-2 text-muted-foreground/40" />
+                <p className="text-sm text-muted-foreground">
+                  No users match &quot;{searchQuery}&quot;
+                </p>
+              </div>
+            )}
+          </div>
+        </ScrollArea>
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
@@ -2646,8 +3771,12 @@ function CreateSprintModal({
   const [projectId, setProjectId] = useState(projects[0]?.id || "");
   const [dateError, setDateError] = useState("");
 
-  const backlogTasks = tasks.filter((t) => t.projectId === projectId && !t.sprintId);
-  const [selectedBacklogTasks, setSelectedBacklogTasks] = useState<string[]>([]);
+  const backlogTasks = tasks.filter(
+    (t) => t.projectId === projectId && !t.sprintId,
+  );
+  const [selectedBacklogTasks, setSelectedBacklogTasks] = useState<string[]>(
+    [],
+  );
 
   useEffect(() => {
     setSelectedBacklogTasks([]);
@@ -2676,14 +3805,16 @@ function CreateSprintModal({
         status: "active",
         projectId,
       },
-      selectedBacklogTasks
+      selectedBacklogTasks,
     );
     onClose();
   };
 
   const toggleBacklogTaskSelection = (taskId: string) => {
     setSelectedBacklogTasks((prev) =>
-      prev.includes(taskId) ? prev.filter((id) => id !== taskId) : [...prev, taskId]
+      prev.includes(taskId)
+        ? prev.filter((id) => id !== taskId)
+        : [...prev, taskId],
     );
   };
 
@@ -2800,12 +3931,15 @@ function CreateSprintModal({
                       key={task.id}
                       className={cn(
                         "flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-muted/50 transition-colors",
-                        selectedBacklogTasks.includes(task.id) && "bg-primary/5"
+                        selectedBacklogTasks.includes(task.id) &&
+                        "bg-primary/5",
                       )}
                     >
                       <Checkbox
                         checked={selectedBacklogTasks.includes(task.id)}
-                        onCheckedChange={() => toggleBacklogTaskSelection(task.id)}
+                        onCheckedChange={() =>
+                          toggleBacklogTaskSelection(task.id)
+                        }
                       />
                       <span
                         className={cn(
@@ -2819,14 +3953,19 @@ function CreateSprintModal({
                               task.type === "story",
                             "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400":
                               task.type === "task" || task.type === "subtask",
-                          }
+                          },
                         )}
                       >
                         {task.key}
                       </span>
-                      <span className="flex-1 text-sm truncate">{task.title}</span>
+                      <span className="flex-1 text-sm truncate">
+                        {task.title}
+                      </span>
                       {task.storyPoints && (
-                        <Badge variant="outline" className="text-[10px] shrink-0">
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] shrink-0"
+                        >
                           {task.storyPoints} pts
                         </Badge>
                       )}
@@ -2853,7 +3992,195 @@ function CreateSprintModal({
         </form>
       </DialogContent>
     </Dialog>
-
   );
 }
 
+// Client Detail Modal Component
+function ClientDetailModal({
+  clientId,
+  onClose,
+}: {
+  clientId: string;
+  onClose: () => void;
+}) {
+  const { clients, projects } = useApp();
+  const client = clients.find((c) => c.id === clientId);
+
+  if (!client) return null;
+
+  const clientProjects = projects.filter((p) => p.clientId === clientId);
+
+  const getInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-2xl overflow-hidden p-0">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b bg-muted/30">
+          <div className="flex items-center gap-4">
+            <Avatar className="size-16 border-2 border-background shadow-sm">
+              <AvatarFallback className="bg-primary/10 text-primary text-xl font-bold">
+                {getInitials(client.name)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <DialogTitle className="text-xl font-bold truncate">
+                {client.name}
+              </DialogTitle>
+              <DialogDescription className="sr-only">
+                Detailed information for client {client.name}
+              </DialogDescription>
+              <div className="flex items-center gap-2 mt-1">
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "text-[10px] font-medium h-5",
+                    client.type === "external"
+                      ? "border-blue-200 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                      : "border-green-200 bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+                  )}
+                >
+                  {client.type === "external" ? (
+                    <Globe className="size-2.5 mr-1" />
+                  ) : (
+                    <Building2 className="size-2.5 mr-1" />
+                  )}
+                  {client.type.charAt(0).toUpperCase() + client.type.slice(1)}{" "}
+                  Client
+                </Badge>
+                {client.company && (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Building className="size-3" />
+                    {client.company}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="p-6 space-y-6">
+          <div className="grid grid-cols-2 gap-8">
+            <div className="space-y-4">
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                Contact Details
+              </h3>
+              <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="size-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                    <Mail className="size-4 text-muted-foreground" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] text-muted-foreground font-medium uppercase">
+                      Email
+                    </p>
+                    <p className="text-sm font-medium break-all">
+                      {client.email}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="size-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                    <Phone className="size-4 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground font-medium uppercase">
+                      Phone
+                    </p>
+                    <p className="text-sm font-medium">
+                      {client.phone || "Not provided"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="size-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                    <MapPin className="size-4 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground font-medium uppercase">
+                      Address
+                    </p>
+                    <p className="text-sm font-medium leading-relaxed">
+                      {client.address || "Not provided"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                Projects ({clientProjects.length})
+              </h3>
+              <div className="space-y-2 max-h-[240px] overflow-y-auto pr-1">
+                {clientProjects.length > 0 ? (
+                  clientProjects.map((project) => (
+                    <div
+                      key={project.id}
+                      className="p-3 rounded-xl border bg-card hover:bg-accent/5 transition-colors flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="size-8 rounded-lg bg-muted border flex items-center justify-center font-mono text-[10px] font-bold">
+                          {project.key}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold truncate max-w-[120px]">
+                            {project.name}
+                          </p>
+                          <p className="text-[9px] text-muted-foreground capitalize">
+                            {project.status.replace("-", " ")}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] font-bold">
+                          {project.progress}%
+                        </p>
+                        <div className="w-12 h-1 bg-muted rounded-full mt-1 overflow-hidden">
+                          <div
+                            className="h-full bg-primary transition-all"
+                            style={{ width: `${project.progress}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-10 border-2 border-dashed rounded-xl flex flex-col items-center justify-center bg-muted/20">
+                    <FolderPlus className="size-6 text-muted-foreground/30 mb-2" />
+                    <p className="text-[10px] text-muted-foreground font-medium">
+                      No projects assigned
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {client.notes && (
+            <div className="space-y-2">
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                Internal Notes
+              </h3>
+              <div className="p-4 rounded-xl bg-muted/30 border border-border/50 text-sm text-foreground/80 leading-relaxed">
+                {client.notes}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="px-6 py-4 border-t bg-muted/20">
+          <Button variant="outline" size="sm" onClick={onClose} className="h-8">
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -209,7 +209,7 @@ export default function DashboardPage() {
       <AppSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <AppHeader
-          title={`${greeting()}, ${currentUser.name.split(' ')[0]}`}
+          title={`${greeting()}, ${currentUser?.name?.split(' ')[0] || 'User'}`}
           subtitle="Here's what's happening with your projects today"
         />
         <main className="flex-1 overflow-y-auto p-6">

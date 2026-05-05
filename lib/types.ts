@@ -107,6 +107,7 @@ export interface Project {
   budget?: number;
   spent?: number;
   clientId?: string; // External or internal client
+  teamId?: string; // Internal team
   templateId?: string; // Template used to create the project
 }
 
@@ -170,7 +171,7 @@ export interface DashboardMetrics {
 }
 
 // Project Templates
-export type TemplateCategory = 
+export type TemplateCategory =
   | 'software-development'
   | 'mobile-development'
   | 'social-media'
@@ -283,6 +284,7 @@ export interface BackendProject {
   ai_confidence?: number;
   risk_level?: RiskLevel;
   start_date?: string;
+  end_date?: string;
   owner?: BackendUser;
   members?: BackendUser[];
 }
@@ -298,13 +300,19 @@ export interface BackendTask {
   project_id: number | string;
   assignee?: BackendUser;
   reporter?: BackendUser;
+  start_date?: string;
+  due_date?: string;
 }
 
 export interface BackendTeam {
   id: number | string;
   name: string;
   description?: string;
+  capacity?: string | number;
+  velocity?: string | number;
+  project_manager?: BackendUser;
   lead?: BackendUser;
+  product_manager?: BackendUser;
   members?: BackendUser[];
   project_ids?: (number | string)[];
 }
@@ -314,7 +322,9 @@ export interface Team {
   name: string;
   description?: string;
   avatar?: string;
-  lead: User;
+  projectManager: User;
+  lead?: User;
+  productManager?: User;
   members: User[];
   projects: Project[];
   projectIds: string[];

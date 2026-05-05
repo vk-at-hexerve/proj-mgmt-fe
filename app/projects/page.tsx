@@ -378,19 +378,52 @@ export default function ProjectsPage() {
                 <PopoverContent className="w-64 p-4" align="end">
                   <h4 className="font-medium text-sm mb-3">Project Team</h4>
                   {projectTeam ? (
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
+                    <div className="space-y-4">
+                      {/* Project Manager (Mandatory) */}
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-primary/5 border border-primary/10">
                         <Avatar className="size-8">
-                          <AvatarImage src={projectTeam.lead.avatar || '/placeholder.svg'} />
+                          <AvatarImage src={projectTeam.projectManager.avatar || '/placeholder.svg'} />
                           <AvatarFallback className="text-xs">
-                            {projectTeam.lead.name.split(' ').map((n: string) => n[0]).join('')}
+                            {projectTeam.projectManager.name.split(' ').map((n: string) => n[0]).join('')}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{projectTeam.lead.name}</p>
-                          <p className="text-xs text-muted-foreground">Team Lead</p>
+                          <p className="text-sm font-medium truncate">{projectTeam.projectManager.name}</p>
+                          <p className="text-[10px] uppercase tracking-wider font-semibold text-primary/70">Project Manager</p>
                         </div>
                       </div>
+
+                      {/* Team Lead (Optional) */}
+                      {projectTeam.lead && (
+                        <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border/50">
+                          <Avatar className="size-8">
+                            <AvatarImage src={projectTeam.lead.avatar || '/placeholder.svg'} />
+                            <AvatarFallback className="text-xs">
+                              {projectTeam.lead.name.split(' ').map((n: string) => n[0]).join('')}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{projectTeam.lead.name}</p>
+                            <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Team Lead</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Product Manager (Optional) */}
+                      {projectTeam.productManager && (
+                        <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border/50">
+                          <Avatar className="size-8">
+                            <AvatarImage src={projectTeam.productManager.avatar || '/placeholder.svg'} />
+                            <AvatarFallback className="text-xs">
+                              {projectTeam.productManager.name.split(' ').map((n: string) => n[0]).join('')}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{projectTeam.productManager.name}</p>
+                            <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Product Manager</p>
+                          </div>
+                        </div>
+                      )}
                       <div className="space-y-2">
                         <p className="text-xs text-muted-foreground">Members ({projectTeam.members.length})</p>
                         <div className="flex flex-wrap gap-1">
