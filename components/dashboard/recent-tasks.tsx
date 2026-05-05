@@ -53,75 +53,83 @@ export function RecentTasks() {
       </CardHeader>
       <CardContent>
         <div className="space-y-1">
-          {recentTasks.map((task) => (
-            <div
-              key={task.id}
-              className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group"
-            >
-              <Checkbox
-                checked={task.status === 'closed'}
-                className="shrink-0"
-              />
-              
-              <div className={cn(
-                'shrink-0',
-                task.type === 'bug' && 'text-destructive',
-                task.type === 'epic' && 'text-primary',
-                task.type === 'story' && 'text-accent',
-              )}>
-                {typeIcons[task.type]}
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono text-muted-foreground">
-                    {task.key}
-                  </span>
-                  <span
-                    className={cn(
-                      'font-medium text-sm truncate',
-                      task.status === 'closed' && 'line-through text-muted-foreground'
-                    )}
-                  >
-                    {task.title}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <Badge
-                    variant="secondary"
-                    className={cn('text-xs px-1.5 py-0', statusStyles[task.status])}
-                  >
-                    {task.status.replace('-', ' ')}
-                  </Badge>
-                  {task.storyPoints && (
-                    <span className="text-xs text-muted-foreground">
-                      {task.storyPoints} pts
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <Badge
-                className={cn('text-xs shrink-0', priorityStyles[task.priority])}
+          {recentTasks.length > 0 ? (
+            recentTasks.map((task) => (
+              <div
+                key={task.id}
+                className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group"
               >
-                {task.priority}
-              </Badge>
+                <Checkbox
+                  checked={task.status === 'closed'}
+                  className="shrink-0"
+                />
+                
+                <div className={cn(
+                  'shrink-0',
+                  task.type === 'bug' && 'text-destructive',
+                  task.type === 'epic' && 'text-primary',
+                  task.type === 'story' && 'text-accent',
+                )}>
+                  {typeIcons[task.type]}
+                </div>
 
-              {task.assignee ? (
-                <Avatar className="size-6 shrink-0">
-                  <AvatarImage src={task.assignee.avatar || "/placeholder.svg"} alt={task.assignee.name} />
-                  <AvatarFallback className="text-xs">
-                    {task.assignee.name
-                      .split(' ')
-                      .map((n) => n[0])
-                      .join('')}
-                  </AvatarFallback>
-                </Avatar>
-              ) : (
-                <div className="size-6 rounded-full border-2 border-dashed border-muted-foreground/30 shrink-0" />
-              )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-muted-foreground">
+                      {task.key}
+                    </span>
+                    <span
+                      className={cn(
+                        'font-medium text-sm truncate',
+                        task.status === 'closed' && 'line-through text-muted-foreground'
+                      )}
+                    >
+                      {task.title}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <Badge
+                      variant="secondary"
+                      className={cn('text-xs px-1.5 py-0', statusStyles[task.status])}
+                    >
+                      {task.status.replace('-', ' ')}
+                    </Badge>
+                    {task.storyPoints && (
+                      <span className="text-xs text-muted-foreground">
+                        {task.storyPoints} pts
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <Badge
+                  className={cn('text-xs shrink-0', priorityStyles[task.priority])}
+                >
+                  {task.priority}
+                </Badge>
+
+                {task.assignee ? (
+                  <Avatar className="size-6 shrink-0">
+                    <AvatarImage src={task.assignee.avatar || "/placeholder.svg"} alt={task.assignee.name} />
+                    <AvatarFallback className="text-xs">
+                      {task.assignee.name
+                        .split(' ')
+                        .map((n) => n[0])
+                        .join('')}
+                    </AvatarFallback>
+                  </Avatar>
+                ) : (
+                  <div className="size-6 rounded-full border-2 border-dashed border-muted-foreground/30 shrink-0" />
+                )}
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-12 text-muted-foreground">
+              <ListTodo className="size-12 mx-auto mb-3 opacity-50" />
+              <p className="font-medium">No tasks yet</p>
+              <p className="text-xs">Tasks from your active projects will appear here</p>
             </div>
-          ))}
+          )}
         </div>
       </CardContent>
     </Card>

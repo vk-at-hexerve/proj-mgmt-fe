@@ -37,7 +37,7 @@ export function mapBackendProject(backendProject: BackendProject): Project {
     type: 'agile-kanban', // Default for now
     id: String(backendProject.id),
     name: backendProject.name,
-    key: backendProject.name.substring(0, 3).toUpperCase(),
+    key: backendProject.project_key || backendProject.name.substring(0, 3).toUpperCase(),
     status: (backendProject.status?.toLowerCase() || 'active') as ProjectStatus,
     progress: backendProject.progress || 0,
     aiConfidence: backendProject.ai_confidence || 85,
@@ -62,6 +62,7 @@ export function mapBackendProject(backendProject: BackendProject): Project {
 export function mapBackendTask(backendTask: BackendTask): Task {
   const statusMap: Record<string, TaskStatus> = {
     'TODO': 'open',
+    'ASSIGNED': 'assigned',
     'IN_PROGRESS': 'in-progress',
     'IN_REVIEW': 'pending-approval',
     'DONE': 'closed',
@@ -84,6 +85,7 @@ export function mapBackendTask(backendTask: BackendTask): Task {
     priority: priorityMap[backendTask.priority] || 'medium',
     type: 'task',
     projectId: String(backendTask.project_id),
+    storyPoints: backendTask.story_points || 0,
     assignee: backendTask.assignee ? {
       id: String(backendTask.assignee.id),
       name: backendTask.assignee.name,
@@ -124,7 +126,9 @@ export function mapBackendTeam(backendTeam: BackendTeam): Team {
       avatar: m.avatar,
       role: (m.role || 'contributor') as UserRole
     })) : [],
-
+    projectIds: backendTeam.project_ids ? backendTeam.project_ids.map(String) : [],
+    velocity: 0,
+    capacity: 100,
   };
 }
 
@@ -156,8 +160,10 @@ export function mapBackendSprint(backendSprint: any) {
     startDate: backendSprint.start_date,
     endDate: backendSprint.end_date,
     velocity: backendSprint.velocity || 0,
+    projectId: backendSprint.project_id ? String(backendSprint.project_id) : "",
   };
 }
+
 
 export function mapBackendClient(backendClient: any) {
   return {

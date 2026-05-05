@@ -52,25 +52,27 @@ const formatCurrency = (amount: number) => {
 };
 
 export default function PortfoliosPage() {
-  const { portfolios, programs, openModal, showToast } = useApp();
+  const { portfolios: contextPortfolios, programs: contextPrograms, openModal, showToast } = useApp();
+  const portfolios = contextPortfolios as any[];
+  const programs = contextPrograms as any[];
   const [selectedPortfolio, setSelectedPortfolio] = useState(portfolios[0]?.id);
 
   const currentPortfolio = portfolios.find(p => p.id === selectedPortfolio) || portfolios[0];
-  const portfolioPrograms = programs.filter(p => currentPortfolio?.programIds.includes(p.id));
-  const portfolioProjects = portfolioPrograms.flatMap(prog => 
-    projects.filter(p => prog.projectIds.includes(p.id))
+  const portfolioPrograms = programs.filter(p => currentPortfolio?.programIds?.includes(p.id));
+  const portfolioProjects = portfolioPrograms.flatMap((prog: any) => 
+    projects.filter(p => prog.projectIds?.includes(p.id))
   );
 
-  const totalBudget = portfolios.reduce((sum, p) => sum + p.budget, 0);
-  const totalSpent = portfolios.reduce((sum, p) => sum + p.spent, 0);
-  const avgProgress = portfolios.reduce((sum, p) => sum + p.progress, 0) / portfolios.length;
-  const avgAIConfidence = portfolios.reduce((sum, p) => sum + p.aiConfidence, 0) / portfolios.length;
+  const totalBudget = portfolios.reduce((sum, p) => sum + (p.budget || 0), 0);
+  const totalSpent = portfolios.reduce((sum, p) => sum + (p.spent || 0), 0);
+  const avgProgress = portfolios.reduce((sum, p) => sum + (p.progress || 0), 0) / (portfolios.length || 1);
+  const avgAIConfidence = portfolios.reduce((sum, p) => sum + (p.aiConfidence || 0), 0) / (portfolios.length || 1);
 
   return (
     <div className="flex h-screen bg-background">
       <AppSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <AppHeader />
+        <AppHeader title="Portfolios" subtitle="Strategic overview of all investment portfolios" />
         <main className="flex-1 overflow-auto">
           <div className="p-6">
             {/* Page Header */}
@@ -229,7 +231,7 @@ export default function PortfoliosPage() {
                           <Avatar className="size-6">
                             <AvatarImage src={portfolio.owner.avatar || '/placeholder.svg'} />
                             <AvatarFallback className="text-xs">
-                              {portfolio.owner.name.split(' ').map(n => n[0]).join('')}
+                              {portfolio.owner.name.split(' ').map((n: string) => n[0]).join('')}
                             </AvatarFallback>
                           </Avatar>
                           <span className="text-sm text-muted-foreground">{portfolio.owner.name}</span>
