@@ -3,7 +3,7 @@
 import React from "react";
 
 import { useState, useEffect } from "react";
-import { useApp } from "@/lib/app-context";
+import { useApp, type TimeEntry as AppTimeEntry } from "@/lib/app-context";
 import { cn } from "@/lib/utils";
 
 import {
@@ -108,6 +108,11 @@ import {
   Eye,
   EyeOff,
   Shield,
+  Play,
+  Square,
+  Timer,
+  Lock,
+  Target,
 } from "lucide-react";
 
 const getTodayDateInputValue = () => {
@@ -154,6 +159,7 @@ export function AppModals() {
     addPortfolio,
     addTimeEntry,
     addProject,
+    updateProject,
     addUser,
     users,
     projects,
@@ -285,6 +291,20 @@ export function AppModals() {
   // Create Project Modal
   if (modal.type === "create-project") {
     return <CreateProjectModal onClose={closeModal} onSubmit={addProject} />;
+  }
+
+  // Edit Project Modal
+  if (modal.type === "edit-project") {
+    const projectId = modal.data?.projectId as string;
+    const project = projects.find((p) => p.id === projectId);
+    if (!project) return null;
+    return (
+      <EditProjectModal
+        project={project}
+        onClose={closeModal}
+        onSubmit={(updates) => updateProject(project.id, updates)}
+      />
+    );
   }
 
   // Create Team Modal
@@ -659,7 +679,7 @@ function EditTaskModal({
   onClose: () => void;
   onSubmit: (updates: Partial<NonNullable<typeof task>>) => void;
 }) {
-  const { tasks, users, currentUser } = useApp();
+  const { tasks, users, currentUser, startActivity, stopActivity, getTaskActivities, openModal, addTimeEntry } = useApp();
   const [title, setTitle] = useState(task?.title || "");
   const [description, setDescription] = useState(task?.description || "");
   const [type, setType] = useState<
@@ -710,10 +730,81 @@ function EditTaskModal({
   const [linkType, setLinkType] = useState<TaskLink["linkType"]>("relates-to");
   const [selectedLinkTask, setSelectedLinkTask] = useState<string>("");
 
+  // Activity / Timer state
+  const [taskActivities, setTaskActivities] = useState<AppTimeEntry[]>([]);
+  const [activeEntry, setActiveEntry] = useState<AppTimeEntry | null>(null);
+  const [timerElapsed, setTimerElapsed] = useState(0);
+  const [timerStarting, setTimerStarting] = useState(false);
+  const [timerStopping, setTimerStopping] = useState(false);
+  const [activitiesLoaded, setActivitiesLoaded] = useState(false);
+
+  const currentUserId = currentUser.id;
+
+  // Load activities for this task on mount
+  React.useEffect(() => {
+    if (task?.id && !activitiesLoaded) {
+      getTaskActivities(task.id).then((entries) => {
+        setTaskActivities(entries);
+        const running = entries.find((e) => e.isRunning && e.userId === currentUserId);
+        if (running) setActiveEntry(running);
+        setActivitiesLoaded(true);
+      });
+    }
+  }, [task?.id, activitiesLoaded, getTaskActivities, currentUserId]);
+
+  // Live timer tick
+  React.useEffect(() => {
+    if (!activeEntry?.startAt) return;
+    const tick = () => {
+      const startMs = new Date(activeEntry.startAt!).getTime();
+      const nowMs = Date.now();
+      setTimerElapsed(Math.max(0, Math.floor((nowMs - startMs) / 1000)));
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [activeEntry?.startAt]);
+
   if (!task) return null;
 
   const isSubtask = !!task.parentId;
-  const currentUserId = currentUser.id;
+
+  const formatElapsed = (totalSeconds: number) => {
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const formatDuration = (minutes: number | null | undefined) => {
+    if (!minutes) return '0m';
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  };
+
+  const handleStartTimer = async () => {
+    if (!task?.id || timerStarting) return;
+    setTimerStarting(true);
+    const entry = await startActivity(task.id);
+    if (entry) {
+      setActiveEntry(entry);
+      setTaskActivities((prev) => [entry, ...prev.filter(e => e.id !== entry.id)]);
+    }
+    setTimerStarting(false);
+  };
+
+  const handleStopTimer = async () => {
+    if (!activeEntry?.id || timerStopping) return;
+    setTimerStopping(true);
+    const entry = await stopActivity(activeEntry.id);
+    if (entry) {
+      setActiveEntry(null);
+      setTimerElapsed(0);
+      setTaskActivities((prev) => prev.map(e => e.id === entry.id ? entry : e));
+    }
+    setTimerStopping(false);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -910,9 +1001,9 @@ function EditTaskModal({
         >
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="details">Details</TabsTrigger>
-            <TabsTrigger value="comments" className="gap-1">
-              <MessageSquare className="size-4" />
-              Comments ({comments.length})
+            <TabsTrigger value="activity" className="gap-1">
+              <Clock className="size-4" />
+              Activity
             </TabsTrigger>
             <TabsTrigger value="attachments" className="gap-1">
               <Paperclip className="size-4" />
@@ -1119,14 +1210,70 @@ function EditTaskModal({
               </div>
             </TabsContent>
 
-            {/* Comments Tab */}
-            <TabsContent value="comments" className="space-y-4 pr-4 m-0">
-              {/* Add Comment */}
+            {/* Activity Tab - Enhanced with Timer */}
+            <TabsContent value="activity" className="space-y-4 pr-4 m-0">
+              {/* ── Timer Section ── */}
+              <div className="rounded-xl border bg-gradient-to-br from-muted/40 to-muted/20 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Timer className="size-4 text-primary" />
+                    <span className="font-medium text-sm">Activity Timer</span>
+                  </div>
+                  {activeEntry ? (
+                    <Badge variant="secondary" className="animate-pulse gap-1.5 font-mono text-xs bg-emerald-500/15 text-emerald-600 border-emerald-500/30">
+                      <span className="size-1.5 rounded-full bg-emerald-500 inline-block" />
+                      Running
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-xs">Idle</Badge>
+                  )}
+                </div>
+
+                {activeEntry ? (
+                  <div className="flex items-center justify-between">
+                    <div className="font-mono text-2xl font-bold tracking-wider tabular-nums">
+                      {formatElapsed(timerElapsed)}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="gap-1.5"
+                      onClick={handleStopTimer}
+                      disabled={timerStopping}
+                    >
+                      {timerStopping ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <Square className="size-3.5" />
+                      )}
+                      Stop
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    size="sm"
+                    className="w-full gap-1.5"
+                    onClick={handleStartTimer}
+                    disabled={timerStarting}
+                  >
+                    {timerStarting ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Play className="size-3.5" />
+                    )}
+                    Start Timer
+                  </Button>
+                )}
+              </div>
+
+              <Separator />
+
+              {/* ── Comment / manual note ── */}
               <div className="flex gap-2">
                 <Textarea
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
-                  placeholder="Add a comment..."
+                  placeholder="What did you do today"
                   rows={2}
                   className="flex-1"
                 />
@@ -1142,139 +1289,126 @@ function EditTaskModal({
 
               <Separator />
 
-              {/* Comments List */}
-              <div className="space-y-4">
-                {comments.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">
-                    No comments yet
+              {/* ── Time entries for this task ── */}
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Time Entries</p>
+              </div>
+              <div className="space-y-2">
+                {taskActivities.filter(e => !e.isRunning).length === 0 && comments.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-6 text-sm">
+                    No activity yet. Start a timer or add a comment.
                   </p>
                 ) : (
-                  comments.map((comment) => {
-                    const user = users.find((u) => u.id === comment.userId);
-                    const isEditing = editingCommentId === comment.id;
-                    const hasHistory =
-                      comment.editHistory && comment.editHistory.length > 0;
-
-                    return (
-                      <div key={comment.id} className="flex gap-3">
-                        <Avatar className="size-8">
-                          <AvatarImage
-                            src={user?.avatar || "/placeholder.svg"}
-                          />
-                          <AvatarFallback>
-                            {user?.name
-                              ?.split(" ")
-                              .map((n) => n[0])
-                              .join("") || "?"}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-sm">
-                              {user?.name || "Unknown"}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {new Date(comment.createdAt).toLocaleString()}
-                            </span>
-                            {comment.updatedAt && (
-                              <span className="text-xs text-muted-foreground">
-                                (edited)
-                              </span>
-                            )}
+                  <>
+                    {/* Time entries */}
+                    {taskActivities.filter(e => !e.isRunning).map((entry) => {
+                      const user = users.find((u) => u.id === entry.userId);
+                      return (
+                        <div key={entry.id} className="flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-muted/30 transition-colors">
+                          <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                            <Clock className="size-3.5 text-primary" />
                           </div>
-                          {isEditing ? (
-                            <div className="space-y-2">
-                              <Textarea
-                                value={editingCommentContent}
-                                onChange={(e) =>
-                                  setEditingCommentContent(e.target.value)
-                                }
-                                rows={2}
-                              />
-                              <div className="flex gap-2">
-                                <Button
-                                  size="sm"
-                                  onClick={() =>
-                                    handleSaveCommentEdit(comment.id)
-                                  }
-                                >
-                                  Save
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => setEditingCommentId(null)}
-                                >
-                                  Cancel
-                                </Button>
-                              </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium text-sm">{user?.name || 'Unknown'}</span>
+                              <Badge variant="outline" className="font-mono text-xs">{formatDuration(entry.hours ? Math.round(entry.hours * 60) : null)}</Badge>
                             </div>
-                          ) : (
-                            <p className="text-sm">{comment.content}</p>
-                          )}
-                          <div className="flex gap-2">
-                            {comment.userId === currentUserId && !isEditing && (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-6 px-2 text-xs"
-                                  onClick={() => handleEditComment(comment.id)}
-                                >
-                                  Edit
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-6 px-2 text-xs text-destructive"
-                                  onClick={() =>
-                                    handleDeleteComment(comment.id)
-                                  }
-                                >
-                                  Delete
-                                </Button>
-                              </>
+                            {entry.description && (
+                              <p className="text-sm text-muted-foreground mt-0.5 truncate">{entry.description}</p>
                             )}
-                            {hasHistory && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-6 px-2 text-xs gap-1"
-                                onClick={() =>
-                                  setShowCommentHistory(
-                                    showCommentHistory === comment.id
-                                      ? null
-                                      : comment.id,
-                                  )
-                                }
-                              >
-                                <History className="size-3" />
-                                History
-                              </Button>
-                            )}
+                            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                              {entry.startAt && (
+                                <span>{new Date(entry.startAt).toLocaleString()}</span>
+                              )}
+                              {entry.startAt && entry.endAt && <span>→</span>}
+                              {entry.endAt && (
+                                <span>{new Date(entry.endAt).toLocaleTimeString()}</span>
+                              )}
+                              {!entry.startAt && entry.date && (
+                                <span>{new Date(entry.date).toLocaleDateString()}</span>
+                              )}
+                            </div>
                           </div>
-                          {/* Comment History */}
-                          {showCommentHistory === comment.id && hasHistory && (
-                            <div className="mt-2 p-3 rounded-lg bg-muted/50 space-y-2">
-                              <p className="text-xs font-medium text-muted-foreground">
-                                Edit History
-                              </p>
-                              {comment.editHistory?.map((edit, idx) => (
-                                <div key={idx} className="text-sm">
-                                  <span className="text-xs text-muted-foreground">
-                                    {new Date(edit.editedAt).toLocaleString()}:
-                                  </span>
-                                  <p className="text-muted-foreground line-through">
-                                    {edit.content}
-                                  </p>
-                                </div>
-                              ))}
-                            </div>
-                          )}
                         </div>
-                      </div>
-                    );
-                  })
+                      );
+                    })}
+
+                    {/* Comments */}
+                    {comments.map((comment) => {
+                      const user = users.find((u) => u.id === comment.userId);
+                      const isEditing = editingCommentId === comment.id;
+                      const hasHistory = comment.editHistory && comment.editHistory.length > 0;
+
+                      return (
+                        <div key={comment.id} className="flex gap-3">
+                          <Avatar className="size-8">
+                            <AvatarImage src={user?.avatar || "/placeholder.svg"} />
+                            <AvatarFallback>
+                              {user?.name?.split(" ").map((n) => n[0]).join("") || "?"}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm">{user?.name || "Unknown"}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(comment.createdAt).toLocaleString()}
+                              </span>
+                              {comment.updatedAt && (
+                                <span className="text-xs text-muted-foreground">(edited)</span>
+                              )}
+                            </div>
+                            {isEditing ? (
+                              <div className="space-y-2">
+                                <Textarea
+                                  value={editingCommentContent}
+                                  onChange={(e) => setEditingCommentContent(e.target.value)}
+                                  rows={2}
+                                />
+                                <div className="flex gap-2">
+                                  <Button size="sm" onClick={() => handleSaveCommentEdit(comment.id)}>Save</Button>
+                                  <Button size="sm" variant="ghost" onClick={() => setEditingCommentId(null)}>Cancel</Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-sm">{comment.content}</p>
+                            )}
+                            <div className="flex gap-2">
+                              {comment.userId === currentUserId && !isEditing && (
+                                <>
+                                  <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => handleEditComment(comment.id)}>Edit</Button>
+                                  <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-destructive" onClick={() => handleDeleteComment(comment.id)}>Delete</Button>
+                                </>
+                              )}
+                              {hasHistory && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 px-2 text-xs gap-1"
+                                  onClick={() => setShowCommentHistory(showCommentHistory === comment.id ? null : comment.id)}
+                                >
+                                  <History className="size-3" />
+                                  History
+                                </Button>
+                              )}
+                            </div>
+                            {showCommentHistory === comment.id && hasHistory && (
+                              <div className="mt-2 p-3 rounded-lg bg-muted/50 space-y-2">
+                                <p className="text-xs font-medium text-muted-foreground">Edit History</p>
+                                {comment.editHistory?.map((edit, idx) => (
+                                  <div key={idx} className="text-sm">
+                                    <span className="text-xs text-muted-foreground">
+                                      {new Date(edit.editedAt).toLocaleString()}:
+                                    </span>
+                                    <p className="text-muted-foreground line-through">{edit.content}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </>
                 )}
               </div>
             </TabsContent>
@@ -1782,7 +1916,7 @@ function CreateProjectModal({
     project: Parameters<ReturnType<typeof useApp>["addProject"]>[0],
   ) => void;
 }) {
-  const { users, clients, teams, addClient, addTeam } = useApp();
+  const { users, clients, teams, programs, addClient, addTeam } = useApp();
   const [step, setStep] = useState<"template" | "details">("template");
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -1802,8 +1936,44 @@ function CreateProjectModal({
   const [stakeholderType, setStakeholderType] = useState<"client" | "team">(
     "client",
   );
+  const [programId, setProgramId] = useState<string>("");
   const [showFullCreateClient, setShowFullCreateClient] = useState(false);
   const [showFullCreateTeam, setShowFullCreateTeam] = useState(false);
+
+  const [nameError, setNameError] = useState("");
+  const [keyError, setKeyError] = useState("");
+  const [isValidating, setIsValidating] = useState(false);
+
+  useEffect(() => {
+    if (!name.trim() && !key.trim()) {
+      setNameError("");
+      setKeyError("");
+      return;
+    }
+
+    const validate = async () => {
+      setIsValidating(true);
+      try {
+        const { fetchAPI } = await import("@/lib/api");
+        const queryParams = new URLSearchParams();
+        if (name.trim()) queryParams.append("name", name.trim());
+        if (key.trim()) queryParams.append("project_key", key.trim());
+
+        const result = await fetchAPI(`/projects/validate?${queryParams.toString()}`);
+        if (result) {
+          setNameError(result.nameExists ? "Project name already exists" : "");
+          setKeyError(result.keyExists ? "Project key already exists" : "");
+        }
+      } catch (error) {
+        console.error("Validation error:", error);
+      } finally {
+        setIsValidating(false);
+      }
+    };
+
+    const timeout = setTimeout(validate, 500);
+    return () => clearTimeout(timeout);
+  }, [name, key]);
 
   const selectedClient = clients.find((c) => c.id === clientId);
   const selectedTeamData = teams.find((t) => t.id === teamId);
@@ -1836,6 +2006,7 @@ function CreateProjectModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !key.trim()) return;
+    if (nameError || keyError || isValidating) return;
 
     if (isPastDate(startDate)) {
       setStartDateError("Please select today's date or a future start date.");
@@ -1868,18 +2039,13 @@ function CreateProjectModal({
       budget: budget ? parseInt(budget) : 100000,
       spent: 0,
       clientId:
-        stakeholderType === "client"
-          ? clientId === "none"
-            ? undefined
-            : clientId
+        stakeholderType === "client" && clientId && clientId !== "none"
+          ? clientId
           : undefined,
-      teamId:
-        stakeholderType === "team"
-          ? teamId === "none"
-            ? undefined
-            : teamId
-          : undefined,
+      teamId: teamId && teamId !== "none" ? teamId : undefined,
+      programId: programId && programId !== "none" ? programId : undefined,
       templateId: selectedTemplate || undefined,
+      taskCount: 0,
     });
     onClose();
   };
@@ -1993,7 +2159,12 @@ function CreateProjectModal({
                   }}
                   placeholder="My Project"
                   autoFocus
+                  aria-invalid={!!nameError}
+                  className={nameError ? "border-destructive focus-visible:ring-destructive" : ""}
                 />
+                {nameError && (
+                  <p className="text-sm text-destructive">{nameError}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="project-key">Project Key *</Label>
@@ -2006,7 +2177,12 @@ function CreateProjectModal({
                   }}
                   placeholder="PRJ"
                   maxLength={5}
+                  aria-invalid={!!keyError}
+                  className={keyError ? "border-destructive focus-visible:ring-destructive" : ""}
                 />
+                {keyError && (
+                  <p className="text-sm text-destructive">{keyError}</p>
+                )}
               </div>
             </div>
 
@@ -2126,6 +2302,81 @@ function CreateProjectModal({
                             </div>
                           </div>
                         </div>
+                      </div>
+                    )}
+
+                    {/* Team selection for client-based projects */}
+                    {clientId && clientId !== "none" && (
+                      <div className="mt-4 pt-4 border-t border-border/50 animate-in fade-in slide-in-from-top-2 duration-500">
+                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2 mb-2">
+                          <Users className="size-3" />
+                          Assign Team (Optional)
+                        </Label>
+                        <Select
+                          value={teamId}
+                          onValueChange={(v) => {
+                            if (v === "create-new") {
+                              setShowFullCreateTeam(true);
+                            } else {
+                              setTeamId(v);
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="h-9">
+                            <SelectValue placeholder="Select a team to assign..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">
+                              <span className="text-muted-foreground">No team assigned</span>
+                            </SelectItem>
+                            <SelectItem
+                              value="create-new"
+                              className="text-primary font-semibold border-b rounded-none mb-1"
+                            >
+                              <div className="flex items-center gap-2">
+                                <PlusCircle className="size-3.5" />
+                                Create New Team
+                              </div>
+                            </SelectItem>
+                            {teams.length === 0 ? (
+                              <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                                No teams available
+                              </div>
+                            ) : (
+                              teams.map((team: any) => (
+                                <SelectItem key={team.id} value={team.id}>
+                                  <div className="flex items-center gap-2">
+                                    <Users className="size-3.5 text-primary" />
+                                    <span>{team.name}</span>
+                                  </div>
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+
+                        {selectedTeamData && teamId !== "none" && (
+                          <div className="mt-2 p-2 rounded-md bg-primary/5 border border-primary/10 flex items-center gap-2 animate-in fade-in duration-300">
+                            <Avatar className="size-6 border border-border">
+                              <AvatarImage
+                                src={selectedTeamData.projectManager.avatar || "/placeholder.svg"}
+                              />
+                              <AvatarFallback className="text-[8px]">
+                                {selectedTeamData.projectManager.name
+                                  .split(" ")
+                                  .map((n) => n[0])
+                                  .join("")}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px] text-muted-foreground leading-none mb-0.5">Assigned Lead</p>
+                              <p className="text-xs font-medium truncate">{selectedTeamData.projectManager.name}</p>
+                            </div>
+                            <Badge variant="secondary" className="h-5 px-1.5 text-[9px]">
+                              {selectedTeamData.members.length} Members
+                            </Badge>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -2277,6 +2528,43 @@ function CreateProjectModal({
             </div>
 
             <div className="space-y-2">
+              <Label>Strategic Program (Optional)</Label>
+              <Select
+                value={programId}
+                onValueChange={setProgramId}
+              >
+                <SelectTrigger>
+                  <div className="flex items-center gap-2">
+                    <Target className="size-4 text-accent" />
+                    <SelectValue placeholder="Select a program..." />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">
+                    <span className="text-muted-foreground">No program (Independent)</span>
+                  </SelectItem>
+                  {programs.length === 0 ? (
+                    <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                      No programs available
+                    </div>
+                  ) : (
+                    programs.map((prog: any) => (
+                      <SelectItem key={prog.id} value={prog.id}>
+                        <div className="flex items-center gap-2">
+                          <Target className="size-3.5 text-accent" />
+                          <span>{prog.name}</span>
+                          <Badge variant="outline" className="ml-2 text-[10px] scale-90 origin-left">
+                            {prog.status || 'Active'}
+                          </Badge>
+                        </div>
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <Label>Methodology</Label>
               <Select
                 value={type}
@@ -2405,11 +2693,21 @@ function CreateProjectModal({
                 !name.trim() ||
                 !key.trim() ||
                 !!dueDateError ||
-                !!startDateError
+                !!startDateError ||
+                !!nameError ||
+                !!keyError ||
+                isValidating
               }
               className="bg-[#6366F1] hover:bg-[#5558E3]"
             >
-              Create Project
+              {isValidating ? (
+                <>
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                  Validating...
+                </>
+              ) : (
+                "Create Project"
+              )}
             </Button>
           </DialogFooter>
         </form>
@@ -2446,8 +2744,267 @@ function CreateProjectModal({
   );
 }
 
+// Edit Project Modal Component
+function EditProjectModal({
+  project,
+  onClose,
+  onSubmit,
+}: {
+  project: import("@/lib/types").Project;
+  onClose: () => void;
+  onSubmit: (updates: Partial<import("@/lib/types").Project>) => void;
+}) {
+  const { teams, clients } = useApp();
+  const [description, setDescription] = useState(project.description || "");
+  const [status, setStatus] = useState<string>(project.status || "active");
+  const [type, setType] = useState<string>(project.type || "agile-kanban");
+  const [startDate, setStartDate] = useState(toDateInputValue(project.startDate));
+  const [endDate, setEndDate] = useState(toDateInputValue(project.endDate));
+  const [budget, setBudget] = useState(String(project.budget || ""));
+  const [clientId, setClientId] = useState<string>((project as any).clientId || "none");
+  const [teamId, setTeamId] = useState<string>((project as any).teamId || "none");
+  const [startDateError, setStartDateError] = useState("");
+  const [dueDateError, setDueDateError] = useState("");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (startDate && dueDateError) return;
+
+    if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
+      setDueDateError("End date cannot be before the start date.");
+      return;
+    }
+
+    onSubmit({
+      description: description.trim(),
+      status: status as any,
+      type: type as any,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+      budget: budget ? parseInt(budget) : undefined,
+      clientId: clientId !== "none" ? clientId : undefined,
+      teamId: teamId !== "none" ? teamId : undefined,
+    } as any);
+    onClose();
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-2xl p-0 overflow-hidden flex flex-col max-h-[92vh]">
+        <DialogHeader className="p-6 pb-4 shrink-0 border-b">
+          <div className="flex items-start gap-3">
+            <div className="size-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+              <Settings className="size-5 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <DialogTitle className="text-xl">Project Settings</DialogTitle>
+              <DialogDescription className="mt-1">
+                Update project details. Name and key cannot be changed after creation.
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <ScrollArea className="flex-1">
+          <form id="edit-project-form" onSubmit={handleSubmit} className="p-6 space-y-6">
+            {/* Locked Fields – Project Name & Key */}
+            <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800/50 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Shield className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                  Identity Fields — Read Only
+                </p>
+              </div>
+              <p className="text-xs text-amber-700 dark:text-amber-400 mb-3">
+                Project Name and Key are locked after creation because they are linked to task identifiers (e.g.{" "}
+                <span className="font-mono font-semibold">{project.key}-1</span>) and backend relationships.
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Project Name</Label>
+                  <div className="flex items-center gap-2 h-9 px-3 rounded-md border border-border bg-muted/50 text-sm text-muted-foreground cursor-not-allowed">
+                    <span className="truncate">{project.name}</span>
+                    <Lock className="size-3.5 text-muted-foreground/60 ml-auto shrink-0" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Project Key</Label>
+                  <div className="flex items-center gap-2 h-9 px-3 rounded-md border border-border bg-muted/50 text-sm font-mono text-muted-foreground cursor-not-allowed">
+                    <span className="truncate">{project.key}</span>
+                    <Lock className="size-3.5 text-muted-foreground/60 ml-auto shrink-0" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Description */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-proj-desc">Description</Label>
+              <Textarea
+                id="edit-proj-desc"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Describe the project's goals and scope..."
+                rows={3}
+              />
+            </div>
+
+            {/* Status & Methodology */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select value={status} onValueChange={setStatus}>
+                  <SelectTrigger id="edit-proj-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="planning">Planning</SelectItem>
+                    <SelectItem value="on-hold">On Hold</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Methodology</Label>
+                <Select value={type} onValueChange={setType}>
+                  <SelectTrigger id="edit-proj-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="agile-scrum">Agile — Scrum</SelectItem>
+                    <SelectItem value="agile-kanban">Agile — Kanban</SelectItem>
+                    <SelectItem value="waterfall">Waterfall</SelectItem>
+                    <SelectItem value="hybrid">Hybrid</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Dates */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Start Date</Label>
+                <Input
+                  id="edit-proj-start"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setStartDate(v);
+                    if (endDate && new Date(v) > new Date(endDate)) {
+                      setDueDateError("End date cannot be before the start date.");
+                    } else {
+                      setDueDateError("");
+                    }
+                  }}
+                />
+                {startDateError && <p className="text-sm text-destructive">{startDateError}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label>End Date</Label>
+                <Input
+                  id="edit-proj-end"
+                  type="date"
+                  value={endDate}
+                  min={startDate || undefined}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setEndDate(v);
+                    if (startDate && new Date(v) < new Date(startDate)) {
+                      setDueDateError("End date cannot be before the start date.");
+                    } else {
+                      setDueDateError("");
+                    }
+                  }}
+                />
+                {dueDateError && <p className="text-sm text-destructive">{dueDateError}</p>}
+              </div>
+            </div>
+
+            {/* Budget */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-proj-budget">Budget ($)</Label>
+              <Input
+                id="edit-proj-budget"
+                type="number"
+                value={budget}
+                onChange={(e) => setBudget(e.target.value)}
+                placeholder="e.g. 100000"
+                min={0}
+              />
+            </div>
+
+            {/* Client */}
+            <div className="space-y-2">
+              <Label>Client</Label>
+              <Select value={clientId} onValueChange={setClientId}>
+                <SelectTrigger id="edit-proj-client">
+                  <SelectValue placeholder="Select client..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">
+                    <span className="text-muted-foreground">No client</span>
+                  </SelectItem>
+                  {clients.map((c: any) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      <div className="flex items-center gap-2">
+                        <Building className="size-3.5 text-primary/70" />
+                        <span>{c.company || c.name}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Team */}
+            <div className="space-y-2">
+              <Label>Team</Label>
+              <Select value={teamId} onValueChange={setTeamId}>
+                <SelectTrigger id="edit-proj-team">
+                  <SelectValue placeholder="Select team..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">
+                    <span className="text-muted-foreground">No team</span>
+                  </SelectItem>
+                  {teams.map((t: any) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      <div className="flex items-center gap-2">
+                        <Users className="size-3.5 text-primary/70" />
+                        <span>{t.name}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </form>
+        </ScrollArea>
+
+        <DialogFooter className="p-6 border-t bg-muted/20 shrink-0">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="edit-project-form"
+            className="bg-primary hover:bg-primary/90 gap-2"
+          >
+            <Check className="size-4" />
+            Save Changes
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // Create Client Modal Component
 function CreateClientModal({
+
   onClose,
   onSubmit,
 }: {
@@ -2491,15 +3048,26 @@ function CreateClientModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2 col-span-2">
-              <Label htmlFor="client-name">Full Name *</Label>
+              <Label htmlFor="client-company">Company Name</Label>
               <Input
-                id="client-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="John Doe"
+                id="client-company"
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
+                placeholder="Acme Inc."
                 autoFocus
               />
             </div>
+
+            <div className="space-y-2 col-span-2">
+              <Label htmlFor="contact-name">Contact Name *</Label>
+              <Input
+                id="contact-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="John Doe"
+              />
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="client-email">Email *</Label>
               <Input
@@ -2521,31 +3089,20 @@ function CreateClientModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="client-company">Company</Label>
-              <Input
-                id="client-company"
-                value={company}
-                onChange={(e) => setCompany(e.target.value)}
-                placeholder="Acme Inc."
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Client Type</Label>
-              <Select
-                value={type}
-                onValueChange={(v) => setType(v as ClientType)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="external">External</SelectItem>
-                  <SelectItem value="internal">Internal</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-2">
+            <Label>Client Type</Label>
+            <Select
+              value={type}
+              onValueChange={(v) => setType(v as ClientType)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="external">External</SelectItem>
+                <SelectItem value="internal">Internal</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">
@@ -2845,6 +3402,9 @@ function EditTeamModal({
   );
   const [capacity, setCapacity] = useState(String(team?.capacity || "40"));
 
+  const [memberSearch, setMemberSearch] = useState("");
+  const [projectSearch, setProjectSearch] = useState("");
+
   useEffect(() => {
     if (team) {
       setName(team.name);
@@ -2898,6 +3458,14 @@ function EditTeamModal({
         : [...prev, projectId]
     );
   };
+
+  const filteredUsers = users.filter((user) =>
+    user.name.toLowerCase().includes(memberSearch.toLowerCase())
+  );
+
+  const filteredProjects = projects.filter((project) =>
+    project.name.toLowerCase().includes(projectSearch.toLowerCase())
+  );
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -3021,40 +3589,122 @@ function EditTeamModal({
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2 relative z-20">
             <Label>Team Members</Label>
-            <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 border border-border rounded-lg">
-              {users.map((user) => (
-                <label
-                  key={user.id}
-                  className="flex items-center gap-2 cursor-pointer"
-                >
-                  <Checkbox
-                    checked={selectedMembers.includes(user.id)}
-                    onCheckedChange={() => toggleMember(user.id)}
-                  />
-                  <span className="text-sm">{user.name}</span>
-                </label>
-              ))}
-            </div>
+            <Input
+              placeholder="Type to search members..."
+              value={memberSearch}
+              onChange={(e) => setMemberSearch(e.target.value)}
+              className="h-8 text-sm"
+            />
+            {memberSearch.trim().length > 0 && (
+              <div className="absolute top-full left-0 mt-1 w-full z-50 bg-popover text-popover-foreground border border-border rounded-md shadow-md max-h-48 overflow-y-auto custom-scrollbar p-1">
+                {filteredUsers.map((user) => (
+                  <label
+                    key={user.id}
+                    className="flex items-center gap-2 cursor-pointer p-1.5 rounded-md hover:bg-muted/50 transition-colors"
+                  >
+                    <Checkbox
+                      checked={selectedMembers.includes(user.id)}
+                      onCheckedChange={() => toggleMember(user.id)}
+                    />
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Avatar className="size-5 shrink-0">
+                        <AvatarImage src={user.avatar || "/placeholder.svg"} />
+                        <AvatarFallback className="text-[10px]">
+                          {user.name.split(" ").map((n) => n[0]).join("")}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-sm truncate">{user.name}</span>
+                    </div>
+                  </label>
+                ))}
+                {filteredUsers.length === 0 && (
+                  <div className="text-center text-sm text-muted-foreground py-4">
+                    No results found
+                  </div>
+                )}
+              </div>
+            )}
+
+            {selectedMembers.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {selectedMembers.map((id) => {
+                  const user = users.find((u) => u.id === id);
+                  if (!user) return null;
+                  return (
+                    <Badge key={user.id} variant="secondary" className="flex items-center gap-1 pr-1 font-normal">
+                      <span className="text-xs">{user.name}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          toggleMember(user.id);
+                        }}
+                        className="rounded-full p-0.5 hover:bg-muted-foreground/20"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </Badge>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2 relative z-10">
             <Label>Assigned Projects</Label>
-            <div className="grid grid-cols-2 gap-2 max-h-24 overflow-y-auto p-2 border border-border rounded-lg">
-              {projects.map((project) => (
-                <label
-                  key={project.id}
-                  className="flex items-center gap-2 cursor-pointer"
-                >
-                  <Checkbox
-                    checked={selectedProjects.includes(project.id)}
-                    onCheckedChange={() => toggleProject(project.id)}
-                  />
-                  <span className="text-sm">{project.name}</span>
-                </label>
-              ))}
-            </div>
+            <Input
+              placeholder="Type to search projects..."
+              value={projectSearch}
+              onChange={(e) => setProjectSearch(e.target.value)}
+              className="h-8 text-sm"
+            />
+            {projectSearch.trim().length > 0 && (
+              <div className="absolute top-full left-0 mt-1 w-full z-50 bg-popover text-popover-foreground border border-border rounded-md shadow-md max-h-48 overflow-y-auto custom-scrollbar p-1">
+                {filteredProjects.map((project) => (
+                  <label
+                    key={project.id}
+                    className="flex items-center gap-2 cursor-pointer p-1.5 rounded-md hover:bg-muted/50 transition-colors"
+                  >
+                    <Checkbox
+                      checked={selectedProjects.includes(project.id)}
+                      onCheckedChange={() => toggleProject(project.id)}
+                    />
+                    <span className="text-sm truncate">{project.name}</span>
+                  </label>
+                ))}
+                {filteredProjects.length === 0 && (
+                  <div className="text-center text-sm text-muted-foreground py-4">
+                    No results found
+                  </div>
+                )}
+              </div>
+            )}
+
+            {selectedProjects.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {selectedProjects.map((id) => {
+                  const project = projects.find((p) => p.id === id);
+                  if (!project) return null;
+                  return (
+                    <Badge key={project.id} variant="secondary" className="flex items-center gap-1 pr-1 font-normal">
+                      <span className="text-xs">{project.name}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          toggleProject(project.id);
+                        }}
+                        className="rounded-full p-0.5 hover:bg-muted-foreground/20"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </Badge>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <DialogFooter>

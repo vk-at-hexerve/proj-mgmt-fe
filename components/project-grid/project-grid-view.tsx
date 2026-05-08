@@ -197,7 +197,7 @@ export function ProjectGridView({ projectId, projectKey = 'PRJ' }: ProjectGridVi
 
     return {
       id: task.id,
-      wbs: `${projectKey}-${index + 1}`,
+      wbs: task.key,
       taskName: task.title,
       duration: 1, 
       startDate: task.createdAt?.split('T')[0] || new Date().toISOString().split('T')[0],

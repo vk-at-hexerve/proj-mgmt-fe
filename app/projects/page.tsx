@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { useApp } from '@/lib/app-context';
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import { AppHeader } from '@/components/layout/app-header';
@@ -9,6 +8,7 @@ import { KanbanBoard } from '@/components/kanban/kanban-board';
 import { TaskListView } from '@/components/tasks/task-list-view';
 import { GanttChart } from '@/components/gantt/gantt-chart';
 import { ProjectGridView } from '@/components/project-grid/project-grid-view';
+import { ProjectCalendarView } from '@/components/calendar/project-calendar-view';
 import { AICopilot } from '@/components/ai/ai-copilot';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -62,6 +62,7 @@ import {
   MoreHorizontal,
   MoveRight,
   Check,
+  Settings,
 } from 'lucide-react';
 // import { sprints as initialSprints, generateCalendarEvents, users } from '@/lib/mock-data';
 import { cn } from '@/lib/utils';
@@ -86,7 +87,7 @@ const viewOptions: { id: ViewType; label: string; icon: React.ReactNode }[] = [
 ];
 
 export default function ProjectsPage() {
-  const { projects, tasks: allTasks, showToast, teams, currentProject: currentProjectId, sprints: contextSprints, users, addSprint, updateSprint } = useApp();
+  const { projects, tasks: allTasks, showToast, teams, currentProject: currentProjectId, sprints: contextSprints, users, addSprint, updateSprint, openModal } = useApp();
   const [currentView, setCurrentView] = useState<ViewType>('kanban');
   const [filters, setFilters] = useState<FilterState>({ assignees: [], priorities: [], types: [] });
   const [filterOpen, setFilterOpen] = useState(false);
@@ -101,15 +102,6 @@ export default function ProjectsPage() {
   const currentProject = projects.find(p => p.id === currentProjectId) || projects[0];
   const sprints = contextSprints.filter(s => s.projectId === currentProject?.id);
   const activeSprint = sprints.find((s) => s.status === 'active');
-  // Mock calendar events for now until we have a proper utility
-  const calendarEvents = allTasks
-    .filter(t => t.projectId === currentProject?.id && t.dueDate)
-    .map(t => ({
-      id: t.id,
-      title: t.title,
-      start: new Date(t.dueDate!),
-      color: t.priority === 'critical' ? '#EF4444' : '#3B82F6'
-    }));
   const projectTeam = teams.find(t => t.projects.some(p => p.id === currentProject?.id)) || teams[0];
 
   const backlogTasks = localTasks.filter(t =>
@@ -454,6 +446,17 @@ export default function ProjectsPage() {
                   )}
                 </PopoverContent>
               </Popover>
+
+              {/* Project Settings */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-2 bg-transparent"
+                onClick={() => openModal('edit-project', { projectId: currentProject.id })}
+              >
+                <Settings className="size-4" />
+                Settings
+              </Button>
             </div>
           </div>
 
@@ -633,51 +636,7 @@ export default function ProjectsPage() {
               </div>
             )}
             {currentView === 'calendar' && (
-              <Card className="h-full flex flex-col">
-                <CardContent className="flex-1 p-3 pt-0">
-                  <div className="h-full flex flex-col">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-base font-semibold">Project Calendar</h3>
-                      <Link href="/calendar">
-                        <Button variant="outline" size="sm" className="h-7 text-xs px-2">Open Full Calendar</Button>
-                      </Link>
-                    </div>
-                    <div className="flex-1 grid grid-cols-7 gap-1">
-                      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-                        <div key={day} className="text-center text-xs font-medium text-muted-foreground py-1">{day}</div>
-                      ))}
-                      {Array.from({ length: 35 }, (_, i) => {
-                        const today = new Date();
-                        const date = new Date(today.getFullYear(), today.getMonth(), 1);
-                        date.setDate(date.getDate() + i - date.getDay());
-                        const dayEvents = calendarEvents.filter((e: any) => {
-                          const eventDate = new Date(e.start);
-                          return eventDate.toDateString() === date.toDateString();
-                        });
-                        const isToday = date.toDateString() === today.toDateString();
-                        const isCurrentMonth = date.getMonth() === today.getMonth();
-                        return (
-                          <div key={i} className={cn(
-                            'min-h-[50px] p-1 rounded-md border border-border flex flex-col justify-between',
-                            isToday && 'ring-1 ring-primary bg-primary/5',
-                            !isCurrentMonth && 'opacity-30'
-                          )}>
-                            <span className={cn('text-xs', isToday && 'font-semibold text-primary')}>{date.getDate()}</span>
-                            <div className="mt-0.5 space-y-0.5 flex-1 flex flex-col justify-end">
-                              {dayEvents.slice(0, 1).map((event: any) => (
-                                <div key={event.id} className="text-[10px] px-0.5 py-px rounded truncate leading-tight" style={{ backgroundColor: `${event.color}20`, color: event.color }}>
-                                  {event.title}
-                                </div>
-                              ))}
-                              {dayEvents.length > 1 && <span className="text-[9px] text-muted-foreground leading-none">+{dayEvents.length - 1}</span>}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <ProjectCalendarView projectId={currentProject.id} />
             )}
           </div>
         </div>

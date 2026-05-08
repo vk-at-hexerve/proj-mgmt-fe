@@ -60,7 +60,11 @@ export function mapBackendProject(backendProject: BackendProject): Project {
       email: m.email,
       avatar: m.avatar,
       role: (m.role || 'contributor') as UserRole
-    })) : []
+    })) : [],
+    taskCount: backendProject.task_count || 0,
+    clientId: backendProject.client_id,
+    teamId: backendProject.team_id,
+    programId: backendProject.program_id
   };
 }
 
@@ -217,9 +221,44 @@ export function mapBackendTimeEntry(backendEntry: any) {
     id: String(backendEntry.id),
     taskId: String(backendEntry.task_id),
     userId: String(backendEntry.user_id),
-    hours: backendEntry.duration / 60, // Convert API minutes to frontend hours
+    hours: backendEntry.duration != null ? backendEntry.duration / 60 : 0, // Convert API minutes to frontend hours
     date: backendEntry.date?.split('T')[0] || new Date().toISOString().split('T')[0],
     description: backendEntry.description || "",
     createdAt: new Date().toISOString(),
+    // Timer fields
+    startAt: backendEntry.start_at || null,
+    endAt: backendEntry.end_at || null,
+    isRunning: backendEntry.is_running || false,
   };
+}
+
+// ── Activity Timer API helpers ────────────────────────────────────────────
+
+export async function startActivity(taskId: string, description?: string) {
+  return fetchAPI("/time-entries/start", {
+    method: "POST",
+    body: JSON.stringify({ task_id: taskId, description: description || "" }),
+  });
+}
+
+export async function stopActivity(entryId: string, description?: string) {
+  return fetchAPI(`/time-entries/stop/${entryId}`, {
+    method: "POST",
+    body: JSON.stringify({ description }),
+  });
+}
+
+export async function stopCurrentActivity(description?: string) {
+  return fetchAPI("/time-entries/stop", {
+    method: "POST",
+    body: JSON.stringify({ description }),
+  });
+}
+
+export async function getActiveActivity() {
+  return fetchAPI("/time-entries/active");
+}
+
+export async function getTaskActivities(taskId: string) {
+  return fetchAPI(`/time-entries/task/${taskId}`);
 }

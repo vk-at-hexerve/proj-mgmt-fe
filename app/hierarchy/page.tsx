@@ -536,13 +536,12 @@ function PortfolioCard({ portfolio }: { portfolio: any }) {
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function HierarchyPage() {
-  const { portfolios: contextPortfolios, programs: contextPrograms, openModal } = useApp();
+  const { portfolios: contextPortfolios, programs: contextPrograms, sprints, openModal } = useApp();
   const portfolios = contextPortfolios as any[];
   const programs = contextPrograms as any[];
 
   const totalProjects = programs.reduce((sum, prog) => sum + (prog.projectIds?.length || 0), 0);
-  const totalBudget = portfolios.reduce((sum, p) => sum + (p.budget || 0), 0);
-  const totalSpent = portfolios.reduce((sum, p) => sum + (p.spent || 0), 0);
+  const totalSprints = sprints?.length || 0;
   const avgProgress = portfolios.reduce((sum, p) => sum + (p.progress || 0), 0) / (portfolios.length || 1);
 
   return (
@@ -613,13 +612,13 @@ export default function HierarchyPage() {
               </Card>
               <Card>
                 <CardContent className="p-4 flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-success/10">
-                    <DollarSign className="size-5 text-success" />
+                  <div className="p-2 rounded-lg bg-indigo-500/10">
+                    <Calendar className="size-5 text-indigo-600" />
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Total Budget</p>
-                    <p className="text-2xl font-bold">{formatCurrency(totalBudget)}</p>
-                    <p className="text-xs text-muted-foreground">{Math.round((totalSpent / totalBudget) * 100)}% used</p>
+                    <p className="text-xs text-muted-foreground">Total Sprints</p>
+                    <p className="text-2xl font-bold">{totalSprints}</p>
+                    <p className="text-xs text-muted-foreground">Across all projects</p>
                   </div>
                 </CardContent>
               </Card>
