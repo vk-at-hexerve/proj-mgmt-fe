@@ -5,7 +5,7 @@ import React from "react";
 import { useState, useEffect } from "react";
 import { useApp, type TimeEntry as AppTimeEntry } from "@/lib/app-context";
 import { cn } from "@/lib/utils";
-
+import Link from 'next/link';
 import {
   Dialog,
   DialogContent,
@@ -37,18 +37,22 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from '@/components/ui/select';
 import {
-  users as contextUsers,
-  projects as contextProjects,
-  portfolios as contextPortfolios,
-  tags as availableTags,
-  projectTemplates,
-} from "@/lib/mock-data";
-// const availableTags: any[] = []; // Placeholder for tags logic
-// const projectTemplates: any[] = [];
-// const clients: any[] = [];
-import type {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { users as contextUsers, projects as contextProjects, portfolios as contextPortfolios, tags as availableTags, projectTemplates, clients } from '@/lib/mock-data';
+import {
   TaskPriority,
   TaskStatus,
   TaskComment,
@@ -64,6 +68,9 @@ import type {
   Team,
   User,
   UserRole,
+  Portfolio,
+  Program,
+  Project,
 } from "@/lib/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -113,6 +120,7 @@ import {
   Timer,
   Lock,
   Target,
+  Search,
 } from "lucide-react";
 
 const getTodayDateInputValue = () => {
@@ -252,7 +260,7 @@ export function AppModals() {
       modal.data?.taskId as string,
     ];
     const taskNames = taskIds
-      .map((id) => tasks.find((t) => t.id === id)?.key)
+      .map((id: string) => tasks.find((t: Task) => t.id === id)?.key)
       .filter(Boolean);
     return (
       <AlertDialog open onOpenChange={(open) => !open && closeModal()}>
@@ -296,7 +304,7 @@ export function AppModals() {
   // Edit Project Modal
   if (modal.type === "edit-project") {
     const projectId = modal.data?.projectId as string;
-    const project = projects.find((p) => p.id === projectId);
+    const project = projects.find((p: Project) => p.id === projectId);
     if (!project) return null;
     return (
       <EditProjectModal
@@ -512,7 +520,7 @@ function CreateTaskModal({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {projects.map((p) => (
+                  {projects.map((p: Project) => (
                     <SelectItem key={p.id} value={p.id}>
                       <span className="flex items-center gap-2">
                         <Badge variant="outline" className="font-mono text-xs">
@@ -535,8 +543,8 @@ function CreateTaskModal({
                 <SelectContent>
                   <SelectItem value="no-sprint">Backlog / No Sprint</SelectItem>
                   {sprints
-                    .filter((s) => s.status === "active" && (!s.projectId || s.projectId === project))
-                    .map((s) => (
+                    .filter((s: Sprint) => s.status === "active" && (!s.projectId || s.projectId === project))
+                    .map((s: Sprint) => (
                       <SelectItem key={s.id} value={s.id}>
                         {s.name}
                       </SelectItem>
@@ -567,7 +575,7 @@ function CreateTaskModal({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="unassigned">Unassigned</SelectItem>
-                  {users.map((user) => (
+                  {users.map((user: User) => (
                     <SelectItem key={user.id} value={user.id}>
                       <span className="flex items-center gap-2">
                         <Avatar className="size-5">
@@ -577,7 +585,7 @@ function CreateTaskModal({
                           <AvatarFallback className="text-xs">
                             {user.name
                               .split(" ")
-                              .map((n) => n[0])
+                              .map((n: string) => n[0])
                               .join("")}
                           </AvatarFallback>
                         </Avatar>
@@ -789,7 +797,7 @@ function EditTaskModal({
     const entry = await startActivity(task.id);
     if (entry) {
       setActiveEntry(entry);
-      setTaskActivities((prev) => [entry, ...prev.filter(e => e.id !== entry.id)]);
+      setTaskActivities((prev) => [entry, ...prev.filter((e: AppTimeEntry) => e.id !== entry.id)]);
     }
     setTimerStarting(false);
   };
@@ -801,7 +809,7 @@ function EditTaskModal({
     if (entry) {
       setActiveEntry(null);
       setTimerElapsed(0);
-      setTaskActivities((prev) => prev.map(e => e.id === entry.id ? entry : e));
+      setTaskActivities((prev) => prev.map((e: AppTimeEntry) => e.id === entry.id ? entry : e));
     }
     setTimerStopping(false);
   };
@@ -984,13 +992,19 @@ function EditTaskModal({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="font-mono">
-              {task.key}
-            </Badge>
-            <Badge variant="secondary" className="capitalize">
-              {task.type}
-            </Badge>
+          <div className="flex items-center justify-between w-full pr-8">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="font-mono">{task.key}</Badge>
+              <Badge variant="secondary" className="capitalize">{task.type}</Badge>
+            </div>
+            <Link
+              href={`/tasks/${task.id}`}
+              target="_blank"
+              className="text-muted-foreground hover:text-primary transition-colors"
+              title="Open in new tab"
+            >
+              <ExternalLink className="size-4" />
+            </Link>
           </div>
           <DialogTitle>Edit Task</DialogTitle>
         </DialogHeader>
@@ -1294,15 +1308,15 @@ function EditTaskModal({
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Time Entries</p>
               </div>
               <div className="space-y-2">
-                {taskActivities.filter(e => !e.isRunning).length === 0 && comments.length === 0 ? (
+                {taskActivities.filter((e: AppTimeEntry) => !e.isRunning).length === 0 && comments.length === 0 ? (
                   <p className="text-center text-muted-foreground py-6 text-sm">
                     No activity yet. Start a timer or add a comment.
                   </p>
                 ) : (
                   <>
                     {/* Time entries */}
-                    {taskActivities.filter(e => !e.isRunning).map((entry) => {
-                      const user = users.find((u) => u.id === entry.userId);
+                    {taskActivities.filter((e: AppTimeEntry) => !e.isRunning).map((entry: AppTimeEntry) => {
+                      const user = users.find((u: User) => u.id === entry.userId);
                       return (
                         <div key={entry.id} className="flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-muted/30 transition-colors">
                           <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
@@ -1334,8 +1348,8 @@ function EditTaskModal({
                     })}
 
                     {/* Comments */}
-                    {comments.map((comment) => {
-                      const user = users.find((u) => u.id === comment.userId);
+                    {comments.map((comment: TaskComment) => {
+                      const user = users.find((u: User) => u.id === comment.userId);
                       const isEditing = editingCommentId === comment.id;
                       const hasHistory = comment.editHistory && comment.editHistory.length > 0;
 
@@ -1344,7 +1358,7 @@ function EditTaskModal({
                           <Avatar className="size-8">
                             <AvatarImage src={user?.avatar || "/placeholder.svg"} />
                             <AvatarFallback>
-                              {user?.name?.split(" ").map((n) => n[0]).join("") || "?"}
+                              {user?.name?.split(" ").map((n: string) => n[0]).join("") || "?"}
                             </AvatarFallback>
                           </Avatar>
                           <div className="flex-1 space-y-1">
@@ -1624,8 +1638,8 @@ function EditTaskModal({
             Save Changes
           </Button>
         </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </DialogContent >
+    </Dialog >
   );
 }
 
@@ -1644,13 +1658,19 @@ function TaskDetailModal({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="font-mono">
-              {task.key}
-            </Badge>
-            <Badge variant="secondary" className="capitalize">
-              {task.type}
-            </Badge>
+          <div className="flex items-center justify-between w-full pr-8">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="font-mono">{task.key}</Badge>
+              <Badge variant="secondary" className="capitalize">{task.type}</Badge>
+            </div>
+            <Link
+              href={`/tasks/${task.id}`}
+              target="_blank"
+              className="text-muted-foreground hover:text-primary transition-colors"
+              title="Open in new tab"
+            >
+              <ExternalLink className="size-4" />
+            </Link>
           </div>
           <DialogTitle className="text-xl mt-2">{task.title}</DialogTitle>
         </DialogHeader>
@@ -1770,8 +1790,8 @@ function TaskDetailModal({
             Edit Task
           </Button>
         </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </DialogContent >
+    </Dialog >
   );
 }
 
@@ -1888,6 +1908,94 @@ function ChangeStatusModal({
             </button>
           ))}
         </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Link Task Modal Component
+function LinkTaskModal({
+  task,
+  onClose,
+  onLink
+}: {
+  task: Task;
+  onClose: () => void;
+  onLink: (link: TaskLink) => void;
+}) {
+  const { tasks } = useApp();
+  const [linkType, setLinkType] = useState<TaskLink['linkType']>('relates-to');
+  const [selectedTaskId, setSelectedTaskId] = useState<string>('');
+
+  const availableTasks = tasks.filter((t: Task) =>
+    t.id !== task.id && !task.linkedTasks?.some((l: TaskLink) => l.targetTaskId === t.id)
+  );
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Link Task</DialogTitle>
+          <DialogDescription>Create a relationship between tasks</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label>This task...</Label>
+            <Select value={linkType} onValueChange={(v) => setLinkType(v as TaskLink['linkType'])}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="blocks">Blocks</SelectItem>
+                <SelectItem value="blocked-by">Is blocked by</SelectItem>
+                <SelectItem value="relates-to">Relates to</SelectItem>
+                <SelectItem value="duplicates">Duplicates</SelectItem>
+                <SelectItem value="is-duplicated-by">Is duplicated by</SelectItem>
+                <SelectItem value="parent-of">Is parent of</SelectItem>
+                <SelectItem value="child-of">Is child of</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>...the following task</Label>
+            <Select value={selectedTaskId} onValueChange={setSelectedTaskId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a task" />
+              </SelectTrigger>
+              <SelectContent>
+                <ScrollArea className="h-[200px]">
+                  {availableTasks.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="font-mono text-[10px]">{t.key}</Badge>
+                        <span className="truncate">{t.title}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </ScrollArea>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button
+            onClick={() => {
+              onLink({
+                id: `link-${Date.now()}`,
+                sourceTaskId: task.id,
+                targetTaskId: selectedTaskId,
+                linkType: linkType,
+              });
+            }}
+            disabled={!selectedTaskId}
+          >
+            Link Task
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -3758,9 +3866,9 @@ function CreateProgramModal({
       aiConfidence: 80,
       riskLevel: "low" as RiskLevel,
       progress: 0,
-      status: "planning",
-      budget: Number(budget) || 0,
+      budget: budget ? parseInt(budget) : 200000,
       spent: 0,
+      status: "planning",
       projectIds: selectedProjects,
     });
 
@@ -3911,28 +4019,32 @@ function CreatePortfolioModal({
     portfolio: Parameters<ReturnType<typeof useApp>["addPortfolio"]>[0],
   ) => void;
 }) {
-  const { users } = useApp();
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [ownerId, setOwnerId] = useState(users[0]?.id || "");
-  const [budget, setBudget] = useState("");
+  const { users, programs, addProgram } = useApp();
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [ownerId, setOwnerId] = useState(users[0]?.id || '');
+  const [budget, setBudget] = useState('');
+  const [selectedProgramIds, setSelectedProgramIds] = useState<string[]>([]);
+  const [open, setOpen] = useState(false);
+  const [showCreateProgramModal, setShowCreateProgramModal] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
 
-    const owner = users.find((u) => u.id === ownerId) || users[0];
+    const owner = users.find((u: User) => u.id === ownerId) || users[0];
+    const selectedPrograms = programs.filter((p: Program) => selectedProgramIds.includes(p.id));
 
     onSubmit({
       name: name.trim(),
       description: description.trim(),
-      programs: [],
+      programs: selectedPrograms,
       owner,
       budget: budget ? parseInt(budget) : 500000,
       spent: 0,
+      progress: 0,
       aiConfidence: 85,
       riskLevel: "low" as RiskLevel,
-      progress: 0,
       status: "planning",
       programIds: [],
     });
@@ -3940,76 +4052,182 @@ function CreatePortfolioModal({
     onClose();
   };
 
+  const toggleProgram = (programId: string) => {
+    setSelectedProgramIds((prev: string[]) =>
+      prev.includes(programId)
+        ? prev.filter((id: string) => id !== programId)
+        : [...prev, programId]
+    );
+  };
+
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Create New Portfolio</DialogTitle>
-          <DialogDescription>
-            Set up a new portfolio to organize programs
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="portfolio-name">Portfolio Name *</Label>
-            <Input
-              id="portfolio-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Technology Initiatives"
-              autoFocus
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="portfolio-description">Description</Label>
-            <Textarea
-              id="portfolio-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Portfolio description..."
-              rows={3}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
+    <>
+      <Dialog open onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create New Portfolio</DialogTitle>
+            <DialogDescription>
+              Set up a new portfolio to organize programs
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label>Portfolio Owner</Label>
-              <Select value={ownerId} onValueChange={setOwnerId}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {users.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Budget ($)</Label>
+              <Label htmlFor="portfolio-name">Portfolio Name *</Label>
               <Input
-                type="number"
-                value={budget}
-                onChange={(e) => setBudget(e.target.value)}
-                placeholder="500000"
+                id="portfolio-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Technology Initiatives"
+                autoFocus
               />
             </div>
-          </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={!name.trim()}>
-              Create Portfolio
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+            <div className="space-y-2">
+              <Label htmlFor="portfolio-description">Description</Label>
+              <Textarea
+                id="portfolio-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Portfolio description..."
+                rows={3}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Portfolio Owner</Label>
+                <Select value={ownerId} onValueChange={setOwnerId}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {users.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Budget ($)</Label>
+                <Input
+                  type="number"
+                  value={budget}
+                  onChange={(e) => setBudget(e.target.value)}
+                  placeholder="500000"
+                />
+              </div>
+            </div>
+
+            {/* Select Programs Field */}
+            <div className="space-y-2">
+              <Label>Select Programs</Label>
+              <div className="flex flex-wrap gap-2 p-2 border rounded-md bg-muted/20 min-h-[42px] items-center">
+                {selectedProgramIds.map((id: string) => {
+                  const program = programs.find((p: Program) => p.id === id);
+                  if (!program) return null;
+                  return (
+                    <Badge key={id} variant="secondary" className="pl-2 pr-1 py-1 flex items-center gap-1 group animate-in fade-in zoom-in duration-200">
+                      {program.name}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleProgram(id);
+                        }}
+                        className="rounded-full hover:bg-muted-foreground/20 p-0.5 transition-colors"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </Badge>
+                  );
+                })}
+
+                <Popover open={open} onOpenChange={setOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="flex-1 flex items-center gap-2 px-2 h-8 text-sm text-muted-foreground outline-none text-left"
+                    >
+                      <Search className="size-4 shrink-0" />
+                      {selectedProgramIds.length === 0 && <span>Search and select programs...</span>}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] min-w-[300px] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search programs..." />
+                      <CommandList className="max-h-[300px]">
+                        <CommandEmpty>No programs found.</CommandEmpty>
+                        <CommandGroup>
+                          {programs.map((program) => (
+                            <CommandItem
+                              key={program.id}
+                              value={program.name}
+                              onSelect={() => {
+                                toggleProgram(program.id);
+                              }}
+                              className="cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2 w-full">
+                                <div className={`flex size-4 items-center justify-center rounded-sm border border-primary transition-colors ${selectedProgramIds.includes(program.id)
+                                  ? "bg-primary text-primary-foreground"
+                                  : "opacity-50 [&_svg]:invisible"
+                                  }`}>
+                                  <Check className="size-3" />
+                                </div>
+                                <span className="flex-1 truncate">{program.name}</span>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                        <Separator />
+                        <CommandGroup>
+                          <CommandItem
+                            onSelect={() => {
+                              setOpen(false);
+                              setShowCreateProgramModal(true);
+                            }}
+                            className="cursor-pointer text-primary font-medium"
+                          >
+                            <Plus className="size-4 mr-2" />
+                            Create New Program
+                          </CommandItem>
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={!name.trim()}>
+                Create Portfolio
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      {showCreateProgramModal && (
+        <CreateProgramModal
+          onClose={() => setShowCreateProgramModal(false)}
+          onSubmit={async (programData) => {
+            try {
+              const newProgram = await addProgram(programData);
+              if (newProgram) {
+                setSelectedProgramIds(prev => [...prev, newProgram.id]);
+              }
+            } catch (error) {
+              console.error("Failed to create program from portfolio modal:", error);
+            }
+          }}
+        />
+      )}
+    </>
   );
 }
 

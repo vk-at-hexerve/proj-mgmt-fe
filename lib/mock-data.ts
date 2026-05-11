@@ -59,7 +59,7 @@ export interface Program {
   name: string;
   description: string;
   portfolioId: string;
-  projectIds: string[];
+  projects: Project[];
   owner: User;
   startDate: string;
   endDate?: string;
@@ -77,7 +77,7 @@ export interface Portfolio {
   id: string;
   name: string;
   description: string;
-  programIds: string[];
+  programs: Program[];
   owner: User;
   budget: number;
   spent: number;
@@ -88,7 +88,6 @@ export interface Portfolio {
 }
 
 export const portfolios: Portfolio[] = [];
-
 
 // Calendar events derived from tasks
 export interface CalendarEvent {

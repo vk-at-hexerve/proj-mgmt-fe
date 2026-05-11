@@ -110,6 +110,8 @@ export interface Project {
   teamId?: string; // Internal team
   templateId?: string; // Template used to create the project
   taskCount: number;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Program {
@@ -124,9 +126,9 @@ export interface Program {
   aiConfidence: number;
   riskLevel: RiskLevel;
   progress: number;
-  projectIds: string[];
   budget: number;
   spent: number;
+  projectIds: string[];
   status: 'active' | 'on-hold' | 'completed' | 'planning';
 }
 
@@ -138,10 +140,10 @@ export interface Portfolio {
   owner: User;
   budget: number;
   spent: number;
+  progress: number;
   aiConfidence: number;
   riskLevel: RiskLevel;
   programIds: string[];
-  progress: number;
   status: 'active' | 'on-hold' | 'completed' | 'planning';
 }
 

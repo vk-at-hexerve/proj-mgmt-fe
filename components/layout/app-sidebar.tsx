@@ -10,7 +10,7 @@ import { useApp } from "@/lib/app-context";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import type { Task } from "@/lib/types";
+import { Task, Project } from "@/lib/types";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -150,7 +150,7 @@ export function AppSidebar() {
     (task: Task) => task.assignee?.id === currentUser?.id,
   ).length;
 
-  const activeProj = projects.find((p) => p.id === currentProject) ||
+  const activeProj = projects.find((p: Project) => p.id === currentProject) ||
     projects[0] || { name: "No Projects" };
 
   if (!isMounted || !currentUser) return null;
@@ -214,7 +214,7 @@ export function AppSidebar() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-56">
-                {projects.map((project) => (
+                {projects.map((project: Project) => (
                   <DropdownMenuItem
                     key={project.id}
                     className="gap-2"
@@ -262,7 +262,7 @@ export function AppSidebar() {
         {/* Main Navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
           {/* Dashboard (First in mainNav) */}
-          {mainNav.filter(i => i.label === "Dashboard").map((item) => {
+          {mainNav.filter((i: NavItem) => i.label === "Dashboard").map((item: NavItem) => {
             const isActive = pathname === item.href;
             const NavLink = (
               <Link
@@ -327,7 +327,7 @@ export function AppSidebar() {
                     showAllProjects && "max-h-60 overflow-y-auto custom-scrollbar"
                   )}
                 >
-                  {(showAllProjects ? projects : projects.slice(0, 3)).map((project) => (<button
+                  {(showAllProjects ? projects : projects.slice(0, 3)).map((project: Project) => (<button
                     key={project.id}
                     onClick={() => {
                       setCurrentProject(project.id);
@@ -390,7 +390,7 @@ export function AppSidebar() {
           </div>
 
           {/* Remaining Main Navigation */}
-          {mainNav.filter(i => i.label !== "Dashboard").map((item) => {
+          {mainNav.filter((i: NavItem) => i.label !== "Dashboard").map((item: NavItem) => {
             const isActive = pathname === item.href;
             const NavLink = (
               <Link
