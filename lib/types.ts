@@ -109,6 +109,7 @@ export interface Project {
   clientId?: string; // External or internal client
   teamId?: string; // Internal team
   templateId?: string; // Template used to create the project
+  taskCount: number;
 }
 
 export interface Program {
@@ -287,6 +288,10 @@ export interface BackendProject {
   end_date?: string;
   owner?: BackendUser;
   members?: BackendUser[];
+  task_count?: number;
+  client_id?: string;
+  team_id?: string;
+  program_id?: string;
 }
 
 export interface BackendTask {

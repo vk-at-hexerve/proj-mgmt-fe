@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/tooltip';
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { generateGanttData } from '@/lib/mock-data';
+import { useApp } from '@/lib/app-context';
 import type { GanttTask } from '@/lib/mock-data';
 
 interface GanttChartProps {
@@ -27,13 +27,71 @@ export function GanttChart({ projectId }: GanttChartProps) {
   const [zoom, setZoom] = useState(1);
   const [scrollOffset, setScrollOffset] = useState(0);
 
+  const { tasks: allAppTasks, projects: allProjects } = useApp();
+
   const tasks = useMemo(() => {
-    const allTasks = generateGanttData();
-    if (projectId) {
-      return allTasks.filter(t => t.projectId === projectId || t.id === projectId);
-    }
-    return allTasks;
-  }, [projectId]);
+    const ganttTasks: GanttTask[] = [];
+    
+    const relevantProjects = projectId ? allProjects.filter(p => p.id === projectId) : allProjects;
+    
+    // Add projects
+    relevantProjects.forEach((project) => {
+      ganttTasks.push({
+        id: project.id,
+        name: project.name,
+        start: new Date(project.startDate || new Date().toISOString()),
+        end: project.endDate ? new Date(project.endDate) : new Date(new Date().setMonth(new Date().getMonth() + 1)), // fallback 1 month
+        progress: project.progress || 0,
+        type: 'project',
+      });
+    });
+
+    const relevantTasks = projectId ? allAppTasks.filter(t => t.projectId === projectId) : allAppTasks;
+    
+    // Add tasks
+    relevantTasks.forEach((task) => {
+      const createdDate = new Date(task.startDate || task.createdAt || new Date().toISOString());
+      // Make sure start date isn't invalid
+      const safeStartDate = isNaN(createdDate.getTime()) ? new Date() : createdDate;
+      
+      let safeDueDate: Date;
+      if (task.dueDate) {
+        safeDueDate = new Date(task.dueDate);
+        if (isNaN(safeDueDate.getTime())) {
+          safeDueDate = new Date(safeStartDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+        }
+      } else {
+        safeDueDate = new Date(safeStartDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+      }
+
+      // Ensure end date is after start date
+      if (safeDueDate < safeStartDate) {
+        safeDueDate = new Date(safeStartDate.getTime() + 24 * 60 * 60 * 1000);
+      }
+
+      let progress = 0;
+      switch (task.status) {
+        case 'closed': progress = 100; break;
+        case 'pending-approval': progress = 90; break;
+        case 'in-progress': progress = 50; break;
+        case 'assigned': progress = 10; break;
+        default: progress = 0;
+      }
+
+      ganttTasks.push({
+        id: task.id,
+        name: `${task.key}: ${task.title}`,
+        start: safeStartDate,
+        end: safeDueDate,
+        progress,
+        type: task.type === 'epic' ? 'project' : 'task',
+        assignee: task.assignee,
+        projectId: task.projectId,
+      });
+    });
+
+    return ganttTasks;
+  }, [allAppTasks, allProjects, projectId]);
 
   // Calculate date range
   const { startDate, endDate, totalDays, weeks } = useMemo(() => {

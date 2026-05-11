@@ -105,6 +105,10 @@ export interface TimeEntry {
   date: string;
   description?: string;
   createdAt: string;
+  // Timer-based fields
+  startAt?: string | null;
+  endAt?: string | null;
+  isRunning?: boolean;
 }
 
 // Resource Allocation interface
@@ -201,6 +205,11 @@ interface AppContextType extends AppState {
     endDate?: string,
   ) => TimeEntry[];
 
+  // Activity timer actions
+  startActivity: (taskId: string, description?: string) => Promise<TimeEntry | null>;
+  stopActivity: (entryId: string, description?: string) => Promise<TimeEntry | null>;
+  getTaskActivities: (taskId: string) => Promise<TimeEntry[]>;
+
   // Resource allocation actions
   addResourceAllocation: (allocation: Omit<ResourceAllocation, "id">) => void;
   updateResourceAllocation: (
@@ -282,8 +291,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [aiCopilotOpen, setAiCopilotOpen] = useState(false);
 
-  // Task counter for generating keys
-  const [taskCounter, setTaskCounter] = useState(0);
+
 
   const loginAction = useCallback(async (email: string, password: string) => {
     try {
@@ -388,7 +396,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
             }
             if (tasksData && Array.isArray(tasksData)) {
               setTasks(tasksData.map(mapBackendTask) as any);
-              setTaskCounter(tasksData.length + 1);
             }
             if (teamsData && Array.isArray(teamsData)) {
               setTeams(teamsData.map(mapBackendTeam) as any);
@@ -473,15 +480,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     async (task: Omit<Task, "id" | "createdAt" | "updatedAt" | "key">) => {
       const project = projects.find((p) => p.id === task.projectId);
       const tempId = `task-${Date.now()}`;
+      const nextTaskNumber = (project?.taskCount || 0) + 1;
       const newTask: Task = {
         ...task,
         id: tempId,
-        key: `${project?.key || "NXS"}-${100 + taskCounter}`,
+        key: `${project?.key || "TSK"}-${nextTaskNumber}`,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
       setTasks((prev) => [newTask, ...prev]);
-      setTaskCounter((prev) => prev + 1);
+      if (project) {
+        setProjects((prev) =>
+          prev.map((p) =>
+            p.id === project.id ? { ...p, taskCount: nextTaskNumber } : p,
+          ),
+        );
+      }
 
       try {
         const { fetchAPI, mapBackendTask } = await import("./api");
@@ -538,7 +552,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         });
       }
     },
-    [projects, taskCounter, showToast],
+    [projects, showToast],
   );
 
   const updateTask = useCallback(
@@ -795,6 +809,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             end_date: sprint.endDate || null,
             velocity: sprint.velocity || 0,
             project_id: sprint.projectId || null,
+            task_ids: taskIds,
           }),
         });
 
@@ -808,7 +823,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setTasks((prev) =>
             prev.map((task) =>
               taskIds.includes(task.id)
-                ? { ...task, sprintId: savedSprint.id || tempId }
+                ? { ...task, sprintId: savedSprint.id }
                 : task,
             ),
           );
@@ -872,6 +887,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             status: "PLANNING",
             client_id: (project as any).clientId || null,
             team_id: (project as any).teamId || null,
+            program_id: project.programId || null,
           }),
         });
 
@@ -911,7 +927,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const payload: any = { ...updates };
         // Map UI names to DB names if necessary
         if (payload.status)
-          payload.status = payload.status.replace("-", "_").toUpperCase();
+          payload.status = payload.status.replace(/-/g, "_").toUpperCase();
 
         if (payload.startDate !== undefined) {
           payload.start_date = payload.startDate;
@@ -923,13 +939,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
           delete payload.endDate;
         }
 
+        if (payload.clientId !== undefined) {
+          payload.client_id = payload.clientId || null;
+          delete payload.clientId;
+        }
+
+        if (payload.teamId !== undefined) {
+          payload.team_id = payload.teamId || null;
+          delete payload.teamId;
+        }
+
+        if (payload.programId !== undefined) {
+          payload.program_id = payload.programId || null;
+          delete payload.programId;
+        }
+
+        // These are frontend-only fields; strip them before sending
+        delete payload.key;
+        delete payload.type;
+        delete payload.name;
+        delete payload.owner;
+        delete payload.members;
+        delete payload.aiConfidence;
+        delete payload.riskLevel;
+        delete payload.taskCount;
+        delete payload.templateId;
+
         await fetchAPI(`/projects/${id}`, {
           method: "PATCH",
           body: JSON.stringify(payload),
         });
         showToast({ title: "Project updated", type: "success" });
       } catch (error) {
-        // Typically we would rollback optimistic state here
+        // Rollback optimistic state
         showToast({ title: "Update failed", type: "error" });
       }
     },
@@ -1440,6 +1482,66 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [timeEntries],
   );
 
+  // Activity timer actions
+  const startActivity = useCallback(
+    async (taskId: string, description?: string) => {
+      try {
+        const { startActivity: apiStart, mapBackendTimeEntry } = await import("./api");
+        const savedEntry = await apiStart(taskId, description);
+        const mapped = mapBackendTimeEntry(savedEntry);
+        setTimeEntries((prev) => {
+          // Remove any existing running entries for this user (auto-stopped by backend)
+          const updated = prev.map((e) =>
+            e.userId === mapped.userId && e.isRunning ? { ...e, isRunning: false } : e
+          );
+          return [mapped, ...updated];
+        });
+        showToast({ title: "Timer started", type: "success" });
+        return mapped;
+      } catch (err: any) {
+        showToast({ title: "Failed to start timer", description: err.message, type: "error" });
+        return null;
+      }
+    },
+    [showToast],
+  );
+
+  const stopActivity = useCallback(
+    async (entryId: string, description?: string) => {
+      try {
+        const { stopActivity: apiStop, mapBackendTimeEntry } = await import("./api");
+        const savedEntry = await apiStop(entryId, description);
+        const mapped = mapBackendTimeEntry(savedEntry);
+        setTimeEntries((prev) =>
+          prev.map((e) => (e.id === entryId ? mapped : e)),
+        );
+        showToast({ title: "Timer stopped", description: `${mapped.hours.toFixed(1)}h logged`, type: "success" });
+        return mapped;
+      } catch (err: any) {
+        showToast({ title: "Failed to stop timer", description: err.message, type: "error" });
+        return null;
+      }
+    },
+    [showToast],
+  );
+
+  const getTaskActivitiesFn = useCallback(
+    async (taskId: string): Promise<TimeEntry[]> => {
+      try {
+        const { getTaskActivities: apiFetch, mapBackendTimeEntry } = await import("./api");
+        const entries = await apiFetch(taskId);
+        if (Array.isArray(entries)) {
+          const mapped = entries.map(mapBackendTimeEntry);
+          return mapped;
+        }
+        return [];
+      } catch {
+        return [];
+      }
+    },
+    [],
+  );
+
   // Resource allocation actions
   const addResourceAllocation = useCallback(
     (allocation: Omit<ResourceAllocation, "id">) => {
@@ -1601,6 +1703,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     deleteTimeEntry,
     getTaskTimeEntries,
     getUserTimeEntries,
+    // Activity timer actions
+    startActivity,
+    stopActivity,
+    getTaskActivities: getTaskActivitiesFn,
     // Resource allocation actions
     addResourceAllocation,
     updateResourceAllocation,

@@ -162,9 +162,16 @@ export function TaskListView({ projectId }: TaskListViewProps) {
   const sortedParentTasks = [...parentTasks].sort((a, b) => {
     let comparison = 0;
     switch (sortField) {
-      case 'key':
-        comparison = a.key.localeCompare(b.key);
+      case 'key': {
+        const [prefixA, numA] = a.key.split('-');
+        const [prefixB, numB] = b.key.split('-');
+        if (prefixA !== prefixB) {
+          comparison = prefixA.localeCompare(prefixB);
+        } else {
+          comparison = parseInt(numA || '0', 10) - parseInt(numB || '0', 10);
+        }
         break;
+      }
       case 'title':
         comparison = a.title.localeCompare(b.title);
         break;

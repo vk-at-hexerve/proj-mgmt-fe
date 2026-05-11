@@ -388,17 +388,51 @@ export default function ClientsPage() {
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="client-name">Name *</Label>
-                    <Input
-                      id="client-name"
-                      placeholder="Client name"
-                      value={formData.name}
-                      onChange={(e) => setFormData(p => ({ ...p, name: e.target.value }))}
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5 col-span-2">
+                      <Label htmlFor="client-company">Company Name</Label>
+                      <Input
+                        id="client-company"
+                        placeholder="Acme Inc."
+                        value={formData.company}
+                        onChange={(e) => setFormData(p => ({ ...p, company: e.target.value }))}
+                        autoFocus
+                      />
+                    </div>
+
+                    <div className="space-y-1.5 col-span-2">
+                      <Label htmlFor="contact-name">Contact Name *</Label>
+                      <Input
+                        id="contact-name"
+                        placeholder="John Doe"
+                        value={formData.name}
+                        onChange={(e) => setFormData(p => ({ ...p, name: e.target.value }))}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="client-email">Email *</Label>
+                      <Input
+                        id="client-email"
+                        type="email"
+                        placeholder="john@example.com"
+                        value={formData.email}
+                        onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="client-phone">Phone</Label>
+                      <Input
+                        id="client-phone"
+                        placeholder="+1 (555) 000-0000"
+                        value={formData.phone}
+                        onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))}
+                      />
+                    </div>
                   </div>
+
                   <div className="space-y-1.5">
-                    <Label htmlFor="client-type">Type *</Label>
+                    <Label htmlFor="client-type">Client Type *</Label>
                     <Select value={formData.type} onValueChange={(v) => setFormData(p => ({ ...p, type: v as ClientType }))}>
                       <SelectTrigger>
                         <SelectValue />
@@ -418,36 +452,6 @@ export default function ClientsPage() {
                         </SelectItem>
                       </SelectContent>
                     </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="client-email">Email *</Label>
-                    <Input
-                      id="client-email"
-                      type="email"
-                      placeholder="client@example.com"
-                      value={formData.email}
-                      onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="client-phone">Phone</Label>
-                      <Input
-                        id="client-phone"
-                        placeholder="+1 (555) 123-4567"
-                        value={formData.phone}
-                        onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="client-company">Company</Label>
-                      <Input
-                        id="client-company"
-                        placeholder="Company name"
-                        value={formData.company}
-                        onChange={(e) => setFormData(p => ({ ...p, company: e.target.value }))}
-                      />
-                    </div>
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="client-address">Address</Label>
