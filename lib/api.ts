@@ -134,6 +134,10 @@ export function mapBackendPortfolio(backendPortfolio: any) {
     id: String(backendPortfolio.id),
     name: backendPortfolio.name,
     description: backendPortfolio.description || "",
+    progress: backendPortfolio.progress || 0,
+    budget: backendPortfolio.budget || 0,
+    spent: backendPortfolio.spent || 0,
+    programs: backendPortfolio.programs ? backendPortfolio.programs.map(mapBackendProgram) : [],
   };
 }
 
@@ -143,6 +147,10 @@ export function mapBackendProgram(backendProgram: any) {
     id: String(backendProgram.id),
     name: backendProgram.name,
     description: backendProgram.description || "",
+    progress: backendProgram.progress || 0,
+    budget: backendProgram.budget || 0,
+    spent: backendProgram.spent || 0,
+    projects: backendProgram.projects ? backendProgram.projects.map(mapBackendProject) : [],
   };
 }
 

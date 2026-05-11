@@ -3,6 +3,7 @@
 import React from "react"
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useApp } from '@/lib/app-context';
 import {
   Dialog,
@@ -36,6 +37,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { users as contextUsers, projects as contextProjects, portfolios as contextPortfolios, tags as availableTags, projectTemplates, clients } from '@/lib/mock-data';
 // const availableTags: any[] = []; // Placeholder for tags logic
 // const projectTemplates: any[] = [];
@@ -70,6 +84,8 @@ import {
   UserCircle,
   Building,
   ExternalLink,
+  Search,
+  Plus,
 } from 'lucide-react';
 
 export function AppModals() {
@@ -223,6 +239,24 @@ export function AppModals() {
   if (modal.type === 'add-member') {
     const teamId = modal.data?.teamId as string;
     return <AddMemberModal teamId={teamId} onClose={closeModal} />;
+  }
+
+  // Link Task Modal
+  if (modal.type === 'link-task') {
+    const taskId = modal.data?.taskId as string;
+    const task = getTask(taskId);
+    if (!task) return null;
+    return (
+      <LinkTaskModal 
+        task={task} 
+        onClose={closeModal} 
+        onLink={(link) => {
+          const currentLinks = task.linkedTasks || [];
+          updateTask(task.id, { linkedTasks: [...currentLinks, link] });
+          closeModal();
+        }} 
+      />
+    );
   }
 
   return null;
@@ -620,9 +654,19 @@ function EditTaskModal({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="font-mono">{task.key}</Badge>
-            <Badge variant="secondary" className="capitalize">{task.type}</Badge>
+          <div className="flex items-center justify-between w-full pr-8">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="font-mono">{task.key}</Badge>
+              <Badge variant="secondary" className="capitalize">{task.type}</Badge>
+            </div>
+            <Link 
+              href={`/tasks/${task.id}`} 
+              target="_blank"
+              className="text-muted-foreground hover:text-primary transition-colors"
+              title="Open in new tab"
+            >
+              <ExternalLink className="size-4" />
+            </Link>
           </div>
           <DialogTitle>Edit Task</DialogTitle>
         </DialogHeader>
@@ -1092,9 +1136,19 @@ function TaskDetailModal({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="font-mono">{task.key}</Badge>
-            <Badge variant="secondary" className="capitalize">{task.type}</Badge>
+          <div className="flex items-center justify-between w-full pr-8">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="font-mono">{task.key}</Badge>
+              <Badge variant="secondary" className="capitalize">{task.type}</Badge>
+            </div>
+            <Link 
+              href={`/tasks/${task.id}`} 
+              target="_blank"
+              className="text-muted-foreground hover:text-primary transition-colors"
+              title="Open in new tab"
+            >
+              <ExternalLink className="size-4" />
+            </Link>
           </div>
           <DialogTitle className="text-xl mt-2">{task.title}</DialogTitle>
         </DialogHeader>
@@ -1276,6 +1330,94 @@ function ChangeStatusModal({
             </button>
           ))}
         </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Link Task Modal Component
+function LinkTaskModal({ 
+  task, 
+  onClose, 
+  onLink 
+}: { 
+  task: Task;
+  onClose: () => void; 
+  onLink: (link: TaskLink) => void;
+}) {
+  const { tasks } = useApp();
+  const [linkType, setLinkType] = useState<TaskLink['linkType']>('relates-to');
+  const [selectedTaskId, setSelectedTaskId] = useState<string>('');
+
+  const availableTasks = tasks.filter(t => 
+    t.id !== task.id && !task.linkedTasks?.some(l => l.targetTaskId === t.id)
+  );
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Link Task</DialogTitle>
+          <DialogDescription>Create a relationship between tasks</DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label>This task...</Label>
+            <Select value={linkType} onValueChange={(v) => setLinkType(v as TaskLink['linkType'])}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="blocks">Blocks</SelectItem>
+                <SelectItem value="blocked-by">Is blocked by</SelectItem>
+                <SelectItem value="relates-to">Relates to</SelectItem>
+                <SelectItem value="duplicates">Duplicates</SelectItem>
+                <SelectItem value="is-duplicated-by">Is duplicated by</SelectItem>
+                <SelectItem value="parent-of">Is parent of</SelectItem>
+                <SelectItem value="child-of">Is child of</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>...the following task</Label>
+            <Select value={selectedTaskId} onValueChange={setSelectedTaskId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a task" />
+              </SelectTrigger>
+              <SelectContent>
+                <ScrollArea className="h-[200px]">
+                  {availableTasks.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="font-mono text-[10px]">{t.key}</Badge>
+                        <span className="truncate">{t.title}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </ScrollArea>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button 
+            onClick={() => {
+              onLink({
+                id: `link-${Date.now()}`,
+                sourceTaskId: task.id,
+                targetTaskId: selectedTaskId,
+                linkType: linkType,
+              });
+            }} 
+            disabled={!selectedTaskId}
+          >
+            Link Task
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -1760,6 +1902,8 @@ function CreateProgramModal({
       aiConfidence: 80,
       riskLevel: 'low' as RiskLevel,
       progress: 0,
+      budget: budget ? parseInt(budget) : 200000,
+      spent: 0,
     });
     onClose();
   };
@@ -1899,32 +2043,46 @@ function CreatePortfolioModal({
   onClose: () => void;
   onSubmit: (portfolio: Parameters<ReturnType<typeof useApp>['addPortfolio']>[0]) => void;
 }) {
-  const { users } = useApp();
+  const { users, programs, addProgram } = useApp();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [ownerId, setOwnerId] = useState(users[0]?.id || '');
   const [budget, setBudget] = useState('');
+  const [selectedProgramIds, setSelectedProgramIds] = useState<string[]>([]);
+  const [open, setOpen] = useState(false);
+  const [showCreateProgramModal, setShowCreateProgramModal] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
 
     const owner = users.find(u => u.id === ownerId) || users[0];
+    const selectedPrograms = programs.filter(p => selectedProgramIds.includes(p.id));
 
     onSubmit({
       name: name.trim(),
       description: description.trim(),
-      programs: [],
+      programs: selectedPrograms,
       owner,
       budget: budget ? parseInt(budget) : 500000,
       spent: 0,
+      progress: 0,
       aiConfidence: 85,
       riskLevel: 'low' as RiskLevel,
     });
     onClose();
   };
 
+  const toggleProgram = (programId: string) => {
+    setSelectedProgramIds(prev => 
+      prev.includes(programId) 
+        ? prev.filter(id => id !== programId) 
+        : [...prev, programId]
+    );
+  };
+
   return (
+    <>
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
@@ -1981,6 +2139,88 @@ function CreatePortfolioModal({
             </div>
           </div>
 
+          {/* Select Programs Field */}
+          <div className="space-y-2">
+            <Label>Select Programs</Label>
+            <div className="flex flex-wrap gap-2 p-2 border rounded-md bg-muted/20 min-h-[42px] items-center">
+              {selectedProgramIds.map(id => {
+                const program = programs.find(p => p.id === id);
+                if (!program) return null;
+                return (
+                  <Badge key={id} variant="secondary" className="pl-2 pr-1 py-1 flex items-center gap-1 group animate-in fade-in zoom-in duration-200">
+                    {program.name}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleProgram(id);
+                      }}
+                      className="rounded-full hover:bg-muted-foreground/20 p-0.5 transition-colors"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </Badge>
+                );
+              })}
+              
+              <Popover open={open} onOpenChange={setOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex-1 flex items-center gap-2 px-2 h-8 text-sm text-muted-foreground outline-none text-left"
+                  >
+                    <Search className="size-4 shrink-0" />
+                    {selectedProgramIds.length === 0 && <span>Search and select programs...</span>}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] min-w-[300px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search programs..." />
+                    <CommandList className="max-h-[300px]">
+                      <CommandEmpty>No programs found.</CommandEmpty>
+                      <CommandGroup>
+                        {programs.map((program) => (
+                          <CommandItem
+                            key={program.id}
+                            value={program.name}
+                            onSelect={() => {
+                              toggleProgram(program.id);
+                            }}
+                            className="cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2 w-full">
+                              <div className={`flex size-4 items-center justify-center rounded-sm border border-primary transition-colors ${
+                                selectedProgramIds.includes(program.id)
+                                  ? "bg-primary text-primary-foreground"
+                                  : "opacity-50 [&_svg]:invisible"
+                              }`}>
+                                <Check className="size-3" />
+                              </div>
+                              <span className="flex-1 truncate">{program.name}</span>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                      <Separator />
+                      <CommandGroup>
+                        <CommandItem
+                          onSelect={() => {
+                            setOpen(false);
+                            setShowCreateProgramModal(true);
+                          }}
+                          className="cursor-pointer text-primary font-medium"
+                        >
+                          <Plus className="size-4 mr-2" />
+                          Create New Program
+                        </CommandItem>
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
@@ -1992,6 +2232,22 @@ function CreatePortfolioModal({
         </form>
       </DialogContent>
     </Dialog>
+    {showCreateProgramModal && (
+      <CreateProgramModal
+        onClose={() => setShowCreateProgramModal(false)}
+        onSubmit={async (programData) => {
+          try {
+            const newProgram = await addProgram(programData);
+            if (newProgram) {
+              setSelectedProgramIds(prev => [...prev, newProgram.id]);
+            }
+          } catch (error) {
+            console.error("Failed to create program from portfolio modal:", error);
+          }
+        }}
+      />
+    )}
+    </>
   );
 }
 

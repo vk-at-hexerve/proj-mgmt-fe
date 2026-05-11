@@ -502,7 +502,7 @@ export interface Program {
   name: string;
   description: string;
   portfolioId: string;
-  projectIds: string[];
+  projects: Project[];
   owner: User;
   startDate: string;
   endDate?: string;
@@ -520,7 +520,7 @@ export const programs: Program[] = [
     name: 'Digital Transformation',
     description: 'Modernizing core business systems and processes',
     portfolioId: 'port-1',
-    projectIds: ['proj-1', 'proj-3'],
+    projects: [projects[0], projects[2]],
     owner: users[3],
     startDate: '2025-09-01',
     endDate: '2026-08-31',
@@ -536,7 +536,7 @@ export const programs: Program[] = [
     name: 'Mobile First Initiative',
     description: 'Expanding mobile presence across all product lines',
     portfolioId: 'port-1',
-    projectIds: ['proj-2'],
+    projects: [projects[1]],
     owner: users[3],
     startDate: '2025-11-01',
     endDate: '2026-06-30',
@@ -552,7 +552,7 @@ export const programs: Program[] = [
     name: 'Customer Experience 2.0',
     description: 'Enhanced customer portal and self-service capabilities',
     portfolioId: 'port-2',
-    projectIds: [],
+    projects: [],
     owner: users[0],
     startDate: '2026-02-01',
     aiConfidence: 90,
@@ -568,7 +568,7 @@ export interface Portfolio {
   id: string;
   name: string;
   description: string;
-  programIds: string[];
+  programs: Program[];
   owner: User;
   budget: number;
   spent: number;
@@ -583,7 +583,7 @@ export const portfolios: Portfolio[] = [
     id: 'port-1',
     name: 'Technology Initiatives',
     description: 'All technology and infrastructure modernization programs',
-    programIds: ['prog-1', 'prog-2'],
+    programs: [programs[0], programs[1]],
     owner: users[3],
     budget: 850000,
     spent: 320000,
@@ -596,7 +596,7 @@ export const portfolios: Portfolio[] = [
     id: 'port-2',
     name: 'Customer Growth',
     description: 'Programs focused on customer acquisition and retention',
-    programIds: ['prog-3'],
+    programs: [programs[2]],
     owner: users[0],
     budget: 600000,
     spent: 15000,

@@ -22,7 +22,7 @@ export const rolePermissions: Record<UserRole, string[]> = {
 };
 
 // Modal types
-type ModalType = 
+type ModalType =
   | 'create-task'
   | 'edit-task'
   | 'create-project'
@@ -44,6 +44,7 @@ type ModalType =
   | 'log-time'
   | 'resource-allocation'
   | 'user-profile'
+  | 'link-task'
   | null;
 
 interface ModalState {
@@ -113,13 +114,13 @@ interface AppContextType extends AppState {
   bulkUpdateTaskStatus: (ids: string[], status: TaskStatus) => void;
   bulkAssignTasks: (ids: string[], userId: string) => void;
   bulkDeleteTasks: (ids: string[]) => void;
-  
+
   // Project actions
   setCurrentProject: (id: string | null) => void;
   addProject: (project: Omit<Project, 'id' | 'createdAt'>) => void;
   updateProject: (id: string, updates: Partial<Project>) => void;
   deleteProject: (id: string) => void;
-  
+
   // Team actions
   addTeam: (team: Omit<Team, 'id'>) => void;
   updateTeam: (id: string, updates: Partial<Team>) => void;
@@ -127,53 +128,53 @@ interface AppContextType extends AppState {
   addTeamMember: (teamId: string, userId: string) => void;
   removeTeamMember: (teamId: string, userId: string) => void;
   setTeamLead: (teamId: string, userId: string) => void;
-  
+
   // Program actions
-  addProgram: (program: Omit<Program, 'id'>) => void;
+  addProgram: (program: Omit<Program, 'id'>) => Promise<Program>;
   updateProgram: (id: string, updates: Partial<Program>) => void;
   deleteProgram: (id: string) => void;
-  
+
   // Portfolio actions
   addPortfolio: (portfolio: Omit<Portfolio, 'id'>) => void;
   updatePortfolio: (id: string, updates: Partial<Portfolio>) => void;
   deletePortfolio: (id: string) => void;
-  
+
   // Sprint actions
   addSprint: (sprint: Omit<Sprint, 'id'>) => void;
   updateSprint: (id: string, updates: Partial<Sprint>) => void;
   deleteSprint: (id: string) => void;
-  
+
   // Time tracking actions
   addTimeEntry: (entry: Omit<TimeEntry, 'id' | 'createdAt'>) => void;
   updateTimeEntry: (id: string, updates: Partial<TimeEntry>) => void;
   deleteTimeEntry: (id: string) => void;
   getTaskTimeEntries: (taskId: string) => TimeEntry[];
   getUserTimeEntries: (userId: string, startDate?: string, endDate?: string) => TimeEntry[];
-  
+
   // Resource allocation actions
   addResourceAllocation: (allocation: Omit<ResourceAllocation, 'id'>) => void;
   updateResourceAllocation: (id: string, updates: Partial<ResourceAllocation>) => void;
   deleteResourceAllocation: (id: string) => void;
   getUserAllocations: (userId: string) => ResourceAllocation[];
   getProjectAllocations: (projectId: string) => ResourceAllocation[];
-  
+
   // Modal actions
   openModal: (type: ModalType, data?: Record<string, unknown>) => void;
   closeModal: () => void;
-  
+
   // Toast actions
   showToast: (toast: Omit<Toast, 'id'>) => void;
   dismissToast: (id: string) => void;
-  
+
   // UI actions
   setSearchOpen: (open: boolean) => void;
   setAiCopilotOpen: (open: boolean) => void;
-  
+
   // Permission helpers
   hasPermission: (permission: string) => boolean;
   canManageTask: (task: Task) => boolean;
   canManageProject: (project: Project) => boolean;
-  
+
   // Utility
   getUser: (id: string) => User | undefined;
   getProject: (id: string) => Project | undefined;
@@ -182,7 +183,7 @@ interface AppContextType extends AppState {
   getProgram: (id: string) => Program | undefined;
   getPortfolio: (id: string) => Portfolio | undefined;
   getSprint: (id: string) => Sprint | undefined;
-  
+
   // Auth actions
   loginAction: (email: string, password: string) => Promise<void>;
   signupAction: (name: string, email: string, password: string) => Promise<void>;
@@ -270,11 +271,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   React.useEffect(() => {
     if (!isMounted || !token) return;
 
-    import('./api').then(({ 
-      fetchAPI, 
-      mapBackendProject, 
-      mapBackendTask, 
-      mapBackendTeam, 
+    import('./api').then(({
+      fetchAPI,
+      mapBackendProject,
+      mapBackendTask,
+      mapBackendTeam,
       mapBackendTimeEntry,
       mapBackendPortfolio,
       mapBackendProgram,
@@ -369,18 +370,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
     setTasks(prev => [newTask, ...prev]);
     setTaskCounter(prev => prev + 1);
-    
+
     try {
       const { fetchAPI, mapBackendTask } = await import('./api');
-      
+
       const payload: any = {
         title: task.title,
         description: task.description || '',
         project_id: task.projectId,
-        status: task.status === 'open' ? 'TODO' : 
-                task.status === 'in-progress' ? 'IN_PROGRESS' : 
-                task.status === 'pending-approval' ? 'IN_REVIEW' : 
-                task.status === 'closed' ? 'DONE' : 'TODO',
+        status: task.status === 'open' ? 'TODO' :
+          task.status === 'in-progress' ? 'IN_PROGRESS' :
+            task.status === 'pending-approval' ? 'IN_REVIEW' :
+              task.status === 'closed' ? 'DONE' : 'TODO',
         priority: task.priority === 'critical' ? 'URGENT' : task.priority.toUpperCase(),
       };
 
@@ -392,7 +393,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         method: 'POST',
         body: JSON.stringify(payload)
       });
-      
+
       setTasks(prev => prev.map(t => t.id === tempId ? mapBackendTask(savedTask) : t));
       showToast({ title: 'Task created', description: savedTask.task_code || savedTask.title, type: 'success' });
     } catch (error) {
@@ -402,21 +403,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [projects, taskCounter, showToast]);
 
   const updateTask = useCallback(async (id: string, updates: Partial<Task>) => {
-    setTasks(prev => prev.map(task => 
+    setTasks(prev => prev.map(task =>
       task.id === id ? { ...task, ...updates, updatedAt: new Date().toISOString() } : task
     ));
 
     try {
       const { fetchAPI } = await import('./api');
       const payload: any = { ...updates };
-      
+
       if (payload.status) {
-        payload.status = payload.status === 'open' ? 'TODO' : 
-                         payload.status === 'in-progress' ? 'IN_PROGRESS' : 
-                         payload.status === 'pending-approval' ? 'IN_REVIEW' : 
-                         payload.status === 'closed' ? 'DONE' : payload.status.toUpperCase();
+        payload.status = payload.status === 'open' ? 'TODO' :
+          payload.status === 'in-progress' ? 'IN_PROGRESS' :
+            payload.status === 'pending-approval' ? 'IN_REVIEW' :
+              payload.status === 'closed' ? 'DONE' : payload.status.toUpperCase();
       }
-      
+
       if (payload.priority) {
         payload.priority = payload.priority === 'critical' ? 'URGENT' : payload.priority.toUpperCase();
       }
@@ -425,13 +426,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         payload.assignee_id = payload.assignee.id;
         delete payload.assignee;
       }
-      
+
       await fetchAPI(`/tasks/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(payload)
       });
       showToast({ title: 'Task updated', type: 'success' });
-    } catch(err) {
+    } catch (err) {
       showToast({ title: 'Task update failed', type: 'error' });
     }
   }, [showToast]);
@@ -439,49 +440,49 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const deleteTask = useCallback(async (id: string) => {
     const task = tasks.find(t => t.id === id);
     setTasks(prev => prev.filter(t => t.id !== id));
-    
+
     try {
       const { fetchAPI } = await import('./api');
       await fetchAPI(`/tasks/${id}`, { method: 'DELETE' });
       showToast({ title: 'Task deleted', description: task?.key, type: 'success' });
-    } catch(err) {
+    } catch (err) {
       if (task) setTasks(prev => [...prev, task]);
       showToast({ title: 'Delete failed', type: 'error' });
     }
   }, [tasks, showToast]);
 
   const updateTaskStatus = useCallback(async (id: string, status: TaskStatus) => {
-    setTasks(prev => prev.map(task => 
+    setTasks(prev => prev.map(task =>
       task.id === id ? { ...task, status, updatedAt: new Date().toISOString() } : task
     ));
 
     try {
       const { fetchAPI } = await import('./api');
-      const mappedStatus = status === 'open' ? 'TODO' : 
-                           status === 'in-progress' ? 'IN_PROGRESS' : 
-                           status === 'pending-approval' ? 'IN_REVIEW' : 
-                           status === 'closed' ? 'DONE' : status.replace('-', '_').toUpperCase();
-      
+      const mappedStatus = status === 'open' ? 'TODO' :
+        status === 'in-progress' ? 'IN_PROGRESS' :
+          status === 'pending-approval' ? 'IN_REVIEW' :
+            status === 'closed' ? 'DONE' : status.replace('-', '_').toUpperCase();
+
       await fetchAPI(`/tasks/${id}`, {
         method: 'PATCH',
         body: JSON.stringify({ status: mappedStatus })
       });
       showToast({ title: 'Status updated', type: 'success' });
     } catch (err) {
-       showToast({ title: 'Status update failed', type: 'error' });
+      showToast({ title: 'Status update failed', type: 'error' });
     }
   }, [showToast]);
 
   const assignTask = useCallback(async (taskId: string, userId: string | null) => {
     const user = userId ? users.find(u => u.id === userId) : null;
     const newStatus = user ? 'ASSIGNED' : 'TODO';
-    
-    setTasks(prev => prev.map(task => 
-      task.id === taskId ? { 
-        ...task, 
+
+    setTasks(prev => prev.map(task =>
+      task.id === taskId ? {
+        ...task,
         assignee: user || undefined,
         status: user && task.status === 'open' ? 'assigned' : task.status,
-        updatedAt: new Date().toISOString() 
+        updatedAt: new Date().toISOString()
       } : task
     ));
 
@@ -491,10 +492,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         method: 'PATCH',
         body: JSON.stringify({ assignee_id: userId, status: newStatus })
       });
-      showToast({ 
-        title: user ? 'Task assigned' : 'Task unassigned', 
+      showToast({
+        title: user ? 'Task assigned' : 'Task unassigned',
         description: user ? `Assigned to ${user.name}` : undefined,
-        type: 'success' 
+        type: 'success'
       });
     } catch (err) {
       showToast({ title: 'Assignment failed', type: 'error' });
@@ -502,7 +503,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [users, showToast]);
 
   const selectTask = useCallback((id: string) => {
-    setSelectedTasks(prev => 
+    setSelectedTasks(prev =>
       prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
     );
   }, []);
@@ -516,7 +517,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const bulkUpdateTaskStatus = useCallback((ids: string[], status: TaskStatus) => {
-    setTasks(prev => prev.map(task => 
+    setTasks(prev => prev.map(task =>
       ids.includes(task.id) ? { ...task, status, updatedAt: new Date().toISOString() } : task
     ));
     setSelectedTasks([]);
@@ -526,12 +527,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const bulkAssignTasks = useCallback((ids: string[], userId: string) => {
     const user = users.find(u => u.id === userId);
     if (!user) return;
-    setTasks(prev => prev.map(task => 
-      ids.includes(task.id) ? { 
-        ...task, 
+    setTasks(prev => prev.map(task =>
+      ids.includes(task.id) ? {
+        ...task,
         assignee: user,
         status: task.status === 'open' ? 'assigned' : task.status,
-        updatedAt: new Date().toISOString() 
+        updatedAt: new Date().toISOString()
       } : task
     ));
     setSelectedTasks([]);
@@ -564,14 +565,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const tempId = `proj-temp-${Date.now()}`;
     const newProject: Project = { ...project, id: tempId };
     setProjects(prev => [...prev, newProject]);
-    
+
     try {
       const { fetchAPI, mapBackendProject } = await import('./api');
       const savedProject = await fetchAPI('/projects', {
         method: 'POST',
         body: JSON.stringify({ name: project.name, status: 'PLANNING' })
       });
-      
+
       setProjects(prev => prev.map(p => p.id === tempId ? mapBackendProject(savedProject) : p));
       showToast({ title: 'Project created', description: savedProject.name, type: 'success' });
     } catch (error) {
@@ -582,7 +583,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const updateProject = useCallback(async (id: string, updates: Partial<Project>) => {
     // Optimistic UI update
-    setProjects(prev => prev.map(project => 
+    setProjects(prev => prev.map(project =>
       project.id === id ? { ...project, ...updates } : project
     ));
 
@@ -591,7 +592,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const payload: any = { ...updates };
       // Map UI names to DB names if necessary
       if (payload.status) payload.status = payload.status.replace('-', '_').toUpperCase();
-      
+
       await fetchAPI(`/projects/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(payload)
@@ -605,10 +606,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const deleteProject = useCallback(async (id: string) => {
     const project = projects.find(p => p.id === id);
-    
+
     // Optimistic UI update
     setProjects(prev => prev.filter(p => p.id !== id));
-    
+
     try {
       const { fetchAPI } = await import('./api');
       await fetchAPI(`/projects/${id}`, { method: 'DELETE' });
@@ -625,7 +626,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const tempId = `team-temp-${Date.now()}`;
     const newTeam: Team = { ...team, id: tempId };
     setTeams(prev => [...prev, newTeam]);
-    
+
     try {
       const { fetchAPI, mapBackendTeam } = await import('./api');
       const savedTeam = await fetchAPI('/teams', {
@@ -642,10 +643,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [showToast]);
 
   const updateTeam = useCallback(async (id: string, updates: Partial<Team>) => {
-    setTeams(prev => prev.map(team => 
+    setTeams(prev => prev.map(team =>
       team.id === id ? { ...team, ...updates } : team
     ));
-    
+
     try {
       const { fetchAPI } = await import('./api');
       await fetchAPI(`/teams/${id}`, {
@@ -661,21 +662,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const deleteTeam = useCallback(async (id: string) => {
     const team = teams.find(t => t.id === id);
     setTeams(prev => prev.filter(t => t.id !== id));
-    
+
     try {
       const { fetchAPI } = await import('./api');
       await fetchAPI(`/teams/${id}`, { method: 'DELETE' });
       showToast({ title: 'Team deleted', description: team?.name, type: 'success' });
-    } catch(err) {
-       if (team) setTeams(prev => [...prev, team]);
-       showToast({ title: 'Delete failed', type: 'error' });
+    } catch (err) {
+      if (team) setTeams(prev => [...prev, team]);
+      showToast({ title: 'Delete failed', type: 'error' });
     }
   }, [teams, showToast]);
 
   const addTeamMember = useCallback((teamId: string, userId: string) => {
     const user = users.find(u => u.id === userId);
     if (!user) return;
-    setTeams(prev => prev.map(team => 
+    setTeams(prev => prev.map(team =>
       team.id === teamId && !team.members.some(m => m.id === userId)
         ? { ...team, members: [...team.members, user] }
         : team
@@ -685,7 +686,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const removeTeamMember = useCallback((teamId: string, userId: string) => {
     const user = users.find(u => u.id === userId);
-    setTeams(prev => prev.map(team => 
+    setTeams(prev => prev.map(team =>
       team.id === teamId
         ? { ...team, members: team.members.filter(m => m.id !== userId) }
         : team
@@ -696,24 +697,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setTeamLead = useCallback((teamId: string, userId: string) => {
     const user = users.find(u => u.id === userId);
     if (!user) return;
-    setTeams(prev => prev.map(team => 
+    setTeams(prev => prev.map(team =>
       team.id === teamId ? { ...team, lead: user } : team
     ));
     showToast({ title: 'Team lead updated', description: user.name, type: 'success' });
   }, [users, showToast]);
 
   // Program actions
-  const addProgram = useCallback((program: Omit<Program, 'id'>) => {
-    const newProgram: Program = {
-      ...program,
-      id: `prog-${Date.now()}`,
-    };
+  const addProgram = useCallback(async (program: Omit<Program, 'id'>) => {
+    const tempId = `prog-temp-${Date.now()}`;
+    const newProgram: Program = { ...program, id: tempId };
     setPrograms(prev => [...prev, newProgram]);
-    showToast({ title: 'Program created', description: newProgram.name, type: 'success' });
+
+    try {
+      const { fetchAPI, mapBackendProgram } = await import('./api');
+      const savedProgram = await fetchAPI('/programs', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: program.name,
+          description: program.description,
+          portfolio_id: program.portfolioId,
+          project_ids: program.projects?.map(p => p.id) || []
+        })
+      });
+
+      const mappedProgram = mapBackendProgram(savedProgram);
+      setPrograms(prev => prev.map(p => p.id === tempId ? mappedProgram : p));
+      showToast({ title: 'Program created', description: savedProgram.name, type: 'success' });
+      return mappedProgram;
+    } catch (error) {
+      setPrograms(prev => prev.filter(p => p.id !== tempId));
+      showToast({ title: 'Program creation failed', type: 'error' });
+      throw error;
+    }
   }, [showToast]);
 
   const updateProgram = useCallback((id: string, updates: Partial<Program>) => {
-    setPrograms(prev => prev.map(program => 
+    setPrograms(prev => prev.map(program =>
       program.id === id ? { ...program, ...updates } : program
     ));
     showToast({ title: 'Program updated', type: 'success' });
@@ -726,17 +746,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [programs, showToast]);
 
   // Portfolio actions
-  const addPortfolio = useCallback((portfolio: Omit<Portfolio, 'id'>) => {
-    const newPortfolio: Portfolio = {
-      ...portfolio,
-      id: `port-${Date.now()}`,
-    };
+  const addPortfolio = useCallback(async (portfolio: Omit<Portfolio, 'id'>) => {
+    const tempId = `port-temp-${Date.now()}`;
+    const newPortfolio: Portfolio = { ...portfolio, id: tempId };
     setPortfolios(prev => [...prev, newPortfolio]);
-    showToast({ title: 'Portfolio created', description: newPortfolio.name, type: 'success' });
+
+    try {
+      const { fetchAPI, mapBackendPortfolio } = await import('./api');
+      const savedPortfolio = await fetchAPI('/portfolios', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: portfolio.name,
+          description: portfolio.description,
+          program_ids: portfolio.programs?.map(p => p.id) || []
+        })
+      });
+
+      setPortfolios(prev => prev.map(p => p.id === tempId ? mapBackendPortfolio(savedPortfolio) : p));
+      showToast({ title: 'Portfolio created', description: savedPortfolio.name, type: 'success' });
+    } catch (error) {
+      setPortfolios(prev => prev.filter(p => p.id !== tempId));
+      showToast({ title: 'Portfolio creation failed', type: 'error' });
+    }
   }, [showToast]);
 
   const updatePortfolio = useCallback((id: string, updates: Partial<Portfolio>) => {
-    setPortfolios(prev => prev.map(portfolio => 
+    setPortfolios(prev => prev.map(portfolio =>
       portfolio.id === id ? { ...portfolio, ...updates } : portfolio
     ));
     showToast({ title: 'Portfolio updated', type: 'success' });
@@ -757,12 +792,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       createdAt: new Date().toISOString(),
     };
     setTimeEntries(prev => [...prev, newEntry]);
-    
+
     try {
       const { fetchAPI, mapBackendTimeEntry } = await import('./api');
       const savedEntry = await fetchAPI('/time-entries', {
         method: 'POST',
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           duration: Math.round(entry.hours * 60), // backend expects minutes
           date: entry.date,
           description: entry.description || "",
@@ -779,7 +814,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [showToast]);
 
   const updateTimeEntry = useCallback((id: string, updates: Partial<TimeEntry>) => {
-    setTimeEntries(prev => prev.map(entry => 
+    setTimeEntries(prev => prev.map(entry =>
       entry.id === id ? { ...entry, ...updates } : entry
     ));
     showToast({ title: 'Time entry updated', type: 'success' });
@@ -814,7 +849,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [showToast]);
 
   const updateResourceAllocation = useCallback((id: string, updates: Partial<ResourceAllocation>) => {
-    setResourceAllocations(prev => prev.map(allocation => 
+    setResourceAllocations(prev => prev.map(allocation =>
       allocation.id === id ? { ...allocation, ...updates } : allocation
     ));
     showToast({ title: 'Allocation updated', type: 'success' });
