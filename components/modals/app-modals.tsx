@@ -52,7 +52,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { users as contextUsers, projects as contextProjects, portfolios as contextPortfolios, tags as availableTags, projectTemplates, clients } from '@/lib/mock-data';
-import type {
+import {
   TaskPriority,
   TaskStatus,
   TaskComment,
@@ -68,6 +68,9 @@ import type {
   Team,
   User,
   UserRole,
+  Portfolio,
+  Program,
+  Project,
 } from "@/lib/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -117,6 +120,7 @@ import {
   Timer,
   Lock,
   Target,
+  Search,
 } from "lucide-react";
 
 const getTodayDateInputValue = () => {
@@ -256,7 +260,7 @@ export function AppModals() {
       modal.data?.taskId as string,
     ];
     const taskNames = taskIds
-      .map((id) => tasks.find((t) => t.id === id)?.key)
+      .map((id: string) => tasks.find((t: Task) => t.id === id)?.key)
       .filter(Boolean);
     return (
       <AlertDialog open onOpenChange={(open) => !open && closeModal()}>
@@ -300,7 +304,7 @@ export function AppModals() {
   // Edit Project Modal
   if (modal.type === "edit-project") {
     const projectId = modal.data?.projectId as string;
-    const project = projects.find((p) => p.id === projectId);
+    const project = projects.find((p: Project) => p.id === projectId);
     if (!project) return null;
     return (
       <EditProjectModal
@@ -516,7 +520,7 @@ function CreateTaskModal({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {projects.map((p) => (
+                  {projects.map((p: Project) => (
                     <SelectItem key={p.id} value={p.id}>
                       <span className="flex items-center gap-2">
                         <Badge variant="outline" className="font-mono text-xs">
@@ -539,8 +543,8 @@ function CreateTaskModal({
                 <SelectContent>
                   <SelectItem value="no-sprint">Backlog / No Sprint</SelectItem>
                   {sprints
-                    .filter((s) => s.status === "active" && (!s.projectId || s.projectId === project))
-                    .map((s) => (
+                    .filter((s: Sprint) => s.status === "active" && (!s.projectId || s.projectId === project))
+                    .map((s: Sprint) => (
                       <SelectItem key={s.id} value={s.id}>
                         {s.name}
                       </SelectItem>
@@ -571,7 +575,7 @@ function CreateTaskModal({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="unassigned">Unassigned</SelectItem>
-                  {users.map((user) => (
+                  {users.map((user: User) => (
                     <SelectItem key={user.id} value={user.id}>
                       <span className="flex items-center gap-2">
                         <Avatar className="size-5">
@@ -581,7 +585,7 @@ function CreateTaskModal({
                           <AvatarFallback className="text-xs">
                             {user.name
                               .split(" ")
-                              .map((n) => n[0])
+                              .map((n: string) => n[0])
                               .join("")}
                           </AvatarFallback>
                         </Avatar>
@@ -793,7 +797,7 @@ function EditTaskModal({
     const entry = await startActivity(task.id);
     if (entry) {
       setActiveEntry(entry);
-      setTaskActivities((prev) => [entry, ...prev.filter(e => e.id !== entry.id)]);
+      setTaskActivities((prev) => [entry, ...prev.filter((e: AppTimeEntry) => e.id !== entry.id)]);
     }
     setTimerStarting(false);
   };
@@ -805,7 +809,7 @@ function EditTaskModal({
     if (entry) {
       setActiveEntry(null);
       setTimerElapsed(0);
-      setTaskActivities((prev) => prev.map(e => e.id === entry.id ? entry : e));
+      setTaskActivities((prev) => prev.map((e: AppTimeEntry) => e.id === entry.id ? entry : e));
     }
     setTimerStopping(false);
   };
@@ -1304,15 +1308,15 @@ function EditTaskModal({
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Time Entries</p>
               </div>
               <div className="space-y-2">
-                {taskActivities.filter(e => !e.isRunning).length === 0 && comments.length === 0 ? (
+                {taskActivities.filter((e: AppTimeEntry) => !e.isRunning).length === 0 && comments.length === 0 ? (
                   <p className="text-center text-muted-foreground py-6 text-sm">
                     No activity yet. Start a timer or add a comment.
                   </p>
                 ) : (
                   <>
                     {/* Time entries */}
-                    {taskActivities.filter(e => !e.isRunning).map((entry) => {
-                      const user = users.find((u) => u.id === entry.userId);
+                    {taskActivities.filter((e: AppTimeEntry) => !e.isRunning).map((entry: AppTimeEntry) => {
+                      const user = users.find((u: User) => u.id === entry.userId);
                       return (
                         <div key={entry.id} className="flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-muted/30 transition-colors">
                           <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
@@ -1344,8 +1348,8 @@ function EditTaskModal({
                     })}
 
                     {/* Comments */}
-                    {comments.map((comment) => {
-                      const user = users.find((u) => u.id === comment.userId);
+                    {comments.map((comment: TaskComment) => {
+                      const user = users.find((u: User) => u.id === comment.userId);
                       const isEditing = editingCommentId === comment.id;
                       const hasHistory = comment.editHistory && comment.editHistory.length > 0;
 
@@ -1354,7 +1358,7 @@ function EditTaskModal({
                           <Avatar className="size-8">
                             <AvatarImage src={user?.avatar || "/placeholder.svg"} />
                             <AvatarFallback>
-                              {user?.name?.split(" ").map((n) => n[0]).join("") || "?"}
+                              {user?.name?.split(" ").map((n: string) => n[0]).join("") || "?"}
                             </AvatarFallback>
                           </Avatar>
                           <div className="flex-1 space-y-1">
@@ -1923,8 +1927,8 @@ function LinkTaskModal({
   const [linkType, setLinkType] = useState<TaskLink['linkType']>('relates-to');
   const [selectedTaskId, setSelectedTaskId] = useState<string>('');
 
-  const availableTasks = tasks.filter(t =>
-    t.id !== task.id && !task.linkedTasks?.some(l => l.targetTaskId === t.id)
+  const availableTasks = tasks.filter((t: Task) =>
+    t.id !== task.id && !task.linkedTasks?.some((l: TaskLink) => l.targetTaskId === t.id)
   );
 
   return (
@@ -4028,8 +4032,8 @@ function CreatePortfolioModal({
     e.preventDefault();
     if (!name.trim()) return;
 
-    const owner = users.find(u => u.id === ownerId) || users[0];
-    const selectedPrograms = programs.filter(p => selectedProgramIds.includes(p.id));
+    const owner = users.find((u: User) => u.id === ownerId) || users[0];
+    const selectedPrograms = programs.filter((p: Program) => selectedProgramIds.includes(p.id));
 
     onSubmit({
       name: name.trim(),
@@ -4041,7 +4045,6 @@ function CreatePortfolioModal({
       progress: 0,
       aiConfidence: 85,
       riskLevel: "low" as RiskLevel,
-      progress: 0,
       status: "planning",
       programIds: [],
     });
@@ -4050,9 +4053,9 @@ function CreatePortfolioModal({
   };
 
   const toggleProgram = (programId: string) => {
-    setSelectedProgramIds(prev =>
+    setSelectedProgramIds((prev: string[]) =>
       prev.includes(programId)
-        ? prev.filter(id => id !== programId)
+        ? prev.filter((id: string) => id !== programId)
         : [...prev, programId]
     );
   };
@@ -4121,8 +4124,8 @@ function CreatePortfolioModal({
             <div className="space-y-2">
               <Label>Select Programs</Label>
               <div className="flex flex-wrap gap-2 p-2 border rounded-md bg-muted/20 min-h-[42px] items-center">
-                {selectedProgramIds.map(id => {
-                  const program = programs.find(p => p.id === id);
+                {selectedProgramIds.map((id: string) => {
+                  const program = programs.find((p: Program) => p.id === id);
                   if (!program) return null;
                   return (
                     <Badge key={id} variant="secondary" className="pl-2 pr-1 py-1 flex items-center gap-1 group animate-in fade-in zoom-in duration-200">

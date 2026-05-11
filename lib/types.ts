@@ -110,6 +110,8 @@ export interface Project {
   teamId?: string; // Internal team
   templateId?: string; // Template used to create the project
   taskCount: number;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Program {

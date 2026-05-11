@@ -28,6 +28,7 @@ import {
   Sparkles,
   ArrowUpRight,
 } from 'lucide-react';
+import { Portfolio, Program, Project } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 const getRiskBadgeVariant = (risk: string) => {
@@ -53,14 +54,14 @@ export default function PortfoliosPage() {
   const { portfolios, programs, projects, openModal, showToast } = useApp();
   const [selectedPortfolio, setSelectedPortfolio] = useState(portfolios[0]?.id);
 
-  const currentPortfolio = portfolios.find(p => p.id === selectedPortfolio) || portfolios[0];
+  const currentPortfolio = portfolios.find((p: Portfolio) => p.id === selectedPortfolio) || portfolios[0];
   const portfolioPrograms = currentPortfolio?.programs || [];
-  const portfolioProjects = portfolioPrograms.flatMap(prog => prog.projects);
+  const portfolioProjects = portfolioPrograms.flatMap((prog: Program) => prog.projects);
 
-  const totalBudget = portfolios.reduce((sum, p) => sum + p.budget, 0);
-  const totalSpent = portfolios.reduce((sum, p) => sum + p.spent, 0);
-  const avgProgress = portfolios.length > 0 ? portfolios.reduce((sum, p) => sum + p.progress, 0) / portfolios.length : 0;
-  const avgAIConfidence = portfolios.length > 0 ? portfolios.reduce((sum, p) => sum + p.aiConfidence, 0) / portfolios.length : 0;
+  const totalBudget = portfolios.reduce((sum: number, p: Portfolio) => sum + p.budget, 0);
+  const totalSpent = portfolios.reduce((sum: number, p: Portfolio) => sum + p.spent, 0);
+  const avgProgress = portfolios.length > 0 ? portfolios.reduce((sum: number, p: Portfolio) => sum + p.progress, 0) / portfolios.length : 0;
+  const avgAIConfidence = portfolios.length > 0 ? portfolios.reduce((sum: number, p: Portfolio) => sum + p.aiConfidence, 0) / portfolios.length : 0;
 
   return (
     <div className="flex h-screen bg-background">
@@ -144,10 +145,10 @@ export default function PortfoliosPage() {
 
             {/* Portfolio Cards */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-              {portfolios.map((portfolio) => {
-                const pPrograms = programs.filter(p => portfolio.programIds.includes(p.id));
-                const pProjects = pPrograms.flatMap(prog =>
-                  projects.filter(p => prog.projectIds.includes(p.id))
+              {portfolios.map((portfolio: Portfolio) => {
+                const pPrograms = programs.filter((p: Program) => portfolio.programIds.includes(p.id));
+                const pProjects = pPrograms.flatMap((prog: Program) =>
+                  projects.filter((p: Project) => prog.projectIds.includes(p.id))
                 );
                 const budgetUsed = (portfolio.spent / portfolio.budget) * 100;
 
@@ -271,8 +272,8 @@ export default function PortfoliosPage() {
 
                     <TabsContent value="programs" className="mt-4">
                       <div className="space-y-4">
-                        {portfolioPrograms.map((program) => {
-                          const programProjects = projects.filter(p => program.projectIds.includes(p.id));
+                        {portfolioPrograms.map((program: Program) => {
+                          const programProjects = projects.filter((p: Project) => program.projectIds.includes(p.id));
 
                           return (
                             <div
@@ -319,7 +320,7 @@ export default function PortfoliosPage() {
 
                     <TabsContent value="projects" className="mt-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {portfolioProjects.map((project) => (
+                        {portfolioProjects.map((project: Project) => (
                           <div
                             key={project.id}
                             className="flex items-center gap-4 p-4 rounded-lg border border-border hover:bg-muted/30 transition-colors"

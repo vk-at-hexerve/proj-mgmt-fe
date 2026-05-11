@@ -40,7 +40,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { tags as availableTags } from '@/lib/mock-data';
-import type { TaskPriority, TaskStatus, TaskComment, TaskAttachment, TaskLink, Task } from '@/lib/types';
+import { TaskPriority, TaskStatus, TaskComment, TaskAttachment, TaskLink, Task, Project, User } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 export default function TaskDetailClient({ taskId }: { taskId: string }) {
@@ -128,12 +128,12 @@ export default function TaskDetailClient({ taskId }: { taskId: string }) {
     );
   }
 
-  const project = projects.find(p => p.id === task.projectId);
+  const project = projects.find((p: Project) => p.id === task.projectId);
   const currentUserId = currentUser.id;
 
   const handleSave = () => {
-    const selectedUser = users.find(u => u.id === assignee);
-    const selectedTagObjects = availableTags.filter(t => selectedTags.includes(t.id));
+    const selectedUser = users.find((u: User) => u.id === assignee);
+    const selectedTagObjects = availableTags.filter((t: any) => selectedTags.includes(t.id));
 
     updateTask(taskId, {
       title: title.trim(),
@@ -344,8 +344,8 @@ export default function TaskDetailClient({ taskId }: { taskId: string }) {
                         <Separator />
 
                         <div className="space-y-6 pt-4">
-                          {comments.map((comment) => {
-                            const user = users.find(u => u.id === comment.userId);
+                          {comments.map((comment: TaskComment) => {
+                            const user = users.find((u: User) => u.id === comment.userId);
                             return (
                               <div key={comment.id} className="flex gap-4 group">
                                 <Avatar className="size-10">
@@ -443,8 +443,8 @@ export default function TaskDetailClient({ taskId }: { taskId: string }) {
                             <p className="text-muted-foreground">No linked tasks found</p>
                           </div>
                         ) : (
-                          linkedTasks.map((link) => {
-                            const linkedTask = tasks.find(t => t.id === link.targetTaskId);
+                          linkedTasks.map((link: TaskLink) => {
+                            const linkedTask = tasks.find((t: Task) => t.id === link.targetTaskId);
                             if (!linkedTask) return null;
                             return (
                               <div 
