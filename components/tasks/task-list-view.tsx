@@ -124,16 +124,20 @@ export function TaskListView({ projectId }: TaskListViewProps) {
   const resizeStartX = useRef(0);
   const resizeStartWidth = useRef(0);
 
+  const tasks = projectId
+    ? allTasks.filter(t => t.projectId === projectId)
+    : allTasks;
+
   // Group tasks: parent tasks with their subtasks
   const getHierarchicalTasks = () => {
-    const parentTasks = allTasks.filter(t => !t.parentId);
+    const parentTasks = tasks.filter(t => !t.parentId);
     const subtaskMap = new Map<string, Task[]>();
-    
-    allTasks.filter(t => t.parentId).forEach(subtask => {
+
+    tasks.filter(t => t.parentId).forEach(subtask => {
       const existing = subtaskMap.get(subtask.parentId!) || [];
       subtaskMap.set(subtask.parentId!, [...existing, subtask]);
     });
-    
+
     return { parentTasks, subtaskMap };
   };
 
@@ -155,16 +159,19 @@ export function TaskListView({ projectId }: TaskListViewProps) {
     return (subtaskMap.get(taskId)?.length || 0) > 0;
   };
 
-  const tasks = projectId 
-    ? allTasks.filter(t => t.projectId === projectId)
-    : allTasks;
-
   const sortedParentTasks = [...parentTasks].sort((a, b) => {
     let comparison = 0;
     switch (sortField) {
-      case 'key':
-        comparison = a.key.localeCompare(b.key);
+      case 'key': {
+        const [prefixA, numA] = a.key.split('-');
+        const [prefixB, numB] = b.key.split('-');
+        if (prefixA !== prefixB) {
+          comparison = prefixA.localeCompare(prefixB);
+        } else {
+          comparison = parseInt(numA || '0', 10) - parseInt(numB || '0', 10);
+        }
         break;
+      }
       case 'title':
         comparison = a.title.localeCompare(b.title);
         break;
@@ -215,7 +222,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
 
   const saveColumnLabel = () => {
     if (editingColumn && editingLabel.trim()) {
-      setColumns(prev => prev.map(c => 
+      setColumns(prev => prev.map(c =>
         c.id === editingColumn ? { ...c, label: editingLabel.trim() } : c
       ));
     }
@@ -228,7 +235,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
     e.stopPropagation();
     const column = columns.find(c => c.id === columnId);
     if (!column) return;
-    
+
     setResizing(columnId);
     resizeStartX.current = e.clientX;
     resizeStartWidth.current = column.width;
@@ -236,7 +243,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
     const handleMouseMove = (e: MouseEvent) => {
       const diff = e.clientX - resizeStartX.current;
       const newWidth = Math.max(column.minWidth, resizeStartWidth.current + diff);
-      setColumns(prev => prev.map(c => 
+      setColumns(prev => prev.map(c =>
         c.id === columnId ? { ...c, width: newWidth } : c
       ));
     };
@@ -296,18 +303,18 @@ export function TaskListView({ projectId }: TaskListViewProps) {
 
   const handleInlineCreate = () => {
     if (!newTaskTitle.trim()) return;
-    
+
     const isSubtask = !!inlineSubtaskParent;
     const parentTask = isSubtask ? tasks.find(t => t.id === inlineSubtaskParent) : null;
-    
+
     // Subtasks always inherit the project from their parent task
-    const taskProjectId = isSubtask && parentTask 
-      ? parentTask.projectId 
+    const taskProjectId = isSubtask && parentTask
+      ? parentTask.projectId
       : (projectId || 'proj-1');
-    
+
     // Subtasks inherit the parent's type and priority
     // If parent is epic, subtask becomes task; otherwise inherits parent type
-    const inheritedType = isSubtask && parentTask 
+    const inheritedType = isSubtask && parentTask
       ? (parentTask.type === 'epic' ? 'task' : parentTask.type === 'subtask' ? 'subtask' : parentTask.type)
       : newTaskType;
 
@@ -321,13 +328,13 @@ export function TaskListView({ projectId }: TaskListViewProps) {
       reporter: currentUser,
       tags: [],
     });
-    
-    showToast({ 
-      title: isSubtask ? 'Subtask created' : 'Task created', 
+
+    showToast({
+      title: isSubtask ? 'Subtask created' : 'Task created',
       description: `${newTaskTitle.trim()}${parentTask ? ` under ${parentTask.key}` : ''}`,
-      type: 'success' 
+      type: 'success'
     });
-    
+
     setNewTaskTitle('');
     setInlineCreateOpen(false);
     setInlineSubtaskParent(null);
@@ -368,10 +375,10 @@ export function TaskListView({ projectId }: TaskListViewProps) {
       const newColumns = [...prev];
       const draggedIndex = newColumns.findIndex(c => c.id === draggedColumn);
       const targetIndex = newColumns.findIndex(c => c.id === targetColumnId);
-      
+
       const [removed] = newColumns.splice(draggedIndex, 1);
       newColumns.splice(targetIndex, 0, removed);
-      
+
       return newColumns;
     });
 
@@ -393,23 +400,23 @@ export function TaskListView({ projectId }: TaskListViewProps) {
         <div className="px-4 py-2 bg-primary/10 border-b border-border flex items-center gap-4 shrink-0">
           <span className="text-sm font-medium">{selectedTasks.length} selected</span>
           <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               size="sm"
               onClick={() => openModal('change-status', { taskIds: selectedTasks })}
             >
               Change Status
             </Button>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               size="sm"
               onClick={() => openModal('assign-task', { taskIds: selectedTasks })}
             >
               Assign To
             </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               className="text-destructive bg-transparent"
               onClick={() => openModal('confirm-delete', { taskIds: selectedTasks })}
             >
@@ -432,7 +439,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                   />
                 </TableHead>
                 {columns.filter(c => c.visible).map((column) => (
-                  <TableHead 
+                  <TableHead
                     key={column.id}
                     style={{ width: column.width }}
                     className={cn(
@@ -466,23 +473,23 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                           autoFocus
                         />
                       ) : (
-                        <div 
+                        <div
                           className="flex items-center gap-1 flex-1"
                           onClick={() => column.sortable && handleSort(column.id)}
                         >
                           <span className="text-xs font-medium">{column.label}</span>
                           {sortField === column.id && (
-                            sortDirection === 'asc' 
-                              ? <ChevronUp className="size-3" /> 
+                            sortDirection === 'asc'
+                              ? <ChevronUp className="size-3" />
                               : <ChevronDown className="size-3" />
                           )}
                         </div>
                       )}
                       <Popover>
                         <PopoverTrigger asChild>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             className="size-5 opacity-0 group-hover:opacity-100 transition-opacity"
                           >
                             <Pencil className="size-3" />
@@ -491,9 +498,9 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                         <PopoverContent className="w-48 p-2" align="start">
                           <div className="space-y-2">
                             <p className="text-xs font-medium text-muted-foreground">Column Options</p>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               className="w-full justify-start text-xs"
                               onClick={() => startEditingColumn(column.id)}
                             >
@@ -505,7 +512,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                       </Popover>
                     </div>
                     {/* Resize handle */}
-                    <div 
+                    <div
                       className={cn(
                         'absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/50 transition-colors',
                         resizing === column.id && 'bg-primary'
@@ -578,7 +585,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
 
                 return (
                   <React.Fragment key={task.id}>
-                    <TableRow 
+                    <TableRow
                       className={cn(
                         'cursor-pointer hover:bg-muted/50 group',
                         isSelected && 'bg-primary/5'
@@ -659,7 +666,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                       <TableCell style={{ width: columns[4].width }} className="border-r-2 border-border/60">
                         <div className="flex items-center gap-2">
                           <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                            <div 
+                            <div
                               className={cn(
                                 "h-full rounded-full transition-all",
                                 task.status === 'closed' ? 'bg-green-500' : 'bg-primary'
@@ -782,7 +789,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                               Add Subtask
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               className="text-destructive"
                               onClick={() => handleTaskAction('delete', task.id)}
                             >
@@ -792,7 +799,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                         </DropdownMenu>
                       </TableCell>
                     </TableRow>
-                    
+
                     {/* Render Subtasks when expanded */}
                     {isExpanded && taskSubtasks.map((subtask) => {
                       const subtaskPriority = priorityConfig[subtask.priority];
@@ -801,7 +808,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                       const isSubtaskSelected = selectedTasks.includes(subtask.id);
 
                       return (
-                        <TableRow 
+                        <TableRow
                           key={subtask.id}
                           className={cn(
                             'cursor-pointer hover:bg-muted/50 group bg-muted/20',
@@ -893,7 +900,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                   Assign To
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem 
+                                <DropdownMenuItem
                                   className="text-destructive"
                                   onClick={() => handleTaskAction('delete', subtask.id)}
                                 >
@@ -952,10 +959,10 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                   </React.Fragment>
                 );
               })}
-              
+
               {/* Add New Task Row - Always Last */}
               {!inlineCreateOpen && !inlineSubtaskParent && (
-                <TableRow 
+                <TableRow
                   className="hover:bg-muted/30 cursor-pointer border-t border-border"
                   onClick={() => setInlineCreateOpen(true)}
                 >

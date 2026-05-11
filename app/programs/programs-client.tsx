@@ -90,42 +90,41 @@ const formatDate = (date: string) => {
 const programs = []; // Added declaration for programs
 
 export default function ProgramsClient() {
-  const { programs, portfolios, openModal, showToast } = useApp();
+  const { programs: contextPrograms, portfolios: contextPortfolios, openModal, showToast } = useApp();
+  const programs = contextPrograms as any[];
+  const portfolios = contextPortfolios as any[];
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   const filteredPrograms = programs.filter((program) => {
     const matchesSearch = program.name.toLowerCase().includes(search.toLowerCase()) ||
-      program.description.toLowerCase().includes(search.toLowerCase());
+      (program.description || "").toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === 'all' || program.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
-  const totalBudget = programs.reduce((sum, p) => sum + p.budget, 0);
-  const totalSpent = programs.reduce((sum, p) => sum + p.spent, 0);
-  const avgProgress = programs.reduce((sum, p) => sum + p.progress, 0) / programs.length;
+  const totalBudget = programs.reduce((sum, p) => sum + (p.budget || 0), 0);
+  const totalSpent = programs.reduce((sum, p) => sum + (p.spent || 0), 0);
+  const avgProgress = programs.reduce((sum, p) => sum + (p.progress || 0), 0) / (programs.length || 1);
   const activePrograms = programs.filter(p => p.status === 'active').length;
 
   return (
     <div className="flex h-screen bg-background">
       <AppSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <AppHeader />
+        <AppHeader
+          title="Programs"
+          subtitle="Manage and track strategic program initiatives"
+        />
         <main className="flex-1 overflow-auto">
           <div className="p-6">
-            {/* Page Header */}
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h1 className="text-2xl font-semibold text-foreground">Programs</h1>
-                <p className="text-muted-foreground">Manage and track strategic program initiatives</p>
-              </div>
-              <Button className="gap-2" onClick={() => openModal('create-program')}>
+            <div className="flex justify-end mb-4">
+              <Button size="sm" className="gap-1" onClick={() => openModal('create-program')}>
                 <Plus className="size-4" />
-                New Program
+                Create Program
               </Button>
             </div>
-
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <Card>
@@ -237,9 +236,9 @@ export default function ProgramsClient() {
             {viewMode === 'grid' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredPrograms.map((program) => {
-                  const programProjects = projects.filter(p => program.projectIds.includes(p.id));
-                  const portfolio = portfolios.find(p => p.programIds.includes(program.id));
-                  const budgetUsed = (program.spent / program.budget) * 100;
+                  const programProjects = projects.filter(p => program.projectIds?.includes(p.id));
+                  const portfolio = portfolios.find(p => p.programIds?.includes(program.id));
+                  const budgetUsed = ((program.spent || 0) / (program.budget || 1)) * 100;
 
                   return (
                     <Card key={program.id} className="hover:shadow-md transition-shadow">
@@ -308,8 +307,8 @@ export default function ProgramsClient() {
                             <span className="text-muted-foreground">Budget</span>
                             <span className="font-medium">{formatCurrency(program.spent)} / {formatCurrency(program.budget)}</span>
                           </div>
-                          <Progress 
-                            value={budgetUsed} 
+                          <Progress
+                            value={budgetUsed}
                             className={cn('h-1.5', budgetUsed > 80 && '[&>div]:bg-warning')}
                           />
                         </div>
@@ -319,7 +318,7 @@ export default function ProgramsClient() {
                             <Avatar className="size-6">
                               <AvatarImage src={program.owner.avatar || '/placeholder.svg'} />
                               <AvatarFallback className="text-xs">
-                                {program.owner.name.split(' ').map(n => n[0]).join('')}
+                                {program.owner.name.split(' ').map((n: string) => n[0]).join('')}
                               </AvatarFallback>
                             </Avatar>
                             <span className="text-sm text-muted-foreground">{program.owner.name}</span>
@@ -357,8 +356,8 @@ export default function ProgramsClient() {
                   </TableHeader>
                   <TableBody>
                     {filteredPrograms.map((program) => {
-                      const programProjects = projects.filter(p => program.projectIds.includes(p.id));
-                      const portfolio = portfolios.find(p => p.programIds.includes(program.id));
+                      const programProjects = projects.filter(p => program.projectIds?.includes(p.id));
+                      const portfolio = portfolios.find(p => p.programIds?.includes(program.id));
 
                       return (
                         <TableRow key={program.id}>
@@ -404,7 +403,7 @@ export default function ProgramsClient() {
                               <Avatar className="size-6">
                                 <AvatarImage src={program.owner.avatar || '/placeholder.svg'} />
                                 <AvatarFallback className="text-xs">
-                                  {program.owner.name.split(' ').map(n => n[0]).join('')}
+                                  {program.owner.name.split(' ').map((n: string) => n[0]).join('')}
                                 </AvatarFallback>
                               </Avatar>
                               <span className="text-sm">{program.owner.name}</span>

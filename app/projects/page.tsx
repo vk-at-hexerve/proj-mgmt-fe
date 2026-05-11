@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { useApp } from '@/lib/app-context';
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import { AppHeader } from '@/components/layout/app-header';
@@ -9,6 +8,7 @@ import { KanbanBoard } from '@/components/kanban/kanban-board';
 import { TaskListView } from '@/components/tasks/task-list-view';
 import { GanttChart } from '@/components/gantt/gantt-chart';
 import { ProjectGridView } from '@/components/project-grid/project-grid-view';
+import { ProjectCalendarView } from '@/components/calendar/project-calendar-view';
 import { AICopilot } from '@/components/ai/ai-copilot';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -62,6 +62,7 @@ import {
   MoreHorizontal,
   MoveRight,
   Check,
+  Settings,
 } from 'lucide-react';
 // import { sprints as initialSprints, generateCalendarEvents, users } from '@/lib/mock-data';
 import { cn } from '@/lib/utils';
@@ -77,16 +78,16 @@ interface FilterState {
 }
 
 const viewOptions: { id: ViewType; label: string; icon: React.ReactNode }[] = [
-  { id: 'kanban',  label: 'Board View',    icon: <LayoutGrid className="size-4" /> },
-  { id: 'list',    label: 'List View',     icon: <List className="size-4" /> },
-  { id: 'gantt',   label: 'Gantt View',    icon: <GanttChartSquare className="size-4" /> },
-  { id: 'calendar',label: 'Calendar View', icon: <Calendar className="size-4" /> },
-  { id: 'grid',    label: 'Grid View',     icon: <Table2 className="size-4" /> },
-  { id: 'backlog', label: 'Backlog',       icon: <Layers className="size-4" /> },
+  { id: 'kanban', label: 'Board View', icon: <LayoutGrid className="size-4" /> },
+  { id: 'list', label: 'List View', icon: <List className="size-4" /> },
+  { id: 'gantt', label: 'Gantt View', icon: <GanttChartSquare className="size-4" /> },
+  { id: 'calendar', label: 'Calendar View', icon: <Calendar className="size-4" /> },
+  { id: 'grid', label: 'Grid View', icon: <Table2 className="size-4" /> },
+  { id: 'backlog', label: 'Backlog', icon: <Layers className="size-4" /> },
 ];
 
 export default function ProjectsPage() {
-  const { projects, tasks: allTasks, showToast, teams, currentProject: currentProjectId, sprints: contextSprints, users, addSprint, updateSprint } = useApp();
+  const { projects, tasks: allTasks, showToast, teams, currentProject: currentProjectId, sprints: contextSprints, users, addSprint, updateSprint, openModal } = useApp();
   const [currentView, setCurrentView] = useState<ViewType>('kanban');
   const [filters, setFilters] = useState<FilterState>({ assignees: [], priorities: [], types: [] });
   const [filterOpen, setFilterOpen] = useState(false);
@@ -95,19 +96,12 @@ export default function ProjectsPage() {
   const [newSprint, setNewSprint] = useState({ name: '', goal: '', startDate: '', endDate: '' });
   const [selectedBacklogTasks, setSelectedBacklogTasks] = useState<string[]>([]);
   const [localTasks, setLocalTasks] = useState(allTasks);
+  const [dateError, setDateError] = useState('');
+
 
   const currentProject = projects.find(p => p.id === currentProjectId) || projects[0];
   const sprints = contextSprints.filter(s => s.projectId === currentProject?.id);
   const activeSprint = sprints.find((s) => s.status === 'active');
-  // Mock calendar events for now until we have a proper utility
-  const calendarEvents = allTasks
-    .filter(t => t.projectId === currentProject?.id && t.dueDate)
-    .map(t => ({
-      id: t.id,
-      title: t.title,
-      start: new Date(t.dueDate!),
-      color: t.priority === 'critical' ? '#EF4444' : '#3B82F6'
-    }));
   const projectTeam = teams.find(t => t.projects.some(p => p.id === currentProject?.id)) || teams[0];
 
   const backlogTasks = localTasks.filter(t =>
@@ -127,6 +121,27 @@ export default function ProjectsPage() {
 
   const handleCreateSprint = () => {
     if (!newSprint.name.trim() || !newSprint.startDate || !newSprint.endDate) return;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    // Use local time to evaluate inputs
+    const [startYear, startMonth, startDay] = newSprint.startDate.split('-').map(Number);
+    const [endYear, endMonth, endDay] = newSprint.endDate.split('-').map(Number);
+    const start = new Date(startYear, startMonth - 1, startDay);
+    const end = new Date(endYear, endMonth - 1, endDay);
+
+    if (start < today) {
+      setDateError("Start date cannot be in the past.");
+      return;
+    }
+
+    if (end < start) {
+      setDateError("End date cannot be before start date.");
+      return;
+    }
+
+    setDateError('');
+
     const sprintId = `sprint-${Date.now()}`;
     const sprint: Sprint = {
       id: sprintId,
@@ -147,10 +162,10 @@ export default function ProjectsPage() {
     setSprintDialogOpen(false);
     setNewSprint({ name: '', goal: '', startDate: '', endDate: '' });
     setSelectedBacklogTasks([]);
-    showToast({ 
-      title: 'Sprint created', 
-      description: `${sprint.name} with ${selectedBacklogTasks.length} task(s)`, 
-      type: 'success' 
+    showToast({
+      title: 'Sprint created',
+      description: `${sprint.name} with ${selectedBacklogTasks.length} task(s)`,
+      type: 'success'
     });
   };
 
@@ -158,9 +173,9 @@ export default function ProjectsPage() {
     setLocalTasks((prev: typeof allTasks) => prev.map(t =>
       t.id === taskId ? { ...t, sprintId: sprintId || undefined } : t
     ));
-    showToast({ 
-      title: sprintId ? 'Task moved to sprint' : 'Task moved to backlog', 
-      type: 'success' 
+    showToast({
+      title: sprintId ? 'Task moved to sprint' : 'Task moved to backlog',
+      type: 'success'
     });
   };
 
@@ -341,7 +356,7 @@ export default function ProjectsPage() {
               <Button variant="outline" size="sm" className="h-8 gap-2 text-primary border-primary/30 hover:bg-primary/10 bg-transparent">
                 <Sparkles className="size-4" />
                 AI Suggestions
-                <Badge variant="secondary" className="ml-1 text-xs">3</Badge>
+                <Badge variant="secondary" className="ml-1 text-xs">0</Badge>
               </Button>
 
               {/* Team */}
@@ -355,19 +370,52 @@ export default function ProjectsPage() {
                 <PopoverContent className="w-64 p-4" align="end">
                   <h4 className="font-medium text-sm mb-3">Project Team</h4>
                   {projectTeam ? (
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
+                    <div className="space-y-4">
+                      {/* Project Manager (Mandatory) */}
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-primary/5 border border-primary/10">
                         <Avatar className="size-8">
-                          <AvatarImage src={projectTeam.lead.avatar || '/placeholder.svg'} />
+                          <AvatarImage src={projectTeam.projectManager.avatar || '/placeholder.svg'} />
                           <AvatarFallback className="text-xs">
-                            {projectTeam.lead.name.split(' ').map((n: string) => n[0]).join('')}
+                            {projectTeam.projectManager.name.split(' ').map((n: string) => n[0]).join('')}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{projectTeam.lead.name}</p>
-                          <p className="text-xs text-muted-foreground">Team Lead</p>
+                          <p className="text-sm font-medium truncate">{projectTeam.projectManager.name}</p>
+                          <p className="text-[10px] uppercase tracking-wider font-semibold text-primary/70">Project Manager</p>
                         </div>
                       </div>
+
+                      {/* Team Lead (Optional) */}
+                      {projectTeam.lead && (
+                        <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border/50">
+                          <Avatar className="size-8">
+                            <AvatarImage src={projectTeam.lead.avatar || '/placeholder.svg'} />
+                            <AvatarFallback className="text-xs">
+                              {projectTeam.lead.name.split(' ').map((n: string) => n[0]).join('')}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{projectTeam.lead.name}</p>
+                            <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Team Lead</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Product Manager (Optional) */}
+                      {projectTeam.productManager && (
+                        <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border/50">
+                          <Avatar className="size-8">
+                            <AvatarImage src={projectTeam.productManager.avatar || '/placeholder.svg'} />
+                            <AvatarFallback className="text-xs">
+                              {projectTeam.productManager.name.split(' ').map((n: string) => n[0]).join('')}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{projectTeam.productManager.name}</p>
+                            <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Product Manager</p>
+                          </div>
+                        </div>
+                      )}
                       <div className="space-y-2">
                         <p className="text-xs text-muted-foreground">Members ({projectTeam.members.length})</p>
                         <div className="flex flex-wrap gap-1">
@@ -398,6 +446,17 @@ export default function ProjectsPage() {
                   )}
                 </PopoverContent>
               </Popover>
+
+              {/* Project Settings */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-2 bg-transparent"
+                onClick={() => openModal('edit-project', { projectId: currentProject.id })}
+              >
+                <Settings className="size-4" />
+                Settings
+              </Button>
             </div>
           </div>
 
@@ -577,45 +636,7 @@ export default function ProjectsPage() {
               </div>
             )}
             {currentView === 'calendar' && (
-              <Card className="h-full flex flex-col">
-                <CardContent className="flex-1 p-6">
-                  <div className="h-full flex flex-col">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold">Project Calendar</h3>
-                      <Link href="/calendar">
-                        <Button variant="outline" size="sm">Open Full Calendar</Button>
-                      </Link>
-                    </div>
-                    <div className="flex-1 grid grid-cols-7 gap-2">
-                      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-                        <div key={day} className="text-center text-sm font-medium text-muted-foreground py-2">{day}</div>
-                      ))}
-                      {Array.from({ length: 35 }, (_, i) => {
-                        const date = new Date('2026-01-01');
-                        date.setDate(date.getDate() + i - 3);
-                        const dayEvents = calendarEvents.filter((e: any) => {
-                          const eventDate = new Date(e.start);
-                          return eventDate.toDateString() === date.toDateString();
-                        });
-                        const isToday = date.toDateString() === new Date('2026-01-20').toDateString();
-                        return (
-                          <div key={i} className={cn('min-h-[80px] p-2 rounded-lg border border-border', isToday && 'ring-2 ring-primary bg-primary/5')}>
-                            <span className={cn('text-sm', isToday && 'font-semibold text-primary')}>{date.getDate()}</span>
-                            <div className="mt-1 space-y-1">
-                              {dayEvents.slice(0, 2).map((event: any) => (
-                                <div key={event.id} className="text-xs px-1 py-0.5 rounded truncate" style={{ backgroundColor: `${event.color}20`, color: event.color }}>
-                                  {event.title}
-                                </div>
-                              ))}
-                              {dayEvents.length > 2 && <span className="text-xs text-muted-foreground">+{dayEvents.length - 2}</span>}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <ProjectCalendarView projectId={currentProject.id} />
             )}
           </div>
         </div>
@@ -625,8 +646,12 @@ export default function ProjectsPage() {
       {/* Create Sprint Dialog */}
       <Dialog open={sprintDialogOpen} onOpenChange={(open) => {
         setSprintDialogOpen(open);
-        if (!open) setSelectedBacklogTasks([]);
+        if (!open) {
+          setSelectedBacklogTasks([]);
+          setDateError('');
+        }
       }}>
+
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Create New Sprint</DialogTitle>
@@ -720,8 +745,10 @@ export default function ProjectsPage() {
                 )}
               </ScrollArea>
             </div>
+            {dateError && <p className="text-sm text-destructive mt-2">{dateError}</p>}
           </div>
           <DialogFooter>
+
             <Button variant="outline" onClick={() => { setSprintDialogOpen(false); setSelectedBacklogTasks([]); }}>Cancel</Button>
             <Button
               onClick={handleCreateSprint}

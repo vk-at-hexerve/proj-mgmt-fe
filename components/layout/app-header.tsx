@@ -162,7 +162,8 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={() => openModal('create-task')}>New Task</DropdownMenuItem>
             <DropdownMenuItem onClick={() => openModal('create-project')}>New Project</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => showToast({ title: 'Coming soon', description: 'Sprint creation is in development', type: 'info' })}>New Sprint</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => openModal('create-sprint')}>New Sprint</DropdownMenuItem>
+
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => showToast({ title: 'Import feature', description: 'Jira import coming soon', type: 'info' })}>Import from Jira</DropdownMenuItem>
             <DropdownMenuItem onClick={() => showToast({ title: 'Import feature', description: 'ClickUp import coming soon', type: 'info' })}>Import from ClickUp</DropdownMenuItem>
@@ -179,7 +180,7 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
                 <Avatar className="size-8">
                   <AvatarImage src={currentUser.avatar || "/placeholder.svg"} alt={currentUser.name} />
                   <AvatarFallback className="text-xs">
-                    {currentUser.name.split(' ').map((n: string) => n[0]).join('')}
+                    {(currentUser?.name || "User").split(' ').map((n: string) => n[0]).join('')}
                   </AvatarFallback>
                 </Avatar>
               </Button>
@@ -189,7 +190,7 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
                 <Avatar className="size-8">
                   <AvatarImage src={currentUser.avatar || "/placeholder.svg"} alt={currentUser.name} />
                   <AvatarFallback className="text-xs">
-                    {currentUser.name.split(' ').map((n: string) => n[0]).join('')}
+                    {(currentUser?.name || "User").split(' ').map((n: string) => n[0]).join('')}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col space-y-0.5">

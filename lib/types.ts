@@ -107,7 +107,9 @@ export interface Project {
   budget?: number;
   spent?: number;
   clientId?: string; // External or internal client
+  teamId?: string; // Internal team
   templateId?: string; // Template used to create the project
+  taskCount: number;
 }
 
 export interface Program {
@@ -124,6 +126,8 @@ export interface Program {
   progress: number;
   budget: number;
   spent: number;
+  projectIds: string[];
+  status: 'active' | 'on-hold' | 'completed' | 'planning';
 }
 
 export interface Portfolio {
@@ -137,6 +141,8 @@ export interface Portfolio {
   progress: number;
   aiConfidence: number;
   riskLevel: RiskLevel;
+  programIds: string[];
+  status: 'active' | 'on-hold' | 'completed' | 'planning';
 }
 
 export interface AIInsight {
@@ -166,7 +172,7 @@ export interface DashboardMetrics {
 }
 
 // Project Templates
-export type TemplateCategory = 
+export type TemplateCategory =
   | 'software-development'
   | 'mobile-development'
   | 'social-media'
@@ -272,14 +278,20 @@ export interface BackendUser {
 export interface BackendProject {
   id: number | string;
   name: string;
+  project_key?: string;
   description?: string;
   status?: string;
   progress?: number;
   ai_confidence?: number;
   risk_level?: RiskLevel;
   start_date?: string;
+  end_date?: string;
   owner?: BackendUser;
   members?: BackendUser[];
+  task_count?: number;
+  client_id?: string;
+  team_id?: string;
+  program_id?: string;
 }
 
 export interface BackendTask {
@@ -289,16 +301,23 @@ export interface BackendTask {
   description?: string;
   status: string;
   priority: string;
+  story_points?: number;
   project_id: number | string;
   assignee?: BackendUser;
   reporter?: BackendUser;
+  start_date?: string;
+  due_date?: string;
 }
 
 export interface BackendTeam {
   id: number | string;
   name: string;
   description?: string;
+  capacity?: string | number;
+  velocity?: string | number;
+  project_manager?: BackendUser;
   lead?: BackendUser;
+  product_manager?: BackendUser;
   members?: BackendUser[];
   project_ids?: (number | string)[];
 }
@@ -308,7 +327,12 @@ export interface Team {
   name: string;
   description?: string;
   avatar?: string;
-  lead: User;
+  projectManager: User;
+  lead?: User;
+  productManager?: User;
   members: User[];
   projects: Project[];
+  projectIds: string[];
+  velocity: number;
+  capacity: number;
 }

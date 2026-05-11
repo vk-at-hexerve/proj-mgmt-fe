@@ -8,37 +8,7 @@ export const currentUser: User = {
   role: 'project-manager',
 };
 
-export const users: User[] = [
-  currentUser,
-  {
-    id: 'user-2',
-    name: 'Sarah Chen',
-    email: 'sarah@nexuspm.com',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah',
-    role: 'contributor',
-  },
-  {
-    id: 'user-3',
-    name: 'Michael Park',
-    email: 'michael@nexuspm.com',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Michael',
-    role: 'contributor',
-  },
-  {
-    id: 'user-4',
-    name: 'Emma Wilson',
-    email: 'emma@nexuspm.com',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Emma',
-    role: 'program-manager',
-  },
-  {
-    id: 'user-5',
-    name: 'James Liu',
-    email: 'james@nexuspm.com',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=James',
-    role: 'contributor',
-  },
-];
+export const users: User[] = [];
 
 export const tags: Tag[] = [
   { id: 'tag-1', name: 'Frontend', color: '#7B68EE' },
@@ -49,407 +19,25 @@ export const tags: Tag[] = [
   { id: 'tag-6', name: 'Documentation', color: '#8B5CF6' },
 ];
 
-export const sprints: Sprint[] = [
-  {
-    id: 'sprint-1',
-    name: 'Sprint 23',
-    goal: 'Complete user authentication and dashboard MVP',
-    startDate: '2026-01-13',
-    endDate: '2026-01-27',
-    status: 'active',
-    projectId: 'proj-1',
-    velocity: 42,
-  },
-  {
-    id: 'sprint-2',
-    name: 'Sprint 24',
-    goal: 'API integration and reporting features',
-    startDate: '2026-01-27',
-    endDate: '2026-02-10',
-    status: 'planning',
-    projectId: 'proj-1',
-  },
-];
+export const sprints: Sprint[] = [];
 
-export const tasks: Task[] = [
-  {
-    id: 'task-1',
-    key: 'NXS-101',
-    title: 'Implement user authentication flow',
-    description: 'Set up complete authentication with OAuth, magic links, and password recovery',
-    status: 'in-progress',
-    priority: 'high',
-    type: 'story',
-    assignee: users[1],
-    reporter: currentUser,
-    tags: [tags[1], tags[4]],
-    storyPoints: 8,
-    dueDate: '2026-01-25',
-    createdAt: '2026-01-10',
-    updatedAt: '2026-01-18',
-    sprintId: 'sprint-1',
-    projectId: 'proj-1',
-  },
-  {
-    id: 'task-2',
-    key: 'NXS-102',
-    title: 'Design dashboard wireframes',
-    description: 'Create high-fidelity wireframes for the main dashboard',
-    status: 'pending-approval',
-    priority: 'high',
-    type: 'task',
-    assignee: users[2],
-    reporter: currentUser,
-    tags: [tags[2]],
-    storyPoints: 5,
-    dueDate: '2026-01-22',
-    createdAt: '2026-01-08',
-    updatedAt: '2026-01-19',
-    sprintId: 'sprint-1',
-    projectId: 'proj-1',
-  },
-  {
-    id: 'task-3',
-    key: 'NXS-103',
-    title: 'Set up CI/CD pipeline',
-    description: 'Configure automated testing and deployment workflows',
-    status: 'open',
-    priority: 'medium',
-    type: 'task',
-    reporter: currentUser,
-    tags: [tags[1]],
-    storyPoints: 3,
-    dueDate: '2026-01-30',
-    createdAt: '2026-01-12',
-    updatedAt: '2026-01-12',
-    sprintId: 'sprint-1',
-    projectId: 'proj-1',
-  },
-  {
-    id: 'task-4',
-    key: 'NXS-104',
-    title: 'API rate limiting not working',
-    description: 'Rate limiting middleware fails under high load conditions',
-    status: 'assigned',
-    priority: 'critical',
-    type: 'bug',
-    assignee: users[4],
-    reporter: users[1],
-    tags: [tags[1], tags[3]],
-    storyPoints: 5,
-    dueDate: '2026-01-21',
-    createdAt: '2026-01-17',
-    updatedAt: '2026-01-18',
-    sprintId: 'sprint-1',
-    projectId: 'proj-1',
-  },
-  {
-    id: 'task-5',
-    key: 'NXS-105',
-    title: 'Create API documentation',
-    description: 'Document all REST endpoints with examples and schemas',
-    status: 'in-progress',
-    priority: 'low',
-    type: 'task',
-    assignee: users[2],
-    reporter: currentUser,
-    tags: [tags[5]],
-    storyPoints: 3,
-    dueDate: '2026-02-05',
-    createdAt: '2026-01-15',
-    updatedAt: '2026-01-19',
-    sprintId: 'sprint-1',
-    projectId: 'proj-1',
-  },
-  {
-    id: 'task-6',
-    key: 'NXS-106',
-    title: 'Implement real-time notifications',
-    description: 'Add WebSocket support for live updates across the platform',
-    status: 'open',
-    priority: 'medium',
-    type: 'story',
-    reporter: currentUser,
-    tags: [tags[0], tags[1], tags[4]],
-    storyPoints: 13,
-    dueDate: '2026-02-15',
-    createdAt: '2026-01-14',
-    updatedAt: '2026-01-14',
-    projectId: 'proj-1',
-  },
-  {
-    id: 'task-7',
-    key: 'NXS-107',
-    title: 'Mobile responsive layouts',
-    description: 'Ensure all views work properly on mobile devices',
-    status: 'closed',
-    priority: 'high',
-    type: 'story',
-    assignee: users[1],
-    reporter: currentUser,
-    tags: [tags[0], tags[2]],
-    storyPoints: 8,
-    dueDate: '2026-01-18',
-    createdAt: '2026-01-05',
-    updatedAt: '2026-01-18',
-    sprintId: 'sprint-1',
-    projectId: 'proj-1',
-  },
-  {
-    id: 'task-8',
-    key: 'NXS-108',
-    title: 'User profile management',
-    description: 'Allow users to update their profile information and preferences',
-    status: 'on-hold',
-    priority: 'low',
-    type: 'story',
-    assignee: users[4],
-    reporter: users[3],
-    tags: [tags[0], tags[4]],
-    storyPoints: 5,
-    dueDate: '2026-02-20',
-    createdAt: '2026-01-10',
-    updatedAt: '2026-01-16',
-    projectId: 'proj-1',
-  },
-  // Additional backlog items (no sprintId)
-  {
-    id: 'task-9',
-    key: 'NXS-109',
-    title: 'Implement dark mode theme',
-    description: 'Add dark mode support across all components with system preference detection',
-    status: 'open',
-    priority: 'medium',
-    type: 'story',
-    reporter: currentUser,
-    tags: [tags[0], tags[2]],
-    storyPoints: 5,
-    createdAt: '2026-01-15',
-    updatedAt: '2026-01-15',
-    projectId: 'proj-1',
-  },
-  {
-    id: 'task-10',
-    key: 'NXS-110',
-    title: 'Export reports to PDF',
-    description: 'Allow users to export project reports and analytics to PDF format',
-    status: 'open',
-    priority: 'low',
-    type: 'task',
-    reporter: users[3],
-    tags: [tags[4]],
-    storyPoints: 3,
-    createdAt: '2026-01-16',
-    updatedAt: '2026-01-16',
-    projectId: 'proj-1',
-  },
-  {
-    id: 'task-11',
-    key: 'NXS-111',
-    title: 'Keyboard shortcuts implementation',
-    description: 'Add keyboard shortcuts for common actions like creating tasks, navigation, etc.',
-    status: 'open',
-    priority: 'medium',
-    type: 'task',
-    reporter: currentUser,
-    tags: [tags[0]],
-    storyPoints: 3,
-    createdAt: '2026-01-17',
-    updatedAt: '2026-01-17',
-    projectId: 'proj-1',
-  },
-  {
-    id: 'task-12',
-    key: 'NXS-112',
-    title: 'Performance optimization',
-    description: 'Optimize bundle size and improve initial load time by 40%',
-    status: 'open',
-    priority: 'high',
-    type: 'story',
-    reporter: users[4],
-    tags: [tags[0], tags[1]],
-    storyPoints: 8,
-    createdAt: '2026-01-18',
-    updatedAt: '2026-01-18',
-    projectId: 'proj-1',
-  },
-  {
-    id: 'task-13',
-    key: 'NXS-113',
-    title: 'Search functionality enhancement',
-    description: 'Add fuzzy search and filters for tasks, projects, and team members',
-    status: 'open',
-    priority: 'medium',
-    type: 'story',
-    reporter: currentUser,
-    tags: [tags[0], tags[1], tags[4]],
-    storyPoints: 5,
-    createdAt: '2026-01-19',
-    updatedAt: '2026-01-19',
-    projectId: 'proj-1',
-  },
-  {
-    id: 'task-14',
-    key: 'NXS-114',
-    title: 'Email notification system',
-    description: 'Set up email notifications for task assignments, due dates, and mentions',
-    status: 'open',
-    priority: 'high',
-    type: 'story',
-    reporter: users[3],
-    tags: [tags[1], tags[4]],
-    storyPoints: 8,
-    createdAt: '2026-01-19',
-    updatedAt: '2026-01-19',
-    projectId: 'proj-1',
-  },
-  {
-    id: 'task-15',
-    key: 'NXS-115',
-    title: 'Slack integration',
-    description: 'Integrate with Slack for real-time notifications and commands',
-    status: 'open',
-    priority: 'low',
-    type: 'task',
-    reporter: currentUser,
-    tags: [tags[1]],
-    storyPoints: 5,
-    createdAt: '2026-01-20',
-    updatedAt: '2026-01-20',
-    projectId: 'proj-1',
-  },
-  {
-    id: 'task-16',
-    key: 'NXS-116',
-    title: 'Drag and drop file upload',
-    description: 'Enable drag and drop for file attachments on tasks and comments',
-    status: 'open',
-    priority: 'medium',
-    type: 'task',
-    reporter: users[2],
-    tags: [tags[0]],
-    storyPoints: 3,
-    createdAt: '2026-01-20',
-    updatedAt: '2026-01-20',
-    projectId: 'proj-1',
-  },
-];
+export const tasks: Task[] = [];
 
-export const projects: Project[] = [
-  {
-    id: 'proj-1',
-    name: 'Nexus Platform',
-    key: 'NXS',
-    description: 'Main product development for the Nexus PM platform',
-    type: 'agile-scrum',
-    status: 'active',
-    startDate: '2025-10-01',
-    endDate: '2026-06-30',
-    owner: currentUser,
-    members: users,
-    aiConfidence: 78,
-    riskLevel: 'medium',
-    progress: 45,
-    budget: 500000,
-    spent: 180000,
-  },
-  {
-    id: 'proj-2',
-    name: 'Mobile App',
-    key: 'MOB',
-    description: 'Native mobile application for iOS and Android',
-    type: 'agile-kanban',
-    status: 'active',
-    startDate: '2025-12-01',
-    owner: users[3],
-    members: [users[1], users[2], users[4]],
-    aiConfidence: 85,
-    riskLevel: 'low',
-    progress: 25,
-    budget: 200000,
-    spent: 45000,
-  },
-  {
-    id: 'proj-3',
-    name: 'Infrastructure Upgrade',
-    key: 'INF',
-    description: 'Cloud infrastructure modernization project',
-    type: 'waterfall',
-    status: 'active',
-    startDate: '2025-11-15',
-    endDate: '2026-03-31',
-    owner: users[4],
-    members: [users[1], users[4]],
-    aiConfidence: 62,
-    riskLevel: 'high',
-    progress: 60,
-    budget: 150000,
-    spent: 95000,
-  },
-];
+export const projects: Project[] = [];
 
-export const aiInsights: AIInsight[] = [
-  {
-    id: 'insight-1',
-    type: 'risk',
-    title: 'Sprint velocity declining',
-    description: 'The current sprint velocity is 15% below the 3-sprint average. Consider reducing scope or addressing blockers.',
-    severity: 'warning',
-    relatedEntityType: 'project',
-    relatedEntityId: 'proj-1',
-    createdAt: '2026-01-19',
-    actionable: true,
-    action: 'Review sprint backlog',
-  },
-  {
-    id: 'insight-2',
-    type: 'prediction',
-    title: 'Potential deadline risk',
-    description: 'Based on current progress, the Infrastructure Upgrade project has a 35% chance of missing the March deadline.',
-    severity: 'critical',
-    relatedEntityType: 'project',
-    relatedEntityId: 'proj-3',
-    createdAt: '2026-01-18',
-    actionable: true,
-    action: 'View risk analysis',
-  },
-  {
-    id: 'insight-3',
-    type: 'recommendation',
-    title: 'Optimize task assignment',
-    description: 'Sarah Chen has capacity for 2 more tasks this sprint. Consider reassigning NXS-103 for faster completion.',
-    severity: 'info',
-    relatedEntityType: 'task',
-    relatedEntityId: 'task-3',
-    createdAt: '2026-01-19',
-    actionable: true,
-    action: 'Auto-assign task',
-  },
-  {
-    id: 'insight-4',
-    type: 'optimization',
-    title: 'Budget reallocation opportunity',
-    description: 'Mobile App project is under budget by 18%. Funds could be reallocated to Infrastructure Upgrade.',
-    severity: 'info',
-    relatedEntityType: 'project',
-    relatedEntityId: 'proj-2',
-    createdAt: '2026-01-17',
-    actionable: true,
-    action: 'View budget analysis',
-  },
-];
+export const aiInsights: AIInsight[] = [];
 
 export const dashboardMetrics: DashboardMetrics = {
-  totalProjects: 3,
-  activeProjects: 3,
-  tasksCompleted: 24,
-  tasksInProgress: 8,
-  overdueTasks: 2,
-  averageVelocity: 38,
-  budgetUtilization: 67,
-  teamUtilization: 82,
-  aiConfidenceScore: 75,
-  upcomingDeadlines: 5,
+  totalProjects: 0,
+  activeProjects: 0,
+  tasksCompleted: 0,
+  tasksInProgress: 0,
+  overdueTasks: 0,
+  averageVelocity: 0,
+  budgetUtilization: 0,
+  teamUtilization: 0,
+  aiConfidenceScore: 0,
+  upcomingDeadlines: 0,
 };
 
 export interface Team {
@@ -464,38 +52,7 @@ export interface Team {
   capacity: number;
 }
 
-export const teams: Team[] = [
-  {
-    id: 'team-1',
-    name: 'Platform Engineering',
-    description: 'Core platform development and infrastructure',
-    members: [users[0], users[1], users[4]],
-    lead: users[0],
-    projectIds: ['proj-1', 'proj-3'],
-    velocity: 42,
-    capacity: 80,
-  },
-  {
-    id: 'team-2',
-    name: 'Mobile Squad',
-    description: 'Native mobile application development',
-    members: [users[2], users[3]],
-    lead: users[3],
-    projectIds: ['proj-2'],
-    velocity: 28,
-    capacity: 40,
-  },
-  {
-    id: 'team-3',
-    name: 'Design Systems',
-    description: 'UI/UX design and component library',
-    members: [users[2]],
-    lead: users[2],
-    projectIds: ['proj-1', 'proj-2'],
-    velocity: 15,
-    capacity: 20,
-  },
-];
+export const teams: Team[] = [];
 
 export interface Program {
   id: string;
@@ -514,55 +71,7 @@ export interface Program {
   status: 'active' | 'on-hold' | 'completed' | 'planning';
 }
 
-export const programs: Program[] = [
-  {
-    id: 'prog-1',
-    name: 'Digital Transformation',
-    description: 'Modernizing core business systems and processes',
-    portfolioId: 'port-1',
-    projects: [projects[0], projects[2]],
-    owner: users[3],
-    startDate: '2025-09-01',
-    endDate: '2026-08-31',
-    aiConfidence: 72,
-    riskLevel: 'medium',
-    progress: 48,
-    budget: 650000,
-    spent: 275000,
-    status: 'active',
-  },
-  {
-    id: 'prog-2',
-    name: 'Mobile First Initiative',
-    description: 'Expanding mobile presence across all product lines',
-    portfolioId: 'port-1',
-    projects: [projects[1]],
-    owner: users[3],
-    startDate: '2025-11-01',
-    endDate: '2026-06-30',
-    aiConfidence: 85,
-    riskLevel: 'low',
-    progress: 25,
-    budget: 200000,
-    spent: 45000,
-    status: 'active',
-  },
-  {
-    id: 'prog-3',
-    name: 'Customer Experience 2.0',
-    description: 'Enhanced customer portal and self-service capabilities',
-    portfolioId: 'port-2',
-    projects: [],
-    owner: users[0],
-    startDate: '2026-02-01',
-    aiConfidence: 90,
-    riskLevel: 'low',
-    progress: 5,
-    budget: 400000,
-    spent: 15000,
-    status: 'planning',
-  },
-];
+export const programs: Program[] = [];
 
 export interface Portfolio {
   id: string;
@@ -578,34 +87,7 @@ export interface Portfolio {
   status: 'active' | 'on-hold' | 'completed';
 }
 
-export const portfolios: Portfolio[] = [
-  {
-    id: 'port-1',
-    name: 'Technology Initiatives',
-    description: 'All technology and infrastructure modernization programs',
-    programs: [programs[0], programs[1]],
-    owner: users[3],
-    budget: 850000,
-    spent: 320000,
-    aiConfidence: 76,
-    riskLevel: 'medium',
-    progress: 42,
-    status: 'active',
-  },
-  {
-    id: 'port-2',
-    name: 'Customer Growth',
-    description: 'Programs focused on customer acquisition and retention',
-    programs: [programs[2]],
-    owner: users[0],
-    budget: 600000,
-    spent: 15000,
-    aiConfidence: 88,
-    riskLevel: 'low',
-    progress: 5,
-    status: 'active',
-  },
-];
+export const portfolios: Portfolio[] = [];
 
 // Calendar events derived from tasks
 export interface CalendarEvent {
@@ -621,7 +103,7 @@ export interface CalendarEvent {
 
 export const generateCalendarEvents = (): CalendarEvent[] => {
   const events: CalendarEvent[] = [];
-  
+
   // Add task due dates
   tasks.forEach((task) => {
     if (task.dueDate) {
@@ -700,7 +182,7 @@ export interface GanttTask {
 
 export const generateGanttData = (): GanttTask[] => {
   const ganttTasks: GanttTask[] = [];
-  
+
   // Add projects as parent items
   projects.forEach((project) => {
     ganttTasks.push({
@@ -717,7 +199,7 @@ export const generateGanttData = (): GanttTask[] => {
   tasks.forEach((task) => {
     const createdDate = new Date(task.createdAt);
     const dueDate = task.dueDate ? new Date(task.dueDate) : new Date(createdDate.getTime() + 7 * 24 * 60 * 60 * 1000);
-    
+
     let progress = 0;
     switch (task.status) {
       case 'closed': progress = 100; break;
@@ -929,62 +411,7 @@ export const projectTemplates: ProjectTemplate[] = [
 ];
 
 // Clients
-export const clients: Client[] = [
-  {
-    id: 'client-1',
-    name: 'Acme Corporation',
-    email: 'contact@acme.com',
-    phone: '+1 (555) 123-4567',
-    company: 'Acme Corporation',
-    type: 'external',
-    address: '123 Business Ave, San Francisco, CA 94102',
-    notes: 'Enterprise client, primary contact: John Smith',
-    createdAt: '2025-06-15',
-    updatedAt: '2026-01-10',
-  },
-  {
-    id: 'client-2',
-    name: 'TechStart Inc',
-    email: 'hello@techstart.io',
-    phone: '+1 (555) 234-5678',
-    company: 'TechStart Inc',
-    type: 'external',
-    address: '456 Startup Blvd, Austin, TX 78701',
-    notes: 'Startup client, fast-paced projects',
-    createdAt: '2025-08-20',
-    updatedAt: '2026-01-15',
-  },
-  {
-    id: 'client-3',
-    name: 'Marketing Department',
-    email: 'marketing@internal.com',
-    type: 'internal',
-    notes: 'Internal marketing team projects',
-    createdAt: '2025-01-01',
-    updatedAt: '2025-01-01',
-  },
-  {
-    id: 'client-4',
-    name: 'HR Department',
-    email: 'hr@internal.com',
-    type: 'internal',
-    notes: 'Internal HR and operations projects',
-    createdAt: '2025-01-01',
-    updatedAt: '2025-01-01',
-  },
-  {
-    id: 'client-5',
-    name: 'Global Media Group',
-    email: 'projects@globalmedia.com',
-    phone: '+1 (555) 345-6789',
-    company: 'Global Media Group',
-    type: 'external',
-    address: '789 Media Center, New York, NY 10001',
-    notes: 'Media company, video and content projects',
-    createdAt: '2025-10-01',
-    updatedAt: '2026-01-18',
-  },
-];
+export const clients: Client[] = [];
 
 // Products for invoicing
 export const products: Product[] = [

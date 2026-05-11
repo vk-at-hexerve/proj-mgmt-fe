@@ -79,12 +79,12 @@ type DashboardWidget = MetricConfig | PanelConfig;
 
 // Default dashboard configuration
 const defaultMetrics: MetricConfig[] = [
-  { id: 'metric-1', title: 'Active Projects', type: 'metric', metricKey: 'activeProjects', icon: 'FolderKanban', visible: true, order: 1, size: 'small', trend: 'up', change: 8, changeLabel: 'vs last month' },
-  { id: 'metric-2', title: 'Tasks Completed', type: 'metric', metricKey: 'tasksCompleted', icon: 'ListChecks', visible: true, order: 2, size: 'small', trend: 'up', change: 12, changeLabel: 'this week' },
+  { id: 'metric-1', title: 'Active Projects', type: 'metric', metricKey: 'activeProjects', icon: 'FolderKanban', visible: true, order: 1, size: 'small' },
+  { id: 'metric-2', title: 'Tasks Completed', type: 'metric', metricKey: 'tasksCompleted', icon: 'ListChecks', visible: true, order: 2, size: 'small' },
   { id: 'metric-3', title: 'In Progress', type: 'metric', metricKey: 'tasksInProgress', icon: 'Clock', visible: true, order: 3, size: 'small' },
-  { id: 'metric-4', title: 'Overdue', type: 'metric', metricKey: 'overdueTasks', icon: 'Calendar', visible: true, order: 4, size: 'small', trend: 'down', change: -25, changeLabel: 'vs last week' },
-  { id: 'metric-5', title: 'Team Utilization', type: 'metric', metricKey: 'teamUtilization', icon: 'Users', visible: true, order: 5, size: 'small', trend: 'up', change: 5, changeLabel: 'efficiency' },
-  { id: 'metric-6', title: 'AI Confidence', type: 'metric', metricKey: 'aiConfidenceScore', icon: 'Sparkles', visible: true, order: 6, size: 'small', trend: 'up', change: 3, changeLabel: 'improving' },
+  { id: 'metric-4', title: 'Overdue', type: 'metric', metricKey: 'overdueTasks', icon: 'Calendar', visible: true, order: 4, size: 'small' },
+  { id: 'metric-5', title: 'Team Utilization', type: 'metric', metricKey: 'teamUtilization', icon: 'Users', visible: true, order: 5, size: 'small' },
+  { id: 'metric-6', title: 'AI Confidence', type: 'metric', metricKey: 'aiConfidenceScore', icon: 'Sparkles', visible: true, order: 6, size: 'small' },
 ];
 
 const defaultPanels: PanelConfig[] = [
@@ -118,8 +118,8 @@ export default function DashboardPage() {
     tasksCompleted: tasks.filter(t => t.status === 'closed').length,
     tasksInProgress: tasks.filter(t => t.status === 'in-progress').length,
     overdueTasks: tasks.filter(t => t.status !== 'closed' && t.dueDate && new Date(t.dueDate) < new Date()).length,
-    teamUtilization: 85, // Still hardcoded until ResourceAllocations are fully in DB
-    aiConfidenceScore: projects.length > 0 ? Math.round(projects.reduce((acc, p) => acc + (p.aiConfidence || 0), 0) / projects.length) : 85,
+    teamUtilization: 0, // Should be calculated from real data
+    aiConfidenceScore: projects.length > 0 ? Math.round(projects.reduce((acc, p) => acc + (p.aiConfidence || 0), 0) / projects.length) : 0,
   };
 
   const greeting = () => {
@@ -209,7 +209,7 @@ export default function DashboardPage() {
       <AppSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <AppHeader
-          title={`${greeting()}, ${currentUser.name.split(' ')[0]}`}
+          title={`${greeting()}, ${currentUser?.name?.split(' ')[0] || 'User'}`}
           subtitle="Here's what's happening with your projects today"
         />
         <main className="flex-1 overflow-y-auto p-6">

@@ -26,8 +26,15 @@ export function SprintProgress() {
   if (!activeSprint) {
     return (
       <Card>
-        <CardContent className="flex items-center justify-center h-48 text-muted-foreground">
-          No active sprint
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Active Sprint</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-12 text-muted-foreground">
+            <Target className="size-12 mx-auto mb-3 opacity-50" />
+            <p className="font-medium">No active sprint</p>
+            <p className="text-xs">Create a sprint to track your progress</p>
+          </div>
         </CardContent>
       </Card>
     );
