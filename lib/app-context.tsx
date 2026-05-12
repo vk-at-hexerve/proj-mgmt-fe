@@ -19,7 +19,11 @@ import {
   Sprint,
   Client,
   UserRole,
+  TimeEntry,
+  ResourceAllocation,
 } from "./types";
+
+export type { TimeEntry, ResourceAllocation };
 
 // User Roles & Permissions
 export interface UserWithRole extends User {
@@ -96,27 +100,6 @@ interface Toast {
   type: "success" | "error" | "warning" | "info";
 }
 
-export interface TimeEntry {
-  id: string;
-  taskId: string;
-  userId: string;
-  hours: number;
-  date: string;
-  description?: string;
-  createdAt: string;
-  startAt?: string | null;
-  endAt?: string | null;
-  isRunning?: boolean;
-}
-
-export interface ResourceAllocation {
-  id: string;
-  userId: string;
-  projectId: string;
-  allocation: number; // percentage 0-100
-  startDate: string;
-  endDate?: string;
-}
 
 interface AppState {
   tasks: Task[];
@@ -198,9 +181,7 @@ interface AppContextType extends AppState {
   getTaskTimeEntries: (taskId: string) => TimeEntry[];
   getUserTimeEntries: (userId: string, startDate?: string, endDate?: string) => TimeEntry[];
 
-  // Activity timer actions
-  startActivity: (taskId: string, description?: string) => Promise<TimeEntry | null>;
-  stopActivity: (entryId: string, description?: string) => Promise<TimeEntry | null>;
+  // Activity actions
   getTaskActivities: (taskId: string) => Promise<TimeEntry[]>;
 
   // Resource allocation actions
@@ -241,6 +222,7 @@ interface AppContextType extends AppState {
   signupAction: (name: string, email: string, password: string) => Promise<void>;
   logoutAction: () => void;
   isMounted: boolean;
+  isAuthInitialized: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -266,6 +248,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   });
   const [token, setToken] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isAuthInitialized, setIsAuthInitialized] = useState<boolean>(false);
   const [isMounted, setIsMounted] = useState(false);
   const [currentProject, setCurrentProject] = useState<string | null>(null);
   const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
@@ -341,6 +324,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setToken(storedToken);
       setIsAuthenticated(true);
     }
+    setIsAuthInitialized(true);
   }, []);
 
   // Data loading
@@ -967,14 +951,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTimeEntries((prev) => [...prev, newEntry]);
     try {
       const { fetchAPI, mapBackendTimeEntry } = await import("./api");
-      const savedEntry = await fetchAPI("/time-entries", {
+      const savedEntry = await fetchAPI("/time-entries/", {
         method: "POST",
         body: JSON.stringify({
-          duration: Math.round(entry.hours * 60),
+          duration: entry.hours ? Math.round(entry.hours * 60) : undefined,
           date: entry.date,
           description: entry.description || "",
           task_id: entry.taskId,
           user_id: entry.userId,
+          start_at: entry.startAt,
+          end_at: entry.endAt,
         }),
       });
       setTimeEntries((prev) => prev.map((e) => e.id === tempId ? mapBackendTimeEntry(savedEntry) : e));
@@ -1021,37 +1007,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, [timeEntries]);
 
-  // Activity timer actions
-  const startActivity = useCallback(async (taskId: string, description?: string) => {
-    try {
-      const { startActivity: apiStart, mapBackendTimeEntry } = await import("./api");
-      const savedEntry = await apiStart(taskId, description);
-      const mapped = mapBackendTimeEntry(savedEntry);
-      setTimeEntries((prev) => {
-        const updated = prev.map((e) => e.userId === mapped.userId && e.isRunning ? { ...e, isRunning: false } : e);
-        return [mapped, ...updated];
-      });
-      showToast({ title: "Timer started", type: "success" });
-      return mapped;
-    } catch (err: any) {
-      showToast({ title: "Failed to start timer", description: err.message, type: "error" });
-      return null;
-    }
-  }, [showToast]);
-
-  const stopActivity = useCallback(async (entryId: string, description?: string) => {
-    try {
-      const { stopActivity: apiStop, mapBackendTimeEntry } = await import("./api");
-      const savedEntry = await apiStop(entryId, description);
-      const mapped = mapBackendTimeEntry(savedEntry);
-      setTimeEntries((prev) => prev.map((e) => e.id === entryId ? mapped : e));
-      showToast({ title: "Timer stopped", description: `${mapped.hours.toFixed(1)}h logged`, type: "success" });
-      return mapped;
-    } catch (err: any) {
-      showToast({ title: "Failed to stop timer", description: err.message, type: "error" });
-      return null;
-    }
-  }, [showToast]);
 
   const getTaskActivities = useCallback(async (taskId: string): Promise<TimeEntry[]> => {
     try {
@@ -1097,7 +1052,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const getSprint = useCallback((id: string) => sprints.find((s) => s.id === id), [sprints]);
 
   const value: AppContextType = {
-    tasks, projects, teams, programs, portfolios, clients, users, timeEntries, resourceAllocations, sprints, currentUser, currentProject, selectedTasks, modal, toasts, searchOpen, aiCopilotOpen, isAuthenticated, token,
+    tasks, projects, teams, programs, portfolios, clients, users, timeEntries, resourceAllocations, sprints, currentUser, currentProject, selectedTasks, modal, toasts, searchOpen, aiCopilotOpen, isAuthenticated, token, isAuthInitialized,
     addTask, updateTask, deleteTask, updateTaskStatus, assignTask, selectTask, selectAllTasks, clearSelectedTasks, bulkUpdateTaskStatus, bulkAssignTasks, bulkDeleteTasks,
     setCurrentProject, addProject, updateProject, deleteProject,
     addTeam, updateTeam, deleteTeam, addTeamMember, removeTeamMember, setTeamLead,
@@ -1107,7 +1062,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addClient, updateClient, deleteClient,
     addSprint, updateSprint, deleteSprint,
     addTimeEntry, updateTimeEntry, deleteTimeEntry, getTaskTimeEntries, getUserTimeEntries,
-    startActivity, stopActivity, getTaskActivities,
+    getTaskActivities,
     addResourceAllocation, updateResourceAllocation, deleteResourceAllocation, getUserAllocations, getProjectAllocations,
     openModal, closeModal,
     showToast, dismissToast,

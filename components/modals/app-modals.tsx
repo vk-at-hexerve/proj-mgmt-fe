@@ -3,7 +3,7 @@
 import React from "react";
 
 import { useState, useEffect } from "react";
-import { useApp, type TimeEntry as AppTimeEntry } from "@/lib/app-context";
+import { useApp } from "@/lib/app-context";
 import { cn } from "@/lib/utils";
 import Link from 'next/link';
 import {
@@ -70,7 +70,9 @@ import {
   UserRole,
   Portfolio,
   Program,
-  Project,
+   Project,
+   TimeEntry,
+   TimeEntry as AppTimeEntry,
 } from "@/lib/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -687,7 +689,7 @@ function EditTaskModal({
   onClose: () => void;
   onSubmit: (updates: Partial<NonNullable<typeof task>>) => void;
 }) {
-  const { tasks, users, currentUser, startActivity, stopActivity, getTaskActivities, openModal, addTimeEntry } = useApp();
+  const { tasks, users, currentUser, getTaskActivities, openModal, addTimeEntry, showToast } = useApp();
   const [title, setTitle] = useState(task?.title || "");
   const [description, setDescription] = useState(task?.description || "");
   const [type, setType] = useState<
@@ -738,13 +740,13 @@ function EditTaskModal({
   const [linkType, setLinkType] = useState<TaskLink["linkType"]>("relates-to");
   const [selectedLinkTask, setSelectedLinkTask] = useState<string>("");
 
-  // Activity / Timer state
+  // Activity state
   const [taskActivities, setTaskActivities] = useState<AppTimeEntry[]>([]);
-  const [activeEntry, setActiveEntry] = useState<AppTimeEntry | null>(null);
-  const [timerElapsed, setTimerElapsed] = useState(0);
-  const [timerStarting, setTimerStarting] = useState(false);
-  const [timerStopping, setTimerStopping] = useState(false);
+  const [activityDescription, setActivityDescription] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
   const [activitiesLoaded, setActivitiesLoaded] = useState(false);
+  const [isSavingActivity, setIsSavingActivity] = useState(false);
 
   const currentUserId = currentUser.id;
 
@@ -753,65 +755,71 @@ function EditTaskModal({
     if (task?.id && !activitiesLoaded) {
       getTaskActivities(task.id).then((entries) => {
         setTaskActivities(entries);
-        const running = entries.find((e) => e.isRunning && e.userId === currentUserId);
-        if (running) setActiveEntry(running);
         setActivitiesLoaded(true);
       });
     }
-  }, [task?.id, activitiesLoaded, getTaskActivities, currentUserId]);
+  }, [task?.id, activitiesLoaded, getTaskActivities]);
 
-  // Live timer tick
-  React.useEffect(() => {
-    if (!activeEntry?.startAt) return;
-    const tick = () => {
-      const startMs = new Date(activeEntry.startAt!).getTime();
-      const nowMs = Date.now();
-      setTimerElapsed(Math.max(0, Math.floor((nowMs - startMs) / 1000)));
-    };
-    tick();
-    const interval = setInterval(tick, 1000);
-    return () => clearInterval(interval);
-  }, [activeEntry?.startAt]);
 
   if (!task) return null;
 
   const isSubtask = !!task.parentId;
 
-  const formatElapsed = (totalSeconds: number) => {
-    const h = Math.floor(totalSeconds / 3600);
-    const m = Math.floor((totalSeconds % 3600) / 60);
-    const s = totalSeconds % 60;
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  const formatTime = (isoString?: string | null) => {
+    if (!isoString) return "";
+    return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const formatDuration = (minutes: number | null | undefined) => {
-    if (!minutes) return '0m';
-    const h = Math.floor(minutes / 60);
-    const m = minutes % 60;
-    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  const calculateDuration = (start?: string | null, end?: string | null) => {
+    if (!start || !end) return "";
+    const s = new Date(start).getTime();
+    const e = new Date(end).getTime();
+    const diffMs = e - s;
+    if (diffMs <= 0) return "0m";
+
+    const totalMinutes = Math.floor(diffMs / 60000);
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
   };
 
-  const handleStartTimer = async () => {
-    if (!task?.id || timerStarting) return;
-    setTimerStarting(true);
-    const entry = await startActivity(task.id);
-    if (entry) {
-      setActiveEntry(entry);
-      setTaskActivities((prev) => [entry, ...prev.filter((e: AppTimeEntry) => e.id !== entry.id)]);
+  const handleAddActivity = async () => {
+    if (!activityDescription.trim() || !startTime || !endTime || !task?.id) return;
+
+    if (startTime >= endTime) {
+      showToast({ title: "Invalid time range", description: "End time must be after start time", type: "error" });
+      return;
     }
-    setTimerStarting(false);
-  };
 
-  const handleStopTimer = async () => {
-    if (!activeEntry?.id || timerStopping) return;
-    setTimerStopping(true);
-    const entry = await stopActivity(activeEntry.id);
-    if (entry) {
-      setActiveEntry(null);
-      setTimerElapsed(0);
-      setTaskActivities((prev) => prev.map((e: AppTimeEntry) => e.id === entry.id ? entry : e));
+    setIsSavingActivity(true);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const startAt = new Date(`${today}T${startTime}:00`).toISOString();
+      const endAt = new Date(`${today}T${endTime}:00`).toISOString();
+
+      await addTimeEntry({
+        taskId: task.id,
+        userId: currentUserId,
+        description: activityDescription.trim(),
+        date: today,
+        startAt: startAt,
+        endAt: endAt,
+        hours: 0,
+      });
+
+      setActivityDescription("");
+      setStartTime("");
+      setEndTime("");
+
+      const updated = await getTaskActivities(task.id);
+      setTaskActivities(updated);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSavingActivity(false);
     }
-    setTimerStopping(false);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -990,8 +998,8 @@ function EditTaskModal({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
+      <DialogContent className="max-w-4xl h-[90vh] overflow-hidden flex flex-col p-0 gap-0">
+        <DialogHeader className="p-6 pb-2 shrink-0">
           <div className="flex items-center justify-between w-full pr-8">
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="font-mono">{task.key}</Badge>
@@ -1011,9 +1019,9 @@ function EditTaskModal({
 
         <Tabs
           defaultValue="details"
-          className="flex-1 overflow-hidden flex flex-col"
+          className="flex-1 overflow-hidden flex flex-col px-6"
         >
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-4 shrink-0 mb-2">
             <TabsTrigger value="details">Details</TabsTrigger>
             <TabsTrigger value="activity" className="gap-1">
               <Clock className="size-4" />
@@ -1029,9 +1037,9 @@ function EditTaskModal({
             </TabsTrigger>
           </TabsList>
 
-          <ScrollArea className="flex-1 mt-4">
+          <ScrollArea className="flex-1 min-h-0">
             {/* Details Tab */}
-            <TabsContent value="details" className="space-y-4 pr-4 m-0">
+            <TabsContent value="details" className="space-y-4 pr-4 py-4 m-0">
               <div className="space-y-2">
                 <Label htmlFor="edit-title">Title *</Label>
                 <Input
@@ -1225,122 +1233,97 @@ function EditTaskModal({
             </TabsContent>
 
             {/* Activity Tab - Enhanced with Timer */}
-            <TabsContent value="activity" className="space-y-4 pr-4 m-0">
-              {/* ── Timer Section ── */}
-              <div className="rounded-xl border bg-gradient-to-br from-muted/40 to-muted/20 p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Timer className="size-4 text-primary" />
-                    <span className="font-medium text-sm">Activity Timer</span>
-                  </div>
-                  {activeEntry ? (
-                    <Badge variant="secondary" className="animate-pulse gap-1.5 font-mono text-xs bg-emerald-500/15 text-emerald-600 border-emerald-500/30">
-                      <span className="size-1.5 rounded-full bg-emerald-500 inline-block" />
-                      Running
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-xs">Idle</Badge>
-                  )}
+            <TabsContent value="activity" className="space-y-6 pr-4 py-4 m-0">
+              {/* ── Log Activity Section ── */}
+              <div className="rounded-xl border bg-card p-4 space-y-4 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <Clock className="size-4 text-primary" />
+                  <span className="font-semibold text-sm">Log New Activity</span>
                 </div>
 
-                {activeEntry ? (
-                  <div className="flex items-center justify-between">
-                    <div className="font-mono text-2xl font-bold tracking-wider tabular-nums">
-                      {formatElapsed(timerElapsed)}
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      className="gap-1.5"
-                      onClick={handleStopTimer}
-                      disabled={timerStopping}
-                    >
-                      {timerStopping ? (
-                        <Loader2 className="size-3.5 animate-spin" />
-                      ) : (
-                        <Square className="size-3.5" />
-                      )}
-                      Stop
-                    </Button>
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="activity-desc" className="text-xs text-muted-foreground">What did you do today?</Label>
+                    <Textarea
+                      id="activity-desc"
+                      value={activityDescription}
+                      onChange={(e) => setActivityDescription(e.target.value)}
+                      placeholder="Describe your work..."
+                      rows={2}
+                      className="resize-none"
+                    />
                   </div>
-                ) : (
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="start-time" className="text-xs text-muted-foreground">Start Time</Label>
+                      <Input
+                        id="start-time"
+                        type="time"
+                        value={startTime}
+                        onChange={(e) => setStartTime(e.target.value)}
+                        className="h-9"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="end-time" className="text-xs text-muted-foreground">End Time</Label>
+                      <Input
+                        id="end-time"
+                        type="time"
+                        value={endTime}
+                        onChange={(e) => setEndTime(e.target.value)}
+                        className="h-9"
+                      />
+                    </div>
+                  </div>
+
                   <Button
-                    size="sm"
-                    className="w-full gap-1.5"
-                    onClick={handleStartTimer}
-                    disabled={timerStarting}
+                    onClick={handleAddActivity}
+                    disabled={!activityDescription.trim() || !startTime || !endTime || isSavingActivity}
+                    className="w-full gap-2 mt-2"
                   >
-                    {timerStarting ? (
-                      <Loader2 className="size-3.5 animate-spin" />
+                    {isSavingActivity ? (
+                      <Loader2 className="size-4 animate-spin" />
                     ) : (
-                      <Play className="size-3.5" />
+                      <Send className="size-4" />
                     )}
-                    Start Timer
+                    Save Activity
                   </Button>
-                )}
+                </div>
               </div>
 
               <Separator />
 
-              {/* ── Comment / manual note ── */}
-              <div className="flex gap-2">
-                <Textarea
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  placeholder="What did you do today"
-                  rows={2}
-                  className="flex-1"
-                />
-                <Button
-                  onClick={handleAddComment}
-                  disabled={!newComment.trim()}
-                  size="icon"
-                  className="self-end"
-                >
-                  <Send className="size-4" />
-                </Button>
-              </div>
-
-              <Separator />
-
-              {/* ── Time entries for this task ── */}
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Time Entries</p>
-              </div>
-              <div className="space-y-2">
-                {taskActivities.filter((e: AppTimeEntry) => !e.isRunning).length === 0 && comments.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-6 text-sm">
-                    No activity yet. Start a timer or add a comment.
+              <div className="space-y-3">
+                {taskActivities.length === 0 && comments.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-10 text-sm italic">
+                    No activity logs or comments found for this task.
                   </p>
                 ) : (
                   <>
-                    {/* Time entries */}
-                    {taskActivities.filter((e: AppTimeEntry) => !e.isRunning).map((entry: AppTimeEntry) => {
+                    {/* Activity Logs */}
+                    {taskActivities.map((entry: AppTimeEntry) => {
                       const user = users.find((u: User) => u.id === entry.userId);
                       return (
-                        <div key={entry.id} className="flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-muted/30 transition-colors">
-                          <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                            <Clock className="size-3.5 text-primary" />
-                          </div>
+                        <div key={entry.id} className="flex items-start gap-3 p-4 rounded-xl border bg-card/50 hover:bg-muted/30 transition-all duration-200 shadow-sm">
+                          <Avatar className="size-8 border shadow-sm shrink-0">
+                            <AvatarImage src={user?.avatar || "/placeholder.svg"} />
+                            <AvatarFallback className="bg-primary/5 text-primary text-[10px] font-bold">
+                              {user?.name?.split(" ").map((n: string) => n[0]).join("") || "?"}
+                            </AvatarFallback>
+                          </Avatar>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-medium text-sm">{user?.name || 'Unknown'}</span>
-                              <Badge variant="outline" className="font-mono text-xs">{formatDuration(entry.hours ? Math.round(entry.hours * 60) : null)}</Badge>
+                            <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                              <span className="font-bold text-sm text-foreground">{user?.name || 'Unknown'}</span>
+                              <span className="text-muted-foreground text-sm">—</span>
+                              <span className="text-sm text-foreground leading-relaxed">{entry.description}</span>
                             </div>
-                            {entry.description && (
-                              <p className="text-sm text-muted-foreground mt-0.5 truncate">{entry.description}</p>
-                            )}
-                            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                              {entry.startAt && (
-                                <span>{new Date(entry.startAt).toLocaleString()}</span>
-                              )}
-                              {entry.startAt && entry.endAt && <span>→</span>}
-                              {entry.endAt && (
-                                <span>{new Date(entry.endAt).toLocaleTimeString()}</span>
-                              )}
-                              {!entry.startAt && entry.date && (
-                                <span>{new Date(entry.date).toLocaleDateString()}</span>
-                              )}
+                            <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
+                              <Clock className="size-3" />
+                              <span>{formatTime(entry.startAt)} → {formatTime(entry.endAt)}</span>
+                              <span className="text-primary/70 font-bold">({calculateDuration(entry.startAt, entry.endAt)})</span>
+                              <span className="mx-1 opacity-40">•</span>
+                              <span>{new Date(entry.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
                             </div>
                           </div>
                         </div>
@@ -1428,7 +1411,7 @@ function EditTaskModal({
             </TabsContent>
 
             {/* Attachments Tab */}
-            <TabsContent value="attachments" className="space-y-4 pr-4 m-0">
+            <TabsContent value="attachments" className="space-y-4 pr-4 py-4 m-0">
               {/* Upload Area */}
               <div className="border-2 border-dashed rounded-lg p-6 text-center">
                 <input
@@ -1491,7 +1474,7 @@ function EditTaskModal({
             </TabsContent>
 
             {/* Links Tab */}
-            <TabsContent value="links" className="space-y-4 pr-4 m-0">
+            <TabsContent value="links" className="space-y-4 pr-4 py-4 m-0">
               <Button onClick={() => setShowLinkModal(true)} className="gap-2">
                 <Link2 className="size-4" />
                 Link Task
@@ -3183,86 +3166,86 @@ function CreateClientModal({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
           <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-6 custom-scrollbar">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2 col-span-2">
-              <Label htmlFor="client-company">Company Name</Label>
-              <Input
-                id="client-company"
-                value={company}
-                onChange={(e) => setCompany(e.target.value)}
-                placeholder="Acme Inc."
-                autoFocus
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2 col-span-2">
+                <Label htmlFor="client-company">Company Name</Label>
+                <Input
+                  id="client-company"
+                  value={company}
+                  onChange={(e) => setCompany(e.target.value)}
+                  placeholder="Acme Inc."
+                  autoFocus
+                />
+              </div>
+
+              <div className="space-y-2 col-span-2">
+                <Label htmlFor="contact-name">Contact Name *</Label>
+                <Input
+                  id="contact-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="John Doe"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="client-email">Email *</Label>
+                <Input
+                  id="client-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="john@example.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="client-phone">Phone</Label>
+                <Input
+                  id="client-phone"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+1 (555) 000-0000"
+                />
+              </div>
             </div>
 
-            <div className="space-y-2 col-span-2">
-              <Label htmlFor="contact-name">Contact Name *</Label>
-              <Input
-                id="contact-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="John Doe"
+            <div className="space-y-2">
+              <Label>Client Type</Label>
+              <Select
+                value={type}
+                onValueChange={(v) => setType(v as ClientType)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="external">External</SelectItem>
+                  <SelectItem value="internal">Internal</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="client-address">Address</Label>
+              <Textarea
+                id="client-address"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="123 Street, City, Country"
+                rows={2}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="client-email">Email *</Label>
-              <Input
-                id="client-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="john@example.com"
+              <Label htmlFor="client-notes">Notes</Label>
+              <Textarea
+                id="client-notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Any additional information..."
+                rows={2}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="client-phone">Phone</Label>
-              <Input
-                id="client-phone"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+1 (555) 000-0000"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Client Type</Label>
-            <Select
-              value={type}
-              onValueChange={(v) => setType(v as ClientType)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="external">External</SelectItem>
-                <SelectItem value="internal">Internal</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="client-address">Address</Label>
-            <Textarea
-              id="client-address"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="123 Street, City, Country"
-              rows={2}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="client-notes">Notes</Label>
-            <Textarea
-              id="client-notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Any additional information..."
-              rows={2}
-            />
-          </div>
           </div>
           <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
             <Button type="button" variant="outline" onClick={onClose}>
@@ -4103,151 +4086,151 @@ function CreateProgramModal({
                     </SelectContent>
                   </Select>
                 </div>
-              <div className="space-y-2">
-                <Label>Program Owner</Label>
-                <Select value={ownerId} onValueChange={setOwnerId}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {users.map((user) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="space-y-2">
+                  <Label>Program Owner</Label>
+                  <Select value={ownerId} onValueChange={setOwnerId}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {users.map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Start Date</Label>
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>End Date</Label>
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Budget ($)</Label>
-              <Input
-                type="number"
-                value={budget}
-                onChange={(e) => setBudget(e.target.value)}
-                placeholder="200000"
-              />
-            </div>
-
-            {/* Projects Selection */}
-            <div className="space-y-3">
-              <Label className="text-sm font-semibold">Associated Projects</Label>
-              <div className="relative">
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Start Date</Label>
                   <Input
-                    placeholder="Search projects to add..."
-                    className="pl-9 h-9"
-                    value={projectSearch}
-                    onChange={(e) => setProjectSearch(e.target.value)}
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
                   />
                 </div>
-
-                {projectSearch && filteredProjects.length > 0 && (
-                  <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto p-1 custom-scrollbar">
-                    {filteredProjects.map((project) => (
-                      <button
-                        key={project.id}
-                        type="button"
-                        className="w-full flex items-center gap-2 p-2 hover:bg-accent rounded-sm text-left transition-colors"
-                        onClick={() => {
-                          toggleProject(project.id);
-                          setProjectSearch("");
-                        }}
-                      >
-                        <div className="size-6 rounded bg-primary/10 flex items-center justify-center">
-                          <FolderPlus className="size-3.5 text-primary" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">
-                            {project.name}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground truncate">
-                            {project.key}
-                          </p>
-                        </div>
-                        <PlusCircle className="size-4 text-primary" />
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <div className="space-y-2">
+                  <Label>End Date</Label>
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                  />
+                </div>
               </div>
 
-              <div className="flex flex-wrap gap-2">
-                {selectedProjects.length === 0 ? (
-                  <div className="w-full text-center py-6 border-2 border-dashed rounded-lg text-muted-foreground bg-muted/20">
-                    <FolderPlus className="size-8 mx-auto mb-2 opacity-20" />
-                    <p className="text-sm">No projects assigned</p>
+              <div className="space-y-2">
+                <Label>Budget ($)</Label>
+                <Input
+                  type="number"
+                  value={budget}
+                  onChange={(e) => setBudget(e.target.value)}
+                  placeholder="200000"
+                />
+              </div>
+
+              {/* Projects Selection */}
+              <div className="space-y-3">
+                <Label className="text-sm font-semibold">Associated Projects</Label>
+                <div className="relative">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search projects to add..."
+                      className="pl-9 h-9"
+                      value={projectSearch}
+                      onChange={(e) => setProjectSearch(e.target.value)}
+                    />
                   </div>
-                ) : (
-                  selectedProjects.map((id) => {
-                    const project = projects.find((p) => p.id === id);
-                    if (!project) return null;
-                    return (
-                      <Badge
-                        key={id}
-                        variant="secondary"
-                        className="pl-1.5 py-1 gap-1 h-8 bg-background border border-border"
-                      >
-                        <div className="size-5 rounded-sm bg-primary/10 flex items-center justify-center font-mono text-[10px] font-bold text-primary">
-                          {project.key.substring(0, 2)}
-                        </div>
-                        <span className="max-w-[150px] truncate">
-                          {project.name}
-                        </span>
+
+                  {projectSearch && filteredProjects.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto p-1 custom-scrollbar">
+                      {filteredProjects.map((project) => (
                         <button
+                          key={project.id}
                           type="button"
-                          onClick={() => toggleProject(id)}
-                          className="hover:text-destructive transition-colors ml-1 p-0.5 rounded-full hover:bg-destructive/10"
+                          className="w-full flex items-center gap-2 p-2 hover:bg-accent rounded-sm text-left transition-colors"
+                          onClick={() => {
+                            toggleProject(project.id);
+                            setProjectSearch("");
+                          }}
                         >
-                          <X className="size-3" />
+                          <div className="size-6 rounded bg-primary/10 flex items-center justify-center">
+                            <FolderPlus className="size-3.5 text-primary" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">
+                              {project.name}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground truncate">
+                              {project.key}
+                            </p>
+                          </div>
+                          <PlusCircle className="size-4 text-primary" />
                         </button>
-                      </Badge>
-                    );
-                  })
-                )}
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {selectedProjects.length === 0 ? (
+                    <div className="w-full text-center py-6 border-2 border-dashed rounded-lg text-muted-foreground bg-muted/20">
+                      <FolderPlus className="size-8 mx-auto mb-2 opacity-20" />
+                      <p className="text-sm">No projects assigned</p>
+                    </div>
+                  ) : (
+                    selectedProjects.map((id) => {
+                      const project = projects.find((p) => p.id === id);
+                      if (!project) return null;
+                      return (
+                        <Badge
+                          key={id}
+                          variant="secondary"
+                          className="pl-1.5 py-1 gap-1 h-8 bg-background border border-border"
+                        >
+                          <div className="size-5 rounded-sm bg-primary/10 flex items-center justify-center font-mono text-[10px] font-bold text-primary">
+                            {project.key.substring(0, 2)}
+                          </div>
+                          <span className="max-w-[150px] truncate">
+                            {project.name}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => toggleProject(id)}
+                            className="hover:text-destructive transition-colors ml-1 p-0.5 rounded-full hover:bg-destructive/10"
+                          >
+                            <X className="size-3" />
+                          </button>
+                        </Badge>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             </div>
-          </div>
 
-          <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={!name.trim()}>
-              Create Program
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+            <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={!name.trim()}>
+                Create Program
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-    {showFullCreatePortfolio && (
-      <CreatePortfolioModal
-        onClose={() => setShowFullCreatePortfolio(false)}
-        onSubmit={handleNewPortfolio}
-      />
-    )}
+      {showFullCreatePortfolio && (
+        <CreatePortfolioModal
+          onClose={() => setShowFullCreatePortfolio(false)}
+          onSubmit={handleNewPortfolio}
+        />
+      )}
     </>
   );
 }
@@ -4315,138 +4298,138 @@ function CreatePortfolioModal({
           </DialogHeader>
           <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-6 custom-scrollbar">
-            <div className="space-y-2">
-              <Label htmlFor="portfolio-name">Portfolio Name *</Label>
-              <Input
-                id="portfolio-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Technology Initiatives"
-                autoFocus
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="portfolio-description">Description</Label>
-              <Textarea
-                id="portfolio-description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Portfolio description..."
-                rows={3}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Portfolio Owner</Label>
-                <Select value={ownerId} onValueChange={setOwnerId}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {users.map((user) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Budget ($)</Label>
+                <Label htmlFor="portfolio-name">Portfolio Name *</Label>
                 <Input
-                  type="number"
-                  value={budget}
-                  onChange={(e) => setBudget(e.target.value)}
-                  placeholder="500000"
+                  id="portfolio-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Technology Initiatives"
+                  autoFocus
                 />
               </div>
-            </div>
 
-            {/* Select Programs Field */}
-            <div className="space-y-2">
-              <Label>Select Programs</Label>
-              <div className="flex flex-wrap gap-2 p-2 border rounded-md bg-muted/20 min-h-[42px] items-center">
-                {selectedProgramIds.map((id: string) => {
-                  const program = programs.find((p: Program) => p.id === id);
-                  if (!program) return null;
-                  return (
-                    <Badge key={id} variant="secondary" className="pl-2 pr-1 py-1 flex items-center gap-1 group animate-in fade-in zoom-in duration-200">
-                      {program.name}
+              <div className="space-y-2">
+                <Label htmlFor="portfolio-description">Description</Label>
+                <Textarea
+                  id="portfolio-description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Portfolio description..."
+                  rows={3}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Portfolio Owner</Label>
+                  <Select value={ownerId} onValueChange={setOwnerId}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {users.map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Budget ($)</Label>
+                  <Input
+                    type="number"
+                    value={budget}
+                    onChange={(e) => setBudget(e.target.value)}
+                    placeholder="500000"
+                  />
+                </div>
+              </div>
+
+              {/* Select Programs Field */}
+              <div className="space-y-2">
+                <Label>Select Programs</Label>
+                <div className="flex flex-wrap gap-2 p-2 border rounded-md bg-muted/20 min-h-[42px] items-center">
+                  {selectedProgramIds.map((id: string) => {
+                    const program = programs.find((p: Program) => p.id === id);
+                    if (!program) return null;
+                    return (
+                      <Badge key={id} variant="secondary" className="pl-2 pr-1 py-1 flex items-center gap-1 group animate-in fade-in zoom-in duration-200">
+                        {program.name}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleProgram(id);
+                          }}
+                          className="rounded-full hover:bg-muted-foreground/20 p-0.5 transition-colors"
+                        >
+                          <X className="size-3" />
+                        </button>
+                      </Badge>
+                    );
+                  })}
+
+                  <Popover open={open} onOpenChange={setOpen}>
+                    <PopoverTrigger asChild>
                       <button
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleProgram(id);
-                        }}
-                        className="rounded-full hover:bg-muted-foreground/20 p-0.5 transition-colors"
+                        className="flex-1 flex items-center gap-2 px-2 h-8 text-sm text-muted-foreground outline-none text-left"
                       >
-                        <X className="size-3" />
+                        <Search className="size-4 shrink-0" />
+                        {selectedProgramIds.length === 0 && <span>Search and select programs...</span>}
                       </button>
-                    </Badge>
-                  );
-                })}
-
-                <Popover open={open} onOpenChange={setOpen}>
-                  <PopoverTrigger asChild>
-                    <button
-                      type="button"
-                      className="flex-1 flex items-center gap-2 px-2 h-8 text-sm text-muted-foreground outline-none text-left"
-                    >
-                      <Search className="size-4 shrink-0" />
-                      {selectedProgramIds.length === 0 && <span>Search and select programs...</span>}
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] min-w-[300px] p-0" align="start">
-                    <Command>
-                      <CommandInput placeholder="Search programs..." />
-                      <CommandList className="max-h-[300px]">
-                        <CommandEmpty>No programs found.</CommandEmpty>
-                        <CommandGroup>
-                          {programs.map((program) => (
-                            <CommandItem
-                              key={program.id}
-                              value={program.name}
-                              onSelect={() => {
-                                toggleProgram(program.id);
-                              }}
-                              className="cursor-pointer"
-                            >
-                              <div className="flex items-center gap-2 w-full">
-                                <div className={`flex size-4 items-center justify-center rounded-sm border border-primary transition-colors ${selectedProgramIds.includes(program.id)
-                                  ? "bg-primary text-primary-foreground"
-                                  : "opacity-50 [&_svg]:invisible"
-                                  }`}>
-                                  <Check className="size-3" />
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] min-w-[300px] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Search programs..." />
+                        <CommandList className="max-h-[300px]">
+                          <CommandEmpty>No programs found.</CommandEmpty>
+                          <CommandGroup>
+                            {programs.map((program) => (
+                              <CommandItem
+                                key={program.id}
+                                value={program.name}
+                                onSelect={() => {
+                                  toggleProgram(program.id);
+                                }}
+                                className="cursor-pointer"
+                              >
+                                <div className="flex items-center gap-2 w-full">
+                                  <div className={`flex size-4 items-center justify-center rounded-sm border border-primary transition-colors ${selectedProgramIds.includes(program.id)
+                                    ? "bg-primary text-primary-foreground"
+                                    : "opacity-50 [&_svg]:invisible"
+                                    }`}>
+                                    <Check className="size-3" />
+                                  </div>
+                                  <span className="flex-1 truncate">{program.name}</span>
                                 </div>
-                                <span className="flex-1 truncate">{program.name}</span>
-                              </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                          <Separator />
+                          <CommandGroup>
+                            <CommandItem
+                              onSelect={() => {
+                                setOpen(false);
+                                setShowCreateProgramModal(true);
+                              }}
+                              className="cursor-pointer text-primary font-medium"
+                            >
+                              <Plus className="size-4 mr-2" />
+                              Create New Program
                             </CommandItem>
-                          ))}
-                        </CommandGroup>
-                        <Separator />
-                        <CommandGroup>
-                          <CommandItem
-                            onSelect={() => {
-                              setOpen(false);
-                              setShowCreateProgramModal(true);
-                            }}
-                            className="cursor-pointer text-primary font-medium"
-                          >
-                            <Plus className="size-4 mr-2" />
-                            Create New Program
-                          </CommandItem>
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
             </div>
-          </div>
 
-          <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
+            <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
@@ -4521,41 +4504,41 @@ function LogTimeModal({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
           <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-6 custom-scrollbar">
-          <div className="space-y-2">
-            <Label htmlFor="hours">Hours *</Label>
-            <Input
-              id="hours"
-              type="number"
-              step="0.25"
-              min="0.25"
-              max="24"
-              value={hours}
-              onChange={(e) => setHours(e.target.value)}
-              placeholder="2.5"
-              autoFocus
-            />
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="hours">Hours *</Label>
+              <Input
+                id="hours"
+                type="number"
+                step="0.25"
+                min="0.25"
+                max="24"
+                value={hours}
+                onChange={(e) => setHours(e.target.value)}
+                placeholder="2.5"
+                autoFocus
+              />
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="log-date">Date</Label>
-            <Input
-              id="log-date"
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="log-date">Date</Label>
+              <Input
+                id="log-date"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="log-description">Description</Label>
-            <Textarea
-              id="log-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="What did you work on?"
-              rows={2}
-            />
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="log-description">Description</Label>
+              <Textarea
+                id="log-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="What did you work on?"
+                rows={2}
+              />
+            </div>
 
           </div>
 
@@ -4637,78 +4620,78 @@ function CreateUserModal({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
           <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-6 custom-scrollbar">
-          <div className="space-y-1.5">
-            <Label htmlFor="user-name">Full Name *</Label>
-            <Input
-              id="user-name"
-              placeholder="e.g., John Doe"
-              value={name}
-              onChange={(e) => { setName(e.target.value); setErrors((p) => ({ ...p, name: "" })); }}
-              autoFocus
-              aria-invalid={!!errors.name}
-            />
-            {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="user-email">Email Address *</Label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <div className="space-y-1.5">
+              <Label htmlFor="user-name">Full Name *</Label>
               <Input
-                id="user-email"
-                type="email"
-                placeholder="user@example.com"
-                value={email}
-                onChange={(e) => { setEmail(e.target.value); setErrors((p) => ({ ...p, email: "" })); }}
-                className="pl-9"
-                aria-invalid={!!errors.email}
+                id="user-name"
+                placeholder="e.g., John Doe"
+                value={name}
+                onChange={(e) => { setName(e.target.value); setErrors((p) => ({ ...p, name: "" })); }}
+                autoFocus
+                aria-invalid={!!errors.name}
               />
+              {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
             </div>
-            {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
-          </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="user-password">Password *</Label>
-            <div className="relative">
-              <Input
-                id="user-password"
-                type={showPassword ? "text" : "password"}
-                placeholder="Minimum 6 characters"
-                value={password}
-                onChange={(e) => { setPassword(e.target.value); setErrors((p) => ({ ...p, password: "" })); }}
-                aria-invalid={!!errors.password}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute right-1 top-1/2 -translate-y-1/2 size-8"
-                onClick={() => setShowPassword(!showPassword)}
-              >
-                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-              </Button>
+            <div className="space-y-1.5">
+              <Label htmlFor="user-email">Email Address *</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Input
+                  id="user-email"
+                  type="email"
+                  placeholder="user@example.com"
+                  value={email}
+                  onChange={(e) => { setEmail(e.target.value); setErrors((p) => ({ ...p, email: "" })); }}
+                  className="pl-9"
+                  aria-invalid={!!errors.email}
+                />
+              </div>
+              {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
             </div>
-            {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
-          </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="user-role">
-              <span className="flex items-center gap-1.5">
-                <Shield className="size-3.5" />
-                Role
-              </span>
-            </Label>
-            <Select value={role} onValueChange={setRole}>
-              <SelectTrigger id="user-role">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ADMIN">Admin</SelectItem>
-                <SelectItem value="MANAGER">Manager</SelectItem>
-                <SelectItem value="MEMBER">Member</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="user-password">Password *</Label>
+              <div className="relative">
+                <Input
+                  id="user-password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Minimum 6 characters"
+                  value={password}
+                  onChange={(e) => { setPassword(e.target.value); setErrors((p) => ({ ...p, password: "" })); }}
+                  aria-invalid={!!errors.password}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 size-8"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </Button>
+              </div>
+              {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="user-role">
+                <span className="flex items-center gap-1.5">
+                  <Shield className="size-3.5" />
+                  Role
+                </span>
+              </Label>
+              <Select value={role} onValueChange={setRole}>
+                <SelectTrigger id="user-role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ADMIN">Admin</SelectItem>
+                  <SelectItem value="MANAGER">Manager</SelectItem>
+                  <SelectItem value="MEMBER">Member</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
           </div>
 
@@ -4802,66 +4785,66 @@ function AddMemberModal({
 
         <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-6 custom-scrollbar">
 
-        {availableUsers.length > 3 && (
-          <div className="relative">
-            <Input
-              placeholder="Search users..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
-            <Users className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          </div>
-        )}
+          {availableUsers.length > 3 && (
+            <div className="relative">
+              <Input
+                placeholder="Search users..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+              <Users className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            </div>
+          )}
 
-        <ScrollArea className={availableUsers.length > 5 ? "h-[280px]" : ""}>
-          <div className="space-y-2 py-2">
-            {filteredUsers.length > 0 ? (
-              filteredUsers.map((user) => (
-                <button
-                  key={user.id}
-                  type="button"
-                  onClick={() => setSelectedUser(user.id)}
-                  className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${selectedUser === user.id
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:bg-muted"
-                    }`}
-                >
-                  <Avatar className="size-8">
-                    <AvatarImage src={user.avatar || "/placeholder.svg"} />
-                    <AvatarFallback>
-                      {user.name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="text-left flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{user.name}</p>
-                    <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-                  </div>
-                  <Badge variant="outline" className="text-[10px] capitalize shrink-0">
-                    {user.role?.replace("-", " ") || "Contributor"}
-                  </Badge>
-                </button>
-              ))
-            ) : availableUsers.length === 0 ? (
-              <div className="text-center py-6">
-                <Users className="size-10 mx-auto mb-2 text-muted-foreground/40" />
-                <p className="text-sm text-muted-foreground">
-                  All users are already team members
-                </p>
-              </div>
-            ) : (
-              <div className="text-center py-6">
-                <Users className="size-10 mx-auto mb-2 text-muted-foreground/40" />
-                <p className="text-sm text-muted-foreground">
-                  No users match &quot;{searchQuery}&quot;
-                </p>
-              </div>
-            )}
-          </div>
-        </ScrollArea>
+          <ScrollArea className={availableUsers.length > 5 ? "h-[280px]" : ""}>
+            <div className="space-y-2 py-2">
+              {filteredUsers.length > 0 ? (
+                filteredUsers.map((user) => (
+                  <button
+                    key={user.id}
+                    type="button"
+                    onClick={() => setSelectedUser(user.id)}
+                    className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${selectedUser === user.id
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:bg-muted"
+                      }`}
+                  >
+                    <Avatar className="size-8">
+                      <AvatarImage src={user.avatar || "/placeholder.svg"} />
+                      <AvatarFallback>
+                        {user.name
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="text-left flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{user.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                    </div>
+                    <Badge variant="outline" className="text-[10px] capitalize shrink-0">
+                      {user.role?.replace("-", " ") || "Contributor"}
+                    </Badge>
+                  </button>
+                ))
+              ) : availableUsers.length === 0 ? (
+                <div className="text-center py-6">
+                  <Users className="size-10 mx-auto mb-2 text-muted-foreground/40" />
+                  <p className="text-sm text-muted-foreground">
+                    All users are already team members
+                  </p>
+                </div>
+              ) : (
+                <div className="text-center py-6">
+                  <Users className="size-10 mx-auto mb-2 text-muted-foreground/40" />
+                  <p className="text-sm text-muted-foreground">
+                    No users match &quot;{searchQuery}&quot;
+                  </p>
+                </div>
+              )}
+            </div>
+          </ScrollArea>
         </div>
 
         <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
@@ -4951,153 +4934,153 @@ function CreateSprintModal({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
           <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-6 custom-scrollbar">
-          <div className="space-y-2">
-            <Label htmlFor="sprint-name">Sprint Name *</Label>
-            <Input
-              id="sprint-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g., Sprint 1, Q2 Iteration"
-              autoFocus
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="sprint-project">Associated Project *</Label>
-            <Select value={projectId} onValueChange={setProjectId}>
-              <SelectTrigger id="sprint-project">
-                <SelectValue placeholder="Select project" />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    <span className="flex items-center gap-2">
-                      <Badge variant="outline" className="font-mono text-xs">
-                        {p.key}
-                      </Badge>
-                      {p.name}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="sprint-start-date">Start Date *</Label>
+              <Label htmlFor="sprint-name">Sprint Name *</Label>
               <Input
-                id="sprint-start-date"
-                type="date"
-                value={startDate}
-                min={getTodayDateInputValue()}
-                onChange={(e) => {
-                  setStartDate(e.target.value);
-                  setDateError("");
-                }}
+                id="sprint-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g., Sprint 1, Q2 Iteration"
+                autoFocus
                 required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="sprint-end-date">End Date *</Label>
-              <Input
-                id="sprint-end-date"
-                type="date"
-                value={endDate}
-                onChange={(e) => {
-                  setEndDate(e.target.value);
-                  setDateError("");
-                }}
-                required
+              <Label htmlFor="sprint-project">Associated Project *</Label>
+              <Select value={projectId} onValueChange={setProjectId}>
+                <SelectTrigger id="sprint-project">
+                  <SelectValue placeholder="Select project" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      <span className="flex items-center gap-2">
+                        <Badge variant="outline" className="font-mono text-xs">
+                          {p.key}
+                        </Badge>
+                        {p.name}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="sprint-start-date">Start Date *</Label>
+                <Input
+                  id="sprint-start-date"
+                  type="date"
+                  value={startDate}
+                  min={getTodayDateInputValue()}
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    setDateError("");
+                  }}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="sprint-end-date">End Date *</Label>
+                <Input
+                  id="sprint-end-date"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => {
+                    setEndDate(e.target.value);
+                    setDateError("");
+                  }}
+                  required
+                />
+              </div>
+            </div>
+
+            {dateError && <p className="text-sm text-destructive">{dateError}</p>}
+
+            <div className="space-y-2">
+              <Label htmlFor="sprint-goal">Sprint Goal</Label>
+              <Textarea
+                id="sprint-goal"
+                value={goal}
+                onChange={(e) => setGoal(e.target.value)}
+                placeholder="What does the team aim to achieve?"
+                rows={2}
               />
             </div>
-          </div>
 
-          {dateError && <p className="text-sm text-destructive">{dateError}</p>}
-
-          <div className="space-y-2">
-            <Label htmlFor="sprint-goal">Sprint Goal</Label>
-            <Textarea
-              id="sprint-goal"
-              value={goal}
-              onChange={(e) => setGoal(e.target.value)}
-              placeholder="What does the team aim to achieve?"
-              rows={2}
-            />
-          </div>
-
-          {/* Backlog Task Selection */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>Select Backlog Tasks</Label>
-              {selectedBacklogTasks.length > 0 && (
-                <Badge variant="secondary" className="text-xs">
-                  {selectedBacklogTasks.length} selected (
-                  {backlogTasks
-                    .filter((t) => selectedBacklogTasks.includes(t.id))
-                    .reduce((sum, t) => sum + (t.storyPoints || 0), 0)}{" "}
-                  pts)
-                </Badge>
-              )}
-            </div>
-            <ScrollArea className="h-48 border rounded-lg">
-              {backlogTasks.length === 0 ? (
-                <p className="text-sm text-muted-foreground p-4 text-center">
-                  No tasks in backlog
-                </p>
-              ) : (
-                <div className="divide-y divide-border">
-                  {backlogTasks.map((task) => (
-                    <label
-                      key={task.id}
-                      className={cn(
-                        "flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-muted/50 transition-colors",
-                        selectedBacklogTasks.includes(task.id) &&
-                        "bg-primary/5",
-                      )}
-                    >
-                      <Checkbox
-                        checked={selectedBacklogTasks.includes(task.id)}
-                        onCheckedChange={() =>
-                          toggleBacklogTaskSelection(task.id)
-                        }
-                      />
-                      <span
+            {/* Backlog Task Selection */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Select Backlog Tasks</Label>
+                {selectedBacklogTasks.length > 0 && (
+                  <Badge variant="secondary" className="text-xs">
+                    {selectedBacklogTasks.length} selected (
+                    {backlogTasks
+                      .filter((t) => selectedBacklogTasks.includes(t.id))
+                      .reduce((sum, t) => sum + (t.storyPoints || 0), 0)}{" "}
+                    pts)
+                  </Badge>
+                )}
+              </div>
+              <ScrollArea className="h-48 border rounded-lg">
+                {backlogTasks.length === 0 ? (
+                  <p className="text-sm text-muted-foreground p-4 text-center">
+                    No tasks in backlog
+                  </p>
+                ) : (
+                  <div className="divide-y divide-border">
+                    {backlogTasks.map((task) => (
+                      <label
+                        key={task.id}
                         className={cn(
-                          "text-[10px] font-mono px-1 py-0.5 rounded border shrink-0",
-                          {
-                            "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400":
-                              task.type === "bug",
-                            "bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400":
-                              task.type === "epic",
-                            "bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400":
-                              task.type === "story",
-                            "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400":
-                              task.type === "task" || task.type === "subtask",
-                          },
+                          "flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-muted/50 transition-colors",
+                          selectedBacklogTasks.includes(task.id) &&
+                          "bg-primary/5",
                         )}
                       >
-                        {task.key}
-                      </span>
-                      <span className="flex-1 text-sm truncate">
-                        {task.title}
-                      </span>
-                      {task.storyPoints && (
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] shrink-0"
+                        <Checkbox
+                          checked={selectedBacklogTasks.includes(task.id)}
+                          onCheckedChange={() =>
+                            toggleBacklogTaskSelection(task.id)
+                          }
+                        />
+                        <span
+                          className={cn(
+                            "text-[10px] font-mono px-1 py-0.5 rounded border shrink-0",
+                            {
+                              "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400":
+                                task.type === "bug",
+                              "bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400":
+                                task.type === "epic",
+                              "bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400":
+                                task.type === "story",
+                              "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400":
+                                task.type === "task" || task.type === "subtask",
+                            },
+                          )}
                         >
-                          {task.storyPoints} pts
-                        </Badge>
-                      )}
-                    </label>
-                  ))}
-                </div>
-              )}
-            </ScrollArea>
-          </div>
+                          {task.key}
+                        </span>
+                        <span className="flex-1 text-sm truncate">
+                          {task.title}
+                        </span>
+                        {task.storyPoints && (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] shrink-0"
+                          >
+                            {task.storyPoints} pts
+                          </Badge>
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+            </div>
 
           </div>
 

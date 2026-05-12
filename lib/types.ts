@@ -114,6 +114,28 @@ export interface Project {
   updatedAt?: string;
 }
 
+export interface TimeEntry {
+  id: string;
+  taskId: string;
+  userId: string;
+  hours: number;
+  date: string;
+  description?: string;
+  createdAt: string;
+  startAt?: string | null;
+  endAt?: string | null;
+  isRunning?: boolean;
+}
+
+export interface ResourceAllocation {
+  id: string;
+  userId: string;
+  projectId: string;
+  allocation: number; // percentage 0-100
+  startDate: string;
+  endDate?: string;
+}
+
 export interface Program {
   id: string;
   name: string;

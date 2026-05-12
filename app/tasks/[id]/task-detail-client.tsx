@@ -38,14 +38,16 @@ import {
   Save,
   ChevronRight,
   ExternalLink,
+  Loader2,
+  Calendar
 } from 'lucide-react';
 import { tags as availableTags } from '@/lib/mock-data';
-import { TaskPriority, TaskStatus, TaskComment, TaskAttachment, TaskLink, Task, Project, User } from '@/lib/types';
+import { TaskPriority, TaskStatus, TaskComment, TaskAttachment, TaskLink, Task, Project, User, TimeEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 export default function TaskDetailClient({ taskId }: { taskId: string }) {
   const router = useRouter();
-  const { tasks, users, currentUser, getTask, updateTask, openModal, projects, isMounted } = useApp();
+  const { tasks, users, currentUser, getTask, updateTask, openModal, projects, isMounted, getTaskActivities, addTimeEntry, showToast } = useApp();
   const task = getTask(taskId);
   
   const [title, setTitle] = useState('');
@@ -72,6 +74,14 @@ export default function TaskDetailClient({ taskId }: { taskId: string }) {
   // Linked tasks state
   const [linkedTasks, setLinkedTasks] = useState<TaskLink[]>([]);
   
+  // Activity state
+  const [activityDescription, setActivityDescription] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  const [isSavingActivity, setIsSavingActivity] = useState(false);
+  const [taskActivities, setTaskActivities] = useState<TimeEntry[]>([]);
+  const [activitiesLoaded, setActivitiesLoaded] = useState(false);
+
   const [isChanged, setIsChanged] = useState(false);
 
   // Initialize state from task
@@ -92,6 +102,16 @@ export default function TaskDetailClient({ taskId }: { taskId: string }) {
       setLinkedTasks(task.linkedTasks || []);
     }
   }, [task]);
+
+  // Load activities for this task on mount
+  useEffect(() => {
+    if (task?.id && !activitiesLoaded) {
+      getTaskActivities(task.id).then((entries) => {
+        setTaskActivities(entries);
+        setActivitiesLoaded(true);
+      });
+    }
+  }, [task?.id, activitiesLoaded, getTaskActivities]);
 
   // Track changes
   useEffect(() => {
@@ -122,7 +142,14 @@ export default function TaskDetailClient({ taskId }: { taskId: string }) {
       <div className="flex h-screen bg-background">
         <AppSidebar />
         <div className="flex-1 flex flex-col items-center justify-center">
-          <p className="text-muted-foreground">Loading task details...</p>
+          {isMounted && tasks.length > 0 ? (
+            <div className="text-center space-y-4">
+              <p className="text-xl font-semibold text-muted-foreground">Task not found</p>
+              <Button onClick={() => router.push('/')}>Go to Dashboard</Button>
+            </div>
+          ) : (
+            <p className="text-muted-foreground animate-pulse">Loading task details...</p>
+          )}
         </div>
       </div>
     );
@@ -165,6 +192,116 @@ export default function TaskDetailClient({ taskId }: { taskId: string }) {
     };
     setComments([...comments, comment]);
     setNewComment('');
+  };
+
+  const handleEditComment = (commentId: string) => {
+    const comment = comments.find((c) => c.id === commentId);
+    if (comment) {
+      setEditingCommentId(commentId);
+      setEditingCommentContent(comment.content);
+    }
+  };
+
+  const handleSaveCommentEdit = (commentId: string) => {
+    if (!editingCommentContent.trim()) return;
+    setComments(
+      comments.map((c) => {
+        if (c.id === commentId) {
+          const history = c.editHistory || [];
+          return {
+            ...c,
+            content: editingCommentContent.trim(),
+            updatedAt: new Date().toISOString(),
+            editHistory: [
+              ...history,
+              { content: c.content, editedAt: new Date().toISOString() },
+            ],
+          };
+        }
+        return c;
+      }),
+    );
+    setEditingCommentId(null);
+    setEditingCommentContent("");
+  };
+
+  const handleDeleteComment = (commentId: string) => {
+    setComments(comments.filter((c) => c.id !== commentId));
+  };
+
+  const formatTime = (isoString?: string | null) => {
+    if (!isoString) return "";
+    return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const calculateDuration = (start?: string | null, end?: string | null) => {
+    if (!start || !end) return "";
+    const s = new Date(start).getTime();
+    const e = new Date(end).getTime();
+    const diffMs = e - s;
+    if (diffMs <= 0) return "0m";
+
+    const totalMinutes = Math.floor(diffMs / 60000);
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  };
+
+  const calculateTotalLoggedTime = (activities: TimeEntry[]) => {
+    let totalMs = 0;
+    activities.forEach(entry => {
+      if (entry.startAt && entry.endAt) {
+        const s = new Date(entry.startAt).getTime();
+        const e = new Date(entry.endAt).getTime();
+        if (e > s) totalMs += (e - s);
+      }
+    });
+
+    const totalMinutes = Math.floor(totalMs / 60000);
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  };
+
+  const handleAddActivity = async () => {
+    if (!activityDescription.trim() || !startTime || !endTime || !task?.id) return;
+
+    if (startTime >= endTime) {
+      showToast({ title: "Invalid time range", description: "End time must be after start time", type: "error" });
+      return;
+    }
+
+    setIsSavingActivity(true);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const startAt = new Date(`${today}T${startTime}:00`).toISOString();
+      const endAt = new Date(`${today}T${endTime}:00`).toISOString();
+
+      await addTimeEntry({
+        taskId: task.id,
+        userId: currentUserId,
+        description: activityDescription.trim(),
+        date: today,
+        startAt: startAt,
+        endAt: endAt,
+        hours: 0,
+      });
+
+      setActivityDescription("");
+      setStartTime("");
+      setEndTime("");
+
+      const updated = await getTaskActivities(task.id);
+      setTaskActivities(updated);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSavingActivity(false);
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -250,9 +387,9 @@ export default function TaskDetailClient({ taskId }: { taskId: string }) {
                 <Tabs defaultValue="details" className="w-full">
                   <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="details">Details</TabsTrigger>
-                    <TabsTrigger value="comments" className="gap-2">
-                      <MessageSquare className="size-4" />
-                      Comments ({comments.length})
+                    <TabsTrigger value="activity" className="gap-2">
+                      <Clock className="size-4" />
+                      Activity ({taskActivities.length + comments.length})
                     </TabsTrigger>
                     <TabsTrigger value="attachments" className="gap-2">
                       <Paperclip className="size-4" />
@@ -318,57 +455,200 @@ export default function TaskDetailClient({ taskId }: { taskId: string }) {
                       </div>
                     </TabsContent>
 
-                    <TabsContent value="comments" className="space-y-6 m-0">
-                      <div className="space-y-4">
-                        <div className="flex gap-4">
-                          <Avatar className="size-10">
-                            <AvatarImage src={currentUser.avatar || '/placeholder.svg'} />
-                            <AvatarFallback>{currentUser.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 space-y-2">
-                            <Textarea
-                              value={newComment}
-                              onChange={(e) => setNewComment(e.target.value)}
-                              placeholder="Add a comment..."
-                              rows={3}
-                            />
-                            <div className="flex justify-end">
-                              <Button onClick={handleAddComment} disabled={!newComment.trim()} className="gap-2">
-                                <Send className="size-4" />
-                                Post Comment
-                              </Button>
-                            </div>
+                    <TabsContent value="activity" className="space-y-6 m-0">
+                      {/* Log Activity Section */}
+                      <div className="rounded-2xl border bg-card p-6 space-y-6 shadow-sm">
+                        <div className="flex items-center gap-2">
+                          <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                            <Clock className="size-4 text-primary" />
+                          </div>
+                          <div>
+                            <h3 className="font-bold">Log New Activity</h3>
+                            <p className="text-xs text-muted-foreground text-pretty">Share what you've accomplished and track your time</p>
                           </div>
                         </div>
 
-                        <Separator />
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="page-activity-desc" className="text-sm font-semibold">What did you do today?</Label>
+                            <Textarea
+                              id="page-activity-desc"
+                              value={activityDescription}
+                              onChange={(e) => setActivityDescription(e.target.value)}
+                              placeholder="Describe your progress, technical challenges overcome, or updates..."
+                              rows={3}
+                              className="resize-none"
+                            />
+                          </div>
 
-                        <div className="space-y-6 pt-4">
-                          {comments.map((comment: TaskComment) => {
-                            const user = users.find((u: User) => u.id === comment.userId);
-                            return (
-                              <div key={comment.id} className="flex gap-4 group">
-                                <Avatar className="size-10">
-                                  <AvatarImage src={user?.avatar || '/placeholder.svg'} />
-                                  <AvatarFallback>{user?.name?.split(' ').map(n => n[0]).join('') || '?'}</AvatarFallback>
-                                </Avatar>
-                                <div className="flex-1 space-y-1.5">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-semibold">{user?.name || 'Unknown'}</span>
-                                      <span className="text-xs text-muted-foreground">
-                                        {new Date(comment.createdAt).toLocaleString()}
-                                      </span>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="page-start-time" className="text-sm font-semibold">Start Time</Label>
+                              <Input
+                                id="page-start-time"
+                                type="time"
+                                value={startTime}
+                                onChange={(e) => setStartTime(e.target.value)}
+                                className="h-11"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="page-end-time" className="text-sm font-semibold">End Time</Label>
+                              <Input
+                                id="page-end-time"
+                                type="time"
+                                value={endTime}
+                                onChange={(e) => setEndTime(e.target.value)}
+                                className="h-11"
+                              />
+                            </div>
+                          </div>
+
+                          <Button
+                            onClick={handleAddActivity}
+                            disabled={!activityDescription.trim() || !startTime || !endTime || isSavingActivity}
+                            className="w-full h-11 gap-2 mt-2 font-semibold"
+                          >
+                            {isSavingActivity ? (
+                              <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                              <Send className="size-4" />
+                            )}
+                            Save Activity Log
+                          </Button>
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      {/* Unified Feed: Activity + Comments */}
+                      <div className="space-y-6">
+                        {taskActivities.length === 0 && comments.length === 0 ? (
+                          <div className="text-center py-20 border-2 border-dashed rounded-2xl bg-muted/20">
+                            <History className="size-10 text-muted-foreground mx-auto mb-3 opacity-20" />
+                            <p className="text-muted-foreground font-medium italic">No activity logs or comments found for this task.</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            {/* Activity Logs */}
+                            {taskActivities.map((entry) => {
+                              const user = users.find((u) => u.id === entry.userId);
+                              return (
+                                <div key={entry.id} className="flex items-start gap-4 p-5 rounded-2xl border bg-card hover:shadow-md transition-all duration-300">
+                                  <Avatar className="size-10 border shadow-sm shrink-0">
+                                    <AvatarImage src={user?.avatar || "/placeholder.svg"} />
+                                    <AvatarFallback className="bg-primary/5 text-primary font-bold">
+                                      {user?.name?.split(" ").map((n) => n[0]).join("") || "?"}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                                      <span className="font-bold text-foreground">{user?.name || 'Unknown'}</span>
+                                      <span className="text-muted-foreground text-sm">—</span>
+                                      <span className="text-foreground leading-relaxed">{entry.description}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3 text-xs font-semibold text-muted-foreground">
+                                      <div className="flex items-center gap-1.5">
+                                        <Clock className="size-3.5" />
+                                        <span>{formatTime(entry.startAt)} → {formatTime(entry.endAt)}</span>
+                                      </div>
+                                      <Badge variant="secondary" className="px-2 py-0 text-[10px] font-bold bg-primary/10 text-primary border-none">
+                                        {calculateDuration(entry.startAt, entry.endAt)}
+                                      </Badge>
+                                      <div className="flex items-center gap-1.5">
+                                        <Calendar className="size-3.5" />
+                                        <span>{new Date(entry.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                                      </div>
                                     </div>
                                   </div>
-                                  <div className="p-4 rounded-2xl bg-muted/30 border border-border/50">
-                                    <p className="text-sm leading-relaxed">{comment.content}</p>
+                                </div>
+                              );
+                            })}
+
+                            {/* Comments */}
+                            {comments.map((comment: TaskComment) => {
+                              const user = users.find((u: User) => u.id === comment.userId);
+                              const isEditing = editingCommentId === comment.id;
+                              const hasHistory = comment.editHistory && comment.editHistory.length > 0;
+
+                              return (
+                                <div key={comment.id} className="flex gap-4 p-5 rounded-2xl border bg-muted/20">
+                                  <Avatar className="size-10 shrink-0">
+                                    <AvatarImage src={user?.avatar || "/placeholder.svg"} />
+                                    <AvatarFallback>
+                                      {user?.name?.split(" ").map((n: string) => n[0]).join("") || "?"}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div className="flex-1 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-bold text-sm">{user?.name || "Unknown"}</span>
+                                        <span className="text-xs text-muted-foreground">
+                                          {new Date(comment.createdAt).toLocaleString()}
+                                        </span>
+                                        {comment.updatedAt && (
+                                          <Badge variant="outline" className="text-[10px] py-0 px-1.5 opacity-60">edited</Badge>
+                                        )}
+                                      </div>
+                                      {comment.userId === currentUserId && !isEditing && (
+                                        <div className="flex items-center gap-1">
+                                          <Button size="icon" variant="ghost" className="size-8 text-muted-foreground hover:text-primary" onClick={() => handleEditComment(comment.id)}>
+                                            <FileText className="size-4" />
+                                          </Button>
+                                          <Button size="icon" variant="ghost" className="size-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteComment(comment.id)}>
+                                            <Trash2 className="size-4" />
+                                          </Button>
+                                        </div>
+                                      )}
+                                    </div>
+                                    {isEditing ? (
+                                      <div className="space-y-3 mt-1">
+                                        <Textarea
+                                          value={editingCommentContent}
+                                          onChange={(e) => setEditingCommentContent(e.target.value)}
+                                          className="min-h-[80px]"
+                                          placeholder="Edit your comment..."
+                                        />
+                                        <div className="flex gap-2 justify-end">
+                                          <Button size="sm" variant="outline" onClick={() => setEditingCommentId(null)}>Cancel</Button>
+                                          <Button size="sm" onClick={() => handleSaveCommentEdit(comment.id)}>Save Changes</Button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <p className="text-sm text-foreground leading-relaxed bg-white/50 p-4 rounded-xl border border-white/20 shadow-sm">{comment.content}</p>
+                                    )}
+                                    
+                                    {hasHistory && (
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-7 px-2 text-[10px] gap-1.5 font-bold uppercase tracking-wider text-muted-foreground"
+                                        onClick={() => setShowCommentHistory(showCommentHistory === comment.id ? null : comment.id)}
+                                      >
+                                        <History className="size-3.5" />
+                                        {showCommentHistory === comment.id ? 'Hide History' : 'Show History'}
+                                      </Button>
+                                    )}
+
+                                    {showCommentHistory === comment.id && hasHistory && (
+                                      <div className="mt-3 p-4 rounded-xl bg-black/5 dark:bg-white/5 space-y-3 animate-in slide-in-from-top-2 duration-300">
+                                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Revision History</p>
+                                        {comment.editHistory?.map((edit, idx) => (
+                                          <div key={idx} className="text-xs border-l-2 border-primary/20 pl-3 space-y-1">
+                                            <span className="text-[10px] text-muted-foreground">
+                                              {new Date(edit.editedAt).toLocaleString()}:
+                                            </span>
+                                            <p className="text-muted-foreground line-through opacity-50 italic">{edit.content}</p>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
-                              </div>
-                            );
-                          })}
-                        </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     </TabsContent>
 
@@ -590,10 +870,12 @@ export default function TaskDetailClient({ taskId }: { taskId: string }) {
                     <Clock className="size-5" />
                     <h3 className="font-bold">Time Tracking</h3>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Logged</span>
-                      <span className="font-bold">0h</span>
+                      <span className="text-muted-foreground">Logged Time</span>
+                      <span className="font-bold">
+                        {calculateTotalLoggedTime(taskActivities)}
+                      </span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Estimated</span>
