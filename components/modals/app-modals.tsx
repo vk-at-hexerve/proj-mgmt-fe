@@ -1627,7 +1627,7 @@ function EditTaskModal({
           </ScrollArea>
         </Tabs>
 
-        <DialogFooter className="mt-4">
+        <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
@@ -2024,7 +2024,7 @@ function CreateProjectModal({
     project: Parameters<ReturnType<typeof useApp>["addProject"]>[0],
   ) => void;
 }) {
-  const { users, clients, teams, programs, addClient, addTeam } = useApp();
+  const { users, clients, teams, programs, addClient, addTeam, addProgram } = useApp();
   const [step, setStep] = useState<"template" | "details">("template");
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -2047,6 +2047,7 @@ function CreateProjectModal({
   const [programId, setProgramId] = useState<string>("");
   const [showFullCreateClient, setShowFullCreateClient] = useState(false);
   const [showFullCreateTeam, setShowFullCreateTeam] = useState(false);
+  const [showFullCreateProgram, setShowFullCreateProgram] = useState(false);
 
   const [nameError, setNameError] = useState("");
   const [keyError, setKeyError] = useState("");
@@ -2639,7 +2640,13 @@ function CreateProjectModal({
               <Label>Strategic Program (Optional)</Label>
               <Select
                 value={programId}
-                onValueChange={setProgramId}
+                onValueChange={(v) => {
+                  if (v === "create-new") {
+                    setShowFullCreateProgram(true);
+                  } else {
+                    setProgramId(v);
+                  }
+                }}
               >
                 <SelectTrigger>
                   <div className="flex items-center gap-2">
@@ -2650,6 +2657,15 @@ function CreateProjectModal({
                 <SelectContent>
                   <SelectItem value="none">
                     <span className="text-muted-foreground">No program (Independent)</span>
+                  </SelectItem>
+                  <SelectItem
+                    value="create-new"
+                    className="text-primary font-semibold border-b rounded-none mb-1"
+                  >
+                    <div className="flex items-center gap-2">
+                      <PlusCircle className="size-3.5" />
+                      Create New Program
+                    </div>
                   </SelectItem>
                   {programs.length === 0 ? (
                     <div className="px-2 py-4 text-center text-sm text-muted-foreground">
@@ -2847,6 +2863,20 @@ function CreateProjectModal({
             }}
           />
         )}
+
+        {showFullCreateProgram && (
+          <CreateProgramModal
+            onClose={() => setShowFullCreateProgram(false)}
+            onSubmit={async (programData) => {
+              try {
+                const newP = await addProgram(programData);
+                setProgramId(newP.id);
+              } catch (error) {
+                console.error("Failed to create program", error);
+              }
+            }}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -2899,7 +2929,7 @@ function EditProjectModal({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl p-0 overflow-hidden flex flex-col max-h-[92vh]">
+      <DialogContent className="max-w-2xl max-h-[95vh] p-0 overflow-hidden flex flex-col">
         <DialogHeader className="p-6 pb-4 shrink-0 border-b">
           <div className="flex items-start gap-3">
             <div className="size-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
@@ -2914,8 +2944,8 @@ function EditProjectModal({
           </div>
         </DialogHeader>
 
-        <ScrollArea className="flex-1">
-          <form id="edit-project-form" onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form id="edit-project-form" onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-6 custom-scrollbar">
             {/* Locked Fields – Project Name & Key */}
             <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800/50 p-4">
               <div className="flex items-center gap-2 mb-3">
@@ -3089,19 +3119,17 @@ function EditProjectModal({
                 </SelectContent>
               </Select>
             </div>
-          </form>
-        </ScrollArea>
+          </div>
+        </form>
 
-        <DialogFooter className="p-6 border-t bg-muted/20 shrink-0">
+        <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
           <Button
-            type="submit"
             form="edit-project-form"
-            className="bg-primary hover:bg-primary/90 gap-2"
+            type="submit"
           >
-            <Check className="size-4" />
             Save Changes
           </Button>
         </DialogFooter>
@@ -3146,14 +3174,15 @@ function CreateClientModal({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
+      <DialogContent className="max-w-md max-h-[95vh] p-0 overflow-hidden flex flex-col">
+        <DialogHeader className="p-6 pb-2">
           <DialogTitle>Create New Client</DialogTitle>
           <DialogDescription>
             Add a new external client or internal stakeholder
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-6 custom-scrollbar">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2 col-span-2">
               <Label htmlFor="client-company">Company Name</Label>
@@ -3234,12 +3263,12 @@ function CreateClientModal({
               rows={2}
             />
           </div>
-
-          <DialogFooter>
+          </div>
+          <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!name.trim() || !email.trim()}>
+            <Button type="submit" disabled={!company.trim() && !name.trim()}>
               Create Client
             </Button>
           </DialogFooter>
@@ -3260,37 +3289,40 @@ function CreateTeamModal({
   const { users, projects } = useApp();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [projectManagerId, setProjectManagerId] = useState(users[0]?.id || "");
+  const [projectManagerId, setProjectManagerId] = useState<string>("");
   const [leadId, setLeadId] = useState<string>("");
   const [productManagerId, setProductManagerId] = useState<string>("");
-  const [selectedMembers, setSelectedMembers] = useState<string[]>(
-    users[0] ? [users[0].id] : [],
-  );
+  const [scrumMasterId, setScrumMasterId] = useState<string>("");
+  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [capacity, setCapacity] = useState("40");
 
+  const [memberSearch, setMemberSearch] = useState("");
+  const [projectSearch, setProjectSearch] = useState("");
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    e.stopPropagation();
-    if (!name.trim() || !projectManagerId) return;
+    if (!name.trim()) return;
 
-    const projectManager = users.find((u) => u.id === projectManagerId)!;
+    const projectManager = users.find((u) => u.id === projectManagerId);
     const lead = users.find((u) => u.id === leadId);
     const productManager = users.find((u) => u.id === productManagerId);
+    const scrumMaster = users.find((u) => u.id === scrumMasterId);
     const members = users.filter((u) => selectedMembers.includes(u.id));
 
     onSubmit({
       name: name.trim(),
       description: description.trim(),
-      projectManager,
+      projectManager: projectManager || undefined,
       lead,
       productManager,
+      scrumMaster,
       members,
       projects: projects.filter((p) => selectedProjects.includes(p.id)),
       projectIds: selectedProjects,
       velocity: 0,
       capacity: Number(capacity) || 40,
-    });
+    } as any);
 
     onClose();
   };
@@ -3311,166 +3343,244 @@ function CreateTeamModal({
     );
   };
 
+  const filteredUsers = users.filter(u =>
+    u.name.toLowerCase().includes(memberSearch.toLowerCase()) &&
+    !selectedMembers.includes(u.id)
+  );
+
+  const filteredProjects = projects.filter(p =>
+    p.name.toLowerCase().includes(projectSearch.toLowerCase()) &&
+    !selectedProjects.includes(p.id)
+  );
+
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="max-w-3xl max-h-[95vh] p-0 overflow-hidden flex flex-col">
+        <DialogHeader className="p-6 pb-2">
           <DialogTitle>Create New Team</DialogTitle>
           <DialogDescription>
             Set up a new team with roles, members, and projects
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="team-name">Team Name *</Label>
-              <Input
-                id="team-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Engineering Team"
-                autoFocus
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Sprint Capacity</Label>
-              <Input
-                type="number"
-                value={capacity}
-                onChange={(e) => setCapacity(e.target.value)}
-                placeholder="40"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="team-description">Description</Label>
-            <Textarea
-              id="team-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Team description..."
-              rows={2}
-            />
-          </div>
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label className="flex items-center gap-1">
-                Project Manager <span className="text-destructive">*</span>
-              </Label>
-              <Select value={projectManagerId} onValueChange={setProjectManagerId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select PM" />
-                </SelectTrigger>
-                <SelectContent>
-                  {users.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      <span className="flex items-center gap-2">
-                        <Avatar className="size-4">
-                          <AvatarImage src={user.avatar || "/placeholder.svg"} />
-                          <AvatarFallback className="text-[10px]">
-                            {user.name.split(" ").map((n) => n[0]).join("")}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="truncate">{user.name}</span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-6 custom-scrollbar">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Team Lead (Optional)</Label>
-                <Select value={leadId} onValueChange={setLeadId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Optional" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {users.map((user) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        <span className="flex items-center gap-2">
-                          <Avatar className="size-4">
-                            <AvatarImage src={user.avatar || "/placeholder.svg"} />
-                            <AvatarFallback className="text-[10px]">
-                              {user.name.split(" ").map((n) => n[0]).join("")}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="truncate">{user.name}</span>
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="team-name">Team Name *</Label>
+                <Input
+                  id="team-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Engineering Team"
+                  autoFocus
+                />
               </div>
-
               <div className="space-y-2">
-                <Label>Product Manager (Optional)</Label>
-                <Select value={productManagerId} onValueChange={setProductManagerId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Optional" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {users.map((user) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        <span className="flex items-center gap-2">
-                          <Avatar className="size-4">
-                            <AvatarImage src={user.avatar || "/placeholder.svg"} />
-                            <AvatarFallback className="text-[10px]">
-                              {user.name.split(" ").map((n) => n[0]).join("")}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="truncate">{user.name}</span>
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Sprint Capacity (Total Hours)</Label>
+                <Input
+                  type="number"
+                  value={capacity}
+                  onChange={(e) => setCapacity(e.target.value)}
+                  placeholder="40"
+                />
               </div>
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <Label>Team Members</Label>
-            <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 border border-border rounded-lg">
-              {users.map((user) => (
-                <label
-                  key={user.id}
-                  className="flex items-center gap-2 cursor-pointer"
-                >
-                  <Checkbox
-                    checked={selectedMembers.includes(user.id)}
-                    onCheckedChange={() => toggleMember(user.id)}
-                  />
-                  <span className="text-sm">{user.name}</span>
-                </label>
-              ))}
+            <div className="space-y-2">
+              <Label htmlFor="team-description">Description</Label>
+              <Textarea
+                id="team-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Team description..."
+                rows={2}
+              />
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <Label>Assigned Projects</Label>
-            <div className="grid grid-cols-2 gap-2 max-h-24 overflow-y-auto p-2 border border-border rounded-lg">
-              {projects.map((project) => (
-                <label
-                  key={project.id}
-                  className="flex items-center gap-2 cursor-pointer"
-                >
-                  <Checkbox
-                    checked={selectedProjects.includes(project.id)}
-                    onCheckedChange={() => toggleProject(project.id)}
-                  />
-                  <span className="text-sm">{project.name}</span>
-                </label>
-              ))}
+            {/* Members Selection */}
+            <div className="space-y-3">
+              <Label className="text-base font-semibold">Team Members & Roles</Label>
+              <div className="relative">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search users to add..."
+                      className="pl-9"
+                      value={memberSearch}
+                      onChange={(e) => setMemberSearch(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {memberSearch && filteredUsers.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto p-1">
+                    {filteredUsers.map(user => (
+                      <button
+                        key={user.id}
+                        type="button"
+                        className="w-full flex items-center gap-2 p-2 hover:bg-accent rounded-sm text-left transition-colors"
+                        onClick={() => {
+                          toggleMember(user.id);
+                          setMemberSearch("");
+                        }}
+                      >
+                        <Avatar className="size-6">
+                          <AvatarImage src={user.avatar} />
+                          <AvatarFallback className="text-[10px]">{user.name.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{user.name}</p>
+                          <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>
+                        </div>
+                        <PlusCircle className="size-4 text-primary" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar">
+                {selectedMembers.length === 0 ? (
+                  <div className="text-center py-8 border-2 border-dashed rounded-lg text-muted-foreground bg-muted/20">
+                    <Users className="size-8 mx-auto mb-2 opacity-20" />
+                    <p className="text-sm">No members added yet</p>
+                  </div>
+                ) : (
+                  selectedMembers.map(userId => {
+                    const user = users.find(u => u.id === userId);
+                    if (!user) return null;
+                    return (
+                      <div key={userId} className="flex items-center gap-4 p-3 rounded-lg border bg-card animate-in fade-in slide-in-from-top-1 duration-200">
+                        <Avatar className="size-10 border border-border">
+                          <AvatarImage src={user.avatar} />
+                          <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold truncate">{user.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                        </div>
+
+                        <div className="flex items-center gap-4 border-l pl-4">
+                          <RoleToggle
+                            label="PM"
+                            active={projectManagerId === userId}
+                            onToggle={() => setProjectManagerId(prev => prev === userId ? "" : userId)}
+                            color="text-blue-500"
+                          />
+                          <RoleToggle
+                            label="Prod M"
+                            active={productManagerId === userId}
+                            onToggle={() => setProductManagerId(prev => prev === userId ? "" : userId)}
+                            color="text-green-500"
+                          />
+                          <RoleToggle
+                            label="TL"
+                            active={leadId === userId}
+                            onToggle={() => setLeadId(prev => prev === userId ? "" : userId)}
+                            color="text-purple-500"
+                          />
+                          <RoleToggle
+                            label="SM"
+                            active={scrumMasterId === userId}
+                            onToggle={() => setScrumMasterId(prev => prev === userId ? "" : userId)}
+                            color="text-orange-500"
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => {
+                              toggleMember(userId);
+                              if (projectManagerId === userId) setProjectManagerId("");
+                              if (leadId === userId) setLeadId("");
+                              if (productManagerId === userId) setProductManagerId("");
+                              if (scrumMasterId === userId) setScrumMasterId("");
+                            }}
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
+
+            {/* Projects Selection */}
+            <div className="space-y-3">
+              <Label className="text-base font-semibold">Assigned Projects</Label>
+              <div className="relative">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search projects to assign..."
+                    className="pl-9"
+                    value={projectSearch}
+                    onChange={(e) => setProjectSearch(e.target.value)}
+                  />
+                </div>
+
+                {projectSearch && filteredProjects.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto p-1">
+                    {filteredProjects.map(project => (
+                      <button
+                        key={project.id}
+                        type="button"
+                        className="w-full flex items-center gap-2 p-2 hover:bg-accent rounded-sm text-left transition-colors"
+                        onClick={() => {
+                          toggleProject(project.id);
+                          setProjectSearch("");
+                        }}
+                      >
+                        <div className="size-6 rounded bg-primary/10 flex items-center justify-center">
+                          <FolderPlus className="size-3.5 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{project.name}</p>
+                          <p className="text-[10px] text-muted-foreground truncate">{project.key}</p>
+                        </div>
+                        <PlusCircle className="size-4 text-primary" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {selectedProjects.length === 0 ? (
+                  <div className="w-full text-center py-6 border-2 border-dashed rounded-lg text-muted-foreground bg-muted/20">
+                    <FolderPlus className="size-8 mx-auto mb-2 opacity-20" />
+                    <p className="text-sm">No projects assigned</p>
+                  </div>
+                ) : (
+                  selectedProjects.map(id => {
+                    const project = projects.find(p => p.id === id);
+                    if (!project) return null;
+                    return (
+                      <Badge key={id} variant="secondary" className="pl-1.5 py-1 gap-1 h-8">
+                        <div className="size-5 rounded-sm bg-primary/20 flex items-center justify-center font-mono text-[10px] font-bold text-primary">
+                          {project.key.substring(0, 2)}
+                        </div>
+                        <span className="max-w-[150px] truncate">{project.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => toggleProject(id)}
+                          className="hover:text-destructive transition-colors ml-1"
+                        >
+                          <X className="size-3" />
+                        </button>
+                      </Badge>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
@@ -3484,6 +3594,22 @@ function CreateTeamModal({
   );
 }
 
+function RoleToggle({ label, active, onToggle, color }: { label: string, active: boolean, onToggle: () => void, color: string }) {
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <p className="text-[9px] font-bold text-muted-foreground">{label}</p>
+      <Checkbox
+        checked={active}
+        onCheckedChange={onToggle}
+        className={cn(
+          "size-4 transition-all duration-200",
+          active && cn("border-transparent", color.replace('text', 'bg'))
+        )}
+      />
+    </div>
+  );
+}
+
 // Edit Team Modal Component
 function EditTeamModal({
   teamId,
@@ -3492,23 +3618,20 @@ function EditTeamModal({
 }: {
   teamId: string;
   onClose: () => void;
-  onSubmit: (id: string, updates: Partial<Team>) => void;
+  onSubmit: (id: string, updates: Partial<import("@/lib/types").Team>) => void;
 }) {
-  const { users, projects, teams } = useApp();
+  const { teams, users, projects } = useApp();
   const team = teams.find((t) => t.id === teamId);
 
-  const [name, setName] = useState(team?.name || "");
-  const [description, setDescription] = useState(team?.description || "");
-  const [projectManagerId, setProjectManagerId] = useState(team?.projectManager?.id || "");
-  const [leadId, setLeadId] = useState(team?.lead?.id || "none");
-  const [productManagerId, setProductManagerId] = useState(team?.productManager?.id || "none");
-  const [selectedMembers, setSelectedMembers] = useState<string[]>(
-    team?.members.map((m) => m.id) || []
-  );
-  const [selectedProjects, setSelectedProjects] = useState<string[]>(
-    team?.projectIds || []
-  );
-  const [capacity, setCapacity] = useState(String(team?.capacity || "40"));
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [projectManagerId, setProjectManagerId] = useState("");
+  const [leadId, setLeadId] = useState("");
+  const [productManagerId, setProductManagerId] = useState("");
+  const [scrumMasterId, setScrumMasterId] = useState("");
+  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+  const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
+  const [capacity, setCapacity] = useState("40");
 
   const [memberSearch, setMemberSearch] = useState("");
   const [projectSearch, setProjectSearch] = useState("");
@@ -3518,8 +3641,9 @@ function EditTeamModal({
       setName(team.name);
       setDescription(team.description || "");
       setProjectManagerId(team.projectManager?.id || "");
-      setLeadId(team.lead?.id || "none");
-      setProductManagerId(team.productManager?.id || "none");
+      setLeadId(team.lead?.id || "");
+      setProductManagerId(team.productManager?.id || "");
+      setScrumMasterId(team.scrumMaster?.id || "");
       setSelectedMembers(team.members.map((m) => m.id));
       setSelectedProjects(team.projectIds || []);
       setCapacity(String(team.capacity || "40"));
@@ -3530,23 +3654,25 @@ function EditTeamModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !projectManagerId) return;
+    if (!name.trim()) return;
 
-    const projectManager = users.find((u) => u.id === projectManagerId)!;
+    const projectManager = users.find((u) => u.id === projectManagerId);
     const lead = users.find((u) => u.id === leadId);
     const productManager = users.find((u) => u.id === productManagerId);
+    const scrumMaster = users.find((u) => u.id === scrumMasterId);
     const members = users.filter((u) => selectedMembers.includes(u.id));
 
     onSubmit(teamId, {
       name: name.trim(),
       description: description.trim(),
-      projectManager,
-      lead: leadId === "none" ? undefined : lead,
-      productManager: productManagerId === "none" ? undefined : productManager,
+      projectManager: projectManager || undefined,
+      lead: lead || undefined,
+      productManager: productManager || undefined,
+      scrumMaster: scrumMaster || undefined,
       members,
       projectIds: selectedProjects,
       capacity: Number(capacity) || 40,
-    });
+    } as any);
 
     onClose();
   };
@@ -3567,259 +3693,245 @@ function EditTeamModal({
     );
   };
 
-  const filteredUsers = users.filter((user) =>
-    user.name.toLowerCase().includes(memberSearch.toLowerCase())
+  const filteredUsers = users.filter(u =>
+    u.name.toLowerCase().includes(memberSearch.toLowerCase()) &&
+    !selectedMembers.includes(u.id)
   );
 
-  const filteredProjects = projects.filter((project) =>
-    project.name.toLowerCase().includes(projectSearch.toLowerCase())
+  const filteredProjects = projects.filter(p =>
+    p.name.toLowerCase().includes(projectSearch.toLowerCase()) &&
+    !selectedProjects.includes(p.id)
   );
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="max-w-3xl max-h-[95vh] p-0 overflow-hidden flex flex-col">
+        <DialogHeader className="p-6 pb-2">
           <DialogTitle>Edit Team</DialogTitle>
           <DialogDescription>
             Update team roles, members, and project assignments
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-team-name">Team Name *</Label>
-              <Input
-                id="edit-team-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Engineering Team"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Sprint Capacity</Label>
-              <Input
-                type="number"
-                value={capacity}
-                onChange={(e) => setCapacity(e.target.value)}
-                placeholder="40"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="edit-team-description">Description</Label>
-            <Textarea
-              id="edit-team-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Team description..."
-              rows={2}
-            />
-          </div>
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label className="flex items-center gap-1">
-                Project Manager <span className="text-destructive">*</span>
-              </Label>
-              <Select value={projectManagerId} onValueChange={setProjectManagerId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select PM" />
-                </SelectTrigger>
-                <SelectContent>
-                  {users.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      <span className="flex items-center gap-2">
-                        <Avatar className="size-4">
-                          <AvatarImage src={user.avatar || "/placeholder.svg"} />
-                          <AvatarFallback className="text-[10px]">
-                            {user.name.split(" ").map((n) => n[0]).join("")}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="truncate">{user.name}</span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-6 custom-scrollbar">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Team Lead (Optional)</Label>
-                <Select value={leadId} onValueChange={setLeadId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Optional" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {users.map((user) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        <span className="flex items-center gap-2">
-                          <Avatar className="size-4">
-                            <AvatarImage src={user.avatar || "/placeholder.svg"} />
-                            <AvatarFallback className="text-[10px]">
-                              {user.name.split(" ").map((n) => n[0]).join("")}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="truncate">{user.name}</span>
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="edit-team-name">Team Name *</Label>
+                <Input
+                  id="edit-team-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Engineering Team"
+                />
               </div>
-
               <div className="space-y-2">
-                <Label>Product Manager (Optional)</Label>
-                <Select value={productManagerId} onValueChange={setProductManagerId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Optional" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {users.map((user) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        <span className="flex items-center gap-2">
-                          <Avatar className="size-4">
-                            <AvatarImage src={user.avatar || "/placeholder.svg"} />
-                            <AvatarFallback className="text-[10px]">
-                              {user.name.split(" ").map((n) => n[0]).join("")}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="truncate">{user.name}</span>
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Sprint Capacity (Total Hours)</Label>
+                <Input
+                  type="number"
+                  value={capacity}
+                  onChange={(e) => setCapacity(e.target.value)}
+                  placeholder="40"
+                />
               </div>
             </div>
-          </div>
 
-          <div className="space-y-2 relative z-20">
-            <Label>Team Members</Label>
-            <Input
-              placeholder="Type to search members..."
-              value={memberSearch}
-              onChange={(e) => setMemberSearch(e.target.value)}
-              className="h-8 text-sm"
-            />
-            {memberSearch.trim().length > 0 && (
-              <div className="absolute top-full left-0 mt-1 w-full z-50 bg-popover text-popover-foreground border border-border rounded-md shadow-md max-h-48 overflow-y-auto custom-scrollbar p-1">
-                {filteredUsers.map((user) => (
-                  <label
-                    key={user.id}
-                    className="flex items-center gap-2 cursor-pointer p-1.5 rounded-md hover:bg-muted/50 transition-colors"
-                  >
-                    <Checkbox
-                      checked={selectedMembers.includes(user.id)}
-                      onCheckedChange={() => toggleMember(user.id)}
-                    />
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Avatar className="size-5 shrink-0">
-                        <AvatarImage src={user.avatar || "/placeholder.svg"} />
-                        <AvatarFallback className="text-[10px]">
-                          {user.name.split(" ").map((n) => n[0]).join("")}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="text-sm truncate">{user.name}</span>
-                    </div>
-                  </label>
-                ))}
-                {filteredUsers.length === 0 && (
-                  <div className="text-center text-sm text-muted-foreground py-4">
-                    No results found
-                  </div>
-                )}
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label htmlFor="edit-team-description">Description</Label>
+              <Textarea
+                id="edit-team-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Team description..."
+                rows={2}
+              />
+            </div>
 
-            {selectedMembers.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {selectedMembers.map((id) => {
-                  const user = users.find((u) => u.id === id);
-                  if (!user) return null;
-                  return (
-                    <Badge key={user.id} variant="secondary" className="flex items-center gap-1 pr-1 font-normal">
-                      <span className="text-xs">{user.name}</span>
+            {/* Members Selection */}
+            <div className="space-y-3">
+              <Label className="text-base font-semibold">Team Members & Roles</Label>
+              <div className="relative">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search users to add..."
+                    className="pl-9"
+                    value={memberSearch}
+                    onChange={(e) => setMemberSearch(e.target.value)}
+                  />
+                </div>
+
+                {memberSearch && filteredUsers.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto p-1">
+                    {filteredUsers.map(user => (
                       <button
+                        key={user.id}
                         type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
+                        className="w-full flex items-center gap-2 p-2 hover:bg-accent rounded-sm text-left transition-colors"
+                        onClick={() => {
                           toggleMember(user.id);
+                          setMemberSearch("");
                         }}
-                        className="rounded-full p-0.5 hover:bg-muted-foreground/20"
                       >
-                        <X className="size-3" />
+                        <Avatar className="size-6">
+                          <AvatarImage src={user.avatar} />
+                          <AvatarFallback className="text-[10px]">{user.name.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{user.name}</p>
+                          <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>
+                        </div>
+                        <PlusCircle className="size-4 text-primary" />
                       </button>
-                    </Badge>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-2 relative z-10">
-            <Label>Assigned Projects</Label>
-            <Input
-              placeholder="Type to search projects..."
-              value={projectSearch}
-              onChange={(e) => setProjectSearch(e.target.value)}
-              className="h-8 text-sm"
-            />
-            {projectSearch.trim().length > 0 && (
-              <div className="absolute top-full left-0 mt-1 w-full z-50 bg-popover text-popover-foreground border border-border rounded-md shadow-md max-h-48 overflow-y-auto custom-scrollbar p-1">
-                {filteredProjects.map((project) => (
-                  <label
-                    key={project.id}
-                    className="flex items-center gap-2 cursor-pointer p-1.5 rounded-md hover:bg-muted/50 transition-colors"
-                  >
-                    <Checkbox
-                      checked={selectedProjects.includes(project.id)}
-                      onCheckedChange={() => toggleProject(project.id)}
-                    />
-                    <span className="text-sm truncate">{project.name}</span>
-                  </label>
-                ))}
-                {filteredProjects.length === 0 && (
-                  <div className="text-center text-sm text-muted-foreground py-4">
-                    No results found
+                    ))}
                   </div>
                 )}
               </div>
-            )}
 
-            {selectedProjects.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {selectedProjects.map((id) => {
-                  const project = projects.find((p) => p.id === id);
-                  if (!project) return null;
-                  return (
-                    <Badge key={project.id} variant="secondary" className="flex items-center gap-1 pr-1 font-normal">
-                      <span className="text-xs">{project.name}</span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          toggleProject(project.id);
-                        }}
-                        className="rounded-full p-0.5 hover:bg-muted-foreground/20"
-                      >
-                        <X className="size-3" />
-                      </button>
-                    </Badge>
-                  );
-                })}
+              <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar">
+                {selectedMembers.length === 0 ? (
+                  <div className="text-center py-8 border-2 border-dashed rounded-lg text-muted-foreground bg-muted/20">
+                    <Users className="size-8 mx-auto mb-2 opacity-20" />
+                    <p className="text-sm">No members added yet</p>
+                  </div>
+                ) : (
+                  selectedMembers.map(userId => {
+                    const user = users.find(u => u.id === userId);
+                    if (!user) return null;
+                    return (
+                      <div key={userId} className="flex items-center gap-4 p-3 rounded-lg border bg-card animate-in fade-in slide-in-from-top-1 duration-200">
+                        <Avatar className="size-10 border border-border">
+                          <AvatarImage src={user.avatar} />
+                          <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold truncate">{user.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                        </div>
+
+                        <div className="flex items-center gap-4 border-l pl-4">
+                          <RoleToggle
+                            label="PM"
+                            active={projectManagerId === userId}
+                            onToggle={() => setProjectManagerId(prev => prev === userId ? "" : userId)}
+                            color="text-blue-500"
+                          />
+                          <RoleToggle
+                            label="Prod M"
+                            active={productManagerId === userId}
+                            onToggle={() => setProductManagerId(prev => prev === userId ? "" : userId)}
+                            color="text-green-500"
+                          />
+                          <RoleToggle
+                            label="TL"
+                            active={leadId === userId}
+                            onToggle={() => setLeadId(prev => prev === userId ? "" : userId)}
+                            color="text-purple-500"
+                          />
+                          <RoleToggle
+                            label="SM"
+                            active={scrumMasterId === userId}
+                            onToggle={() => setScrumMasterId(prev => prev === userId ? "" : userId)}
+                            color="text-orange-500"
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => {
+                              toggleMember(userId);
+                              if (projectManagerId === userId) setProjectManagerId("");
+                              if (leadId === userId) setLeadId("");
+                              if (productManagerId === userId) setProductManagerId("");
+                              if (scrumMasterId === userId) setScrumMasterId("");
+                            }}
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
-            )}
+            </div>
+
+            {/* Projects Selection */}
+            <div className="space-y-3">
+              <Label className="text-base font-semibold">Assigned Projects</Label>
+              <div className="relative">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search projects to assign..."
+                    className="pl-9"
+                    value={projectSearch}
+                    onChange={(e) => setProjectSearch(e.target.value)}
+                  />
+                </div>
+
+                {projectSearch && filteredProjects.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto p-1">
+                    {filteredProjects.map(project => (
+                      <button
+                        key={project.id}
+                        type="button"
+                        className="w-full flex items-center gap-2 p-2 hover:bg-accent rounded-sm text-left transition-colors"
+                        onClick={() => {
+                          toggleProject(project.id);
+                          setProjectSearch("");
+                        }}
+                      >
+                        <div className="size-6 rounded bg-primary/10 flex items-center justify-center">
+                          <FolderPlus className="size-3.5 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{project.name}</p>
+                          <p className="text-[10px] text-muted-foreground truncate">{project.key}</p>
+                        </div>
+                        <PlusCircle className="size-4 text-primary" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {selectedProjects.length === 0 ? (
+                  <div className="w-full text-center py-6 border-2 border-dashed rounded-lg text-muted-foreground bg-muted/20">
+                    <FolderPlus className="size-8 mx-auto mb-2 opacity-20" />
+                    <p className="text-sm">No projects assigned</p>
+                  </div>
+                ) : (
+                  selectedProjects.map(id => {
+                    const project = projects.find(p => p.id === id);
+                    if (!project) return null;
+                    return (
+                      <Badge key={id} variant="secondary" className="pl-1.5 py-1 gap-1 h-8">
+                        <div className="size-5 rounded-sm bg-primary/20 flex items-center justify-center font-mono text-[10px] font-bold text-primary">
+                          {project.key.substring(0, 2)}
+                        </div>
+                        <span className="max-w-[150px] truncate">{project.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => toggleProject(id)}
+                          className="hover:text-destructive transition-colors ml-1"
+                        >
+                          <X className="size-3" />
+                        </button>
+                      </Badge>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!name.trim() || !projectManagerId}>
+            <Button type="submit" disabled={!name.trim()}>
               Save Changes
             </Button>
           </DialogFooter>
@@ -3839,7 +3951,7 @@ function CreateProgramModal({
     program: Parameters<ReturnType<typeof useApp>["addProgram"]>[0],
   ) => void;
 }) {
-  const { portfolios, users, projects } = useApp();
+  const { portfolios, users, projects, addPortfolio } = useApp();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [portfolioId, setPortfolioId] = useState(portfolios[0]?.id || "");
@@ -3848,6 +3960,8 @@ function CreateProgramModal({
   const [endDate, setEndDate] = useState("");
   const [budget, setBudget] = useState("");
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
+  const [projectSearch, setProjectSearch] = useState("");
+  const [showFullCreatePortfolio, setShowFullCreatePortfolio] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -3883,119 +3997,240 @@ function CreateProgramModal({
     );
   };
 
+  const filteredProjects = projects.filter(
+    (p) =>
+      p.name.toLowerCase().includes(projectSearch.toLowerCase()) &&
+      !selectedProjects.includes(p.id),
+  );
+
+  const handleNewPortfolio = async (portfolio: Parameters<typeof addPortfolio>[0]) => {
+    try {
+      const newPortfolio = await addPortfolio(portfolio);
+      setPortfolioId(newPortfolio.id);
+      setShowFullCreatePortfolio(false);
+    } catch (error) {
+      console.error("Failed to create portfolio:", error);
+    }
+  };
+
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Create New Program</DialogTitle>
-          <DialogDescription>
-            Set up a new program to group related projects
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="program-name">Program Name *</Label>
-            <Input
-              id="program-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Digital Transformation"
-              autoFocus
-            />
-          </div>
+    <>
+      <Dialog open onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="max-w-xl max-h-[95vh] p-0 overflow-hidden flex flex-col">
+          <DialogHeader className="p-6 pb-2">
+            <DialogTitle>Create New Program</DialogTitle>
+            <DialogDescription>
+              Set up a new program to group related projects
+            </DialogDescription>
+          </DialogHeader>
 
-          <div className="space-y-2">
-            <Label htmlFor="program-description">Description</Label>
-            <Textarea
-              id="program-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Program description..."
-              rows={2}
-            />
-          </div>
+          <form
+            onSubmit={handleSubmit}
+            className="flex-1 flex flex-col min-h-0 overflow-hidden"
+          >
+            <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-6 custom-scrollbar">
+              <div className="space-y-2">
+                <Label htmlFor="program-name">Program Name *</Label>
+                <Input
+                  id="program-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Digital Transformation"
+                  autoFocus
+                />
+              </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Portfolio</Label>
-              <Select value={portfolioId} onValueChange={setPortfolioId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select portfolio" />
-                </SelectTrigger>
-                <SelectContent>
-                  {portfolios.map((portfolio) => (
-                    <SelectItem key={portfolio.id} value={portfolio.id}>
-                      {portfolio.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <Label htmlFor="program-description">Description</Label>
+                <Textarea
+                  id="program-description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Program description..."
+                  rows={2}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Portfolio</Label>
+                  <Select
+                    value={portfolioId}
+                    onValueChange={(val) => {
+                      if (val === "create-new") {
+                        setShowFullCreatePortfolio(true);
+                      } else {
+                        setPortfolioId(val);
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <div className="flex items-center gap-2">
+                        <Building className="size-4 text-accent" />
+                        <SelectValue placeholder="Select portfolio" />
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">
+                        <span className="text-muted-foreground">No portfolio (Independent)</span>
+                      </SelectItem>
+                      <SelectItem
+                        value="create-new"
+                        className="text-primary font-semibold border-b rounded-none mb-1"
+                      >
+                        <div className="flex items-center gap-2">
+                          <PlusCircle className="size-3.5" />
+                          Create New Portfolio
+                        </div>
+                      </SelectItem>
+                      {portfolios.length === 0 ? (
+                        <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                          No portfolios available
+                        </div>
+                      ) : (
+                        portfolios.map((portfolio) => (
+                          <SelectItem key={portfolio.id} value={portfolio.id}>
+                            <div className="flex items-center gap-2">
+                              <Building className="size-3.5 text-accent" />
+                              <span>{portfolio.name}</span>
+                              <Badge variant="outline" className="ml-2 text-[10px] scale-90 origin-left">
+                                Active
+                              </Badge>
+                            </div>
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              <div className="space-y-2">
+                <Label>Program Owner</Label>
+                <Select value={ownerId} onValueChange={setOwnerId}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {users.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Program Owner</Label>
-              <Select value={ownerId} onValueChange={setOwnerId}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {users.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Start Date</Label>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>End Date</Label>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+              </div>
+            </div>
+
             <div className="space-y-2">
-              <Label>Start Date</Label>
+              <Label>Budget ($)</Label>
               <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                type="number"
+                value={budget}
+                onChange={(e) => setBudget(e.target.value)}
+                placeholder="200000"
               />
             </div>
-            <div className="space-y-2">
-              <Label>End Date</Label>
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
-            </div>
-          </div>
 
-          <div className="space-y-2">
-            <Label>Budget ($)</Label>
-            <Input
-              type="number"
-              value={budget}
-              onChange={(e) => setBudget(e.target.value)}
-              placeholder="200000"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Projects</Label>
-            <div className="grid grid-cols-2 gap-2 max-h-24 overflow-y-auto p-2 border border-border rounded-lg">
-              {projects.map((project) => (
-                <label
-                  key={project.id}
-                  className="flex items-center gap-2 cursor-pointer"
-                >
-                  <Checkbox
-                    checked={selectedProjects.includes(project.id)}
-                    onCheckedChange={() => toggleProject(project.id)}
+            {/* Projects Selection */}
+            <div className="space-y-3">
+              <Label className="text-sm font-semibold">Associated Projects</Label>
+              <div className="relative">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search projects to add..."
+                    className="pl-9 h-9"
+                    value={projectSearch}
+                    onChange={(e) => setProjectSearch(e.target.value)}
                   />
-                  <span className="text-sm">{project.name}</span>
-                </label>
-              ))}
+                </div>
+
+                {projectSearch && filteredProjects.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto p-1 custom-scrollbar">
+                    {filteredProjects.map((project) => (
+                      <button
+                        key={project.id}
+                        type="button"
+                        className="w-full flex items-center gap-2 p-2 hover:bg-accent rounded-sm text-left transition-colors"
+                        onClick={() => {
+                          toggleProject(project.id);
+                          setProjectSearch("");
+                        }}
+                      >
+                        <div className="size-6 rounded bg-primary/10 flex items-center justify-center">
+                          <FolderPlus className="size-3.5 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {project.name}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground truncate">
+                            {project.key}
+                          </p>
+                        </div>
+                        <PlusCircle className="size-4 text-primary" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {selectedProjects.length === 0 ? (
+                  <div className="w-full text-center py-6 border-2 border-dashed rounded-lg text-muted-foreground bg-muted/20">
+                    <FolderPlus className="size-8 mx-auto mb-2 opacity-20" />
+                    <p className="text-sm">No projects assigned</p>
+                  </div>
+                ) : (
+                  selectedProjects.map((id) => {
+                    const project = projects.find((p) => p.id === id);
+                    if (!project) return null;
+                    return (
+                      <Badge
+                        key={id}
+                        variant="secondary"
+                        className="pl-1.5 py-1 gap-1 h-8 bg-background border border-border"
+                      >
+                        <div className="size-5 rounded-sm bg-primary/10 flex items-center justify-center font-mono text-[10px] font-bold text-primary">
+                          {project.key.substring(0, 2)}
+                        </div>
+                        <span className="max-w-[150px] truncate">
+                          {project.name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => toggleProject(id)}
+                          className="hover:text-destructive transition-colors ml-1 p-0.5 rounded-full hover:bg-destructive/10"
+                        >
+                          <X className="size-3" />
+                        </button>
+                      </Badge>
+                    );
+                  })
+                )}
+              </div>
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
@@ -4006,6 +4241,14 @@ function CreateProgramModal({
         </form>
       </DialogContent>
     </Dialog>
+
+    {showFullCreatePortfolio && (
+      <CreatePortfolioModal
+        onClose={() => setShowFullCreatePortfolio(false)}
+        onSubmit={handleNewPortfolio}
+      />
+    )}
+    </>
   );
 }
 
@@ -4063,14 +4306,15 @@ function CreatePortfolioModal({
   return (
     <>
       <Dialog open onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
+        <DialogContent className="max-w-xl max-h-[95vh] p-0 overflow-hidden flex flex-col">
+          <DialogHeader className="p-6 pb-2">
             <DialogTitle>Create New Portfolio</DialogTitle>
             <DialogDescription>
               Set up a new portfolio to organize programs
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-6 custom-scrollbar">
             <div className="space-y-2">
               <Label htmlFor="portfolio-name">Portfolio Name *</Label>
               <Input
@@ -4200,8 +4444,9 @@ function CreatePortfolioModal({
                 </Popover>
               </div>
             </div>
+          </div>
 
-            <DialogFooter>
+          <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
@@ -4265,8 +4510,8 @@ function LogTimeModal({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
+      <DialogContent className="max-w-md max-h-[95vh] p-0 overflow-hidden flex flex-col">
+        <DialogHeader className="p-6 pb-2">
           <DialogTitle>Log Time</DialogTitle>
           <DialogDescription>
             {task
@@ -4274,7 +4519,8 @@ function LogTimeModal({
               : "Log time entry"}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-6 custom-scrollbar">
           <div className="space-y-2">
             <Label htmlFor="hours">Hours *</Label>
             <Input
@@ -4311,7 +4557,9 @@ function LogTimeModal({
             />
           </div>
 
-          <DialogFooter>
+          </div>
+
+          <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
@@ -4377,8 +4625,8 @@ function CreateUserModal({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
+      <DialogContent className="max-w-md max-h-[95vh] p-0 overflow-hidden flex flex-col">
+        <DialogHeader className="p-6 pb-2">
           <DialogTitle className="flex items-center gap-2">
             <UserPlus className="size-5" />
             Create New User
@@ -4387,7 +4635,8 @@ function CreateUserModal({
             Create a new user account. The user will be available for team assignment.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-6 custom-scrollbar">
           <div className="space-y-1.5">
             <Label htmlFor="user-name">Full Name *</Label>
             <Input
@@ -4461,7 +4710,9 @@ function CreateUserModal({
             </Select>
           </div>
 
-          <DialogFooter>
+          </div>
+
+          <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
             <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
               Cancel
             </Button>
@@ -4530,8 +4781,8 @@ function AddMemberModal({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
+      <DialogContent className="max-w-md max-h-[95vh] p-0 overflow-hidden flex flex-col">
+        <DialogHeader className="p-6 pb-2">
           <div className="flex items-center justify-between">
             <div>
               <DialogTitle>Add Team Member</DialogTitle>
@@ -4548,6 +4799,8 @@ function AddMemberModal({
             </Button>
           </div>
         </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-6 custom-scrollbar">
 
         {availableUsers.length > 3 && (
           <div className="relative">
@@ -4609,13 +4862,14 @@ function AddMemberModal({
             )}
           </div>
         </ScrollArea>
+        </div>
 
-        <DialogFooter>
+        <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
           <Button onClick={handleAdd} disabled={!selectedUser}>
-            Add Member
+            Add to Team
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -4688,14 +4942,15 @@ function CreateSprintModal({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
+      <DialogContent className="max-w-xl max-h-[95vh] p-0 overflow-hidden flex flex-col">
+        <DialogHeader className="p-6 pb-2">
           <DialogTitle>Create New Sprint</DialogTitle>
           <DialogDescription>
             Define the sprint details and select tasks from the backlog.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-6 custom-scrollbar">
           <div className="space-y-2">
             <Label htmlFor="sprint-name">Sprint Name *</Label>
             <Input
@@ -4844,7 +5099,9 @@ function CreateSprintModal({
             </ScrollArea>
           </div>
 
-          <DialogFooter>
+          </div>
+
+          <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
@@ -4889,8 +5146,8 @@ function ClientDetailModal({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl overflow-hidden p-0">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b bg-muted/30">
+      <DialogContent className="max-w-2xl max-h-[95vh] p-0 overflow-hidden flex flex-col">
+        <DialogHeader className="p-6 pb-4 border-b bg-muted/30">
           <div className="flex items-center gap-4">
             <Avatar className="size-16 border-2 border-background shadow-sm">
               <AvatarFallback className="bg-primary/10 text-primary text-xl font-bold">
@@ -4933,7 +5190,7 @@ function ClientDetailModal({
           </div>
         </DialogHeader>
 
-        <div className="p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
           <div className="grid grid-cols-2 gap-8">
             <div className="space-y-4">
               <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
@@ -5043,8 +5300,8 @@ function ClientDetailModal({
           )}
         </div>
 
-        <DialogFooter className="px-6 py-4 border-t bg-muted/20">
-          <Button variant="outline" size="sm" onClick={onClose} className="h-8">
+        <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
+          <Button variant="outline" size="sm" onClick={onClose} className="h-8 px-4">
             Close
           </Button>
         </DialogFooter>

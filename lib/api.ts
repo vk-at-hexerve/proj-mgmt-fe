@@ -64,7 +64,9 @@ export function mapBackendProject(backendProject: BackendProject): Project {
     taskCount: backendProject.task_count || 0,
     clientId: backendProject.client_id,
     teamId: backendProject.team_id,
-    programId: backendProject.program_id
+    programId: backendProject.program_id,
+    createdAt: backendProject.created_at || new Date().toISOString(),
+    updatedAt: backendProject.updated_at || new Date().toISOString()
   };
 }
 
@@ -111,8 +113,8 @@ export function mapBackendTask(backendTask: BackendTask): Task {
     tags: [],
     startDate: backendTask.start_date,
     dueDate: backendTask.due_date,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    createdAt: backendTask.created_at || new Date().toISOString(),
+    updatedAt: backendTask.updated_at || new Date().toISOString()
   };
 }
 
@@ -143,6 +145,12 @@ export function mapBackendTeam(backendTeam: BackendTeam): Team {
       name: backendTeam.product_manager.name,
       email: backendTeam.product_manager.email,
       role: (backendTeam.product_manager.role || 'portfolio-manager') as UserRole
+    } : undefined,
+    scrumMaster: backendTeam.scrum_master ? {
+      id: String(backendTeam.scrum_master.id),
+      name: backendTeam.scrum_master.name,
+      email: backendTeam.scrum_master.email,
+      role: (backendTeam.scrum_master.role || 'team-lead') as UserRole
     } : undefined,
     members: backendTeam.members ? backendTeam.members.map((m: BackendUser) => ({
       id: String(m.id),
@@ -206,9 +214,10 @@ export function mapBackendClient(backendClient: any) {
     email: backendClient.email || "",
     phone: backendClient.phone || "",
     company: backendClient.company || "",
-    type: backendClient.type || "external",
     address: backendClient.address || "",
     notes: backendClient.notes || "",
+    createdAt: backendClient.created_at || new Date().toISOString(),
+    updatedAt: backendClient.updated_at || new Date().toISOString()
   };
 }
 
@@ -220,6 +229,8 @@ export function mapBackendInvoice(backendInvoice: any) {
     amount: backendInvoice.amount,
     status: backendInvoice.status?.toLowerCase() || 'draft',
     dueDate: backendInvoice.due_date,
+    createdAt: backendInvoice.created_at || new Date().toISOString(),
+    updatedAt: backendInvoice.updated_at || new Date().toISOString()
   };
 }
 
