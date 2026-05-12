@@ -177,7 +177,7 @@ interface AppContextType extends AppState {
   deleteProgram: (id: string) => Promise<void>;
 
   // Portfolio actions
-  addPortfolio: (portfolio: Omit<Portfolio, "id">) => Promise<void>;
+  addPortfolio: (portfolio: Omit<Portfolio, "id">) => Promise<Portfolio>;
   updatePortfolio: (id: string, updates: Partial<Portfolio>) => Promise<void>;
   deletePortfolio: (id: string) => Promise<void>;
 
@@ -656,6 +656,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           project_manager_id: team.projectManager.id,
           lead_id: team.lead?.id || null,
           product_manager_id: team.productManager?.id || null,
+          scrum_master_id: team.scrumMaster?.id || null,
           project_ids: team.projectIds,
           capacity: team.capacity || 40,
           member_ids: team.members.map(m => m.id),
@@ -680,6 +681,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (updates.projectManager) backendPayload.project_manager_id = updates.projectManager.id;
       if (updates.lead !== undefined) backendPayload.lead_id = updates.lead?.id || null;
       if (updates.productManager !== undefined) backendPayload.product_manager_id = updates.productManager?.id || null;
+      if (updates.scrumMaster !== undefined) backendPayload.scrum_master_id = updates.scrumMaster?.id || null;
       if (updates.projectIds) backendPayload.project_ids = updates.projectIds;
       if (updates.members) backendPayload.member_ids = updates.members.map(m => m.id);
 
@@ -823,11 +825,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
           program_ids: portfolio.programs?.map(p => p.id) || []
         })
       });
-      setPortfolios((prev) => prev.map((p) => p.id === tempId ? mapBackendPortfolio(savedPortfolio) : p));
+      const mapped = mapBackendPortfolio(savedPortfolio);
+      setPortfolios((prev) => prev.map((p) => p.id === tempId ? mapped : p));
       showToast({ title: "Portfolio created", description: savedPortfolio.name, type: "success" });
-    } catch (error) {
+      return mapped;
+    } catch (error: any) {
       setPortfolios((prev) => prev.filter((p) => p.id !== tempId));
-      showToast({ title: "Portfolio creation failed", type: "error" });
+      showToast({ title: "Portfolio creation failed", description: error.message, type: "error" });
+      throw error;
     }
   }, [showToast]);
 

@@ -44,6 +44,7 @@ import {
   Trash2,
   Edit,
   UserMinus,
+  Shield,
 } from 'lucide-react';
 // import { projects } from '@/lib/mock-data';
 import { cn } from '@/lib/utils';
@@ -317,6 +318,12 @@ export default function TeamsClient() {
                                   <span className="text-xs font-medium">{currentTeam.productManager.name}</span>
                                 </div>
                               )}
+                              {currentTeam.scrumMaster && (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs text-muted-foreground">Scrum:</span>
+                                  <span className="text-xs font-medium">{currentTeam.scrumMaster.name}</span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -356,6 +363,7 @@ export default function TeamsClient() {
                               const isLead = member.id === currentTeam.lead?.id;
                               const isPM = member.id === currentTeam.projectManager.id;
                               const isProdM = member.id === currentTeam.productManager?.id;
+                              const isScrumMaster = member.id === currentTeam.scrumMaster?.id;
                               const memberTasks = tasks.filter(t => t.assignee?.id === member.id);
                               const inProgressTasks = memberTasks.filter(t => t.status === 'in-progress').length;
 
@@ -388,6 +396,12 @@ export default function TeamsClient() {
                                         {isProdM && (
                                           <Badge variant="outline" className="gap-1 text-accent border-accent/30">
                                             Product
+                                          </Badge>
+                                        )}
+                                        {isScrumMaster && (
+                                          <Badge variant="outline" className="gap-1 text-success border-success/30">
+                                            <Shield className="size-3" />
+                                            Scrum
                                           </Badge>
                                         )}
                                       </div>

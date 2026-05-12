@@ -275,6 +275,8 @@ export interface BackendUser {
   email: string;
   avatar?: string;
   role?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface BackendProject {
@@ -294,6 +296,8 @@ export interface BackendProject {
   client_id?: string;
   team_id?: string;
   program_id?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface BackendTask {
@@ -309,6 +313,8 @@ export interface BackendTask {
   reporter?: BackendUser;
   start_date?: string;
   due_date?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface BackendTeam {
@@ -320,8 +326,11 @@ export interface BackendTeam {
   project_manager?: BackendUser;
   lead?: BackendUser;
   product_manager?: BackendUser;
+  scrum_master?: BackendUser;
   members?: BackendUser[];
   project_ids?: (number | string)[];
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Team {
@@ -332,6 +341,7 @@ export interface Team {
   projectManager: User;
   lead?: User;
   productManager?: User;
+  scrumMaster?: User;
   members: User[];
   projects: Project[];
   projectIds: string[];
