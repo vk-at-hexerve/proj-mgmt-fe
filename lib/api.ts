@@ -281,3 +281,16 @@ export async function getActiveActivity() {
 export async function getTaskActivities(taskId: string) {
   return fetchAPI(`/time-entries/task/${taskId}`);
 }
+
+export async function addTimeEntry(data: {
+  task_id: string;
+  user_id: string;
+  description: string;
+  start_at: string;
+  end_at: string;
+}) {
+  return fetchAPI("/time-entries/", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}

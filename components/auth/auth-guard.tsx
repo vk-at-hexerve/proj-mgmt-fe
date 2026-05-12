@@ -5,11 +5,13 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useApp } from '@/lib/app-context';
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, token } = useApp();
+  const { isAuthenticated, isAuthInitialized } = useApp();
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
+    if (!isAuthInitialized) return;
+
     const publicPaths = ['/login', '/signup'];
     const isPublicPath = publicPaths.includes(pathname);
 
@@ -18,8 +20,12 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     } else if (isAuthenticated && isPublicPath) {
       router.push('/');
     }
-  }, [isAuthenticated, pathname, router]);
+  }, [isAuthenticated, isAuthInitialized, pathname, router]);
 
-  // Optionally show a loader while checking auth state
+  // Don't render children until we've checked localStorage for a token
+  if (!isAuthInitialized) {
+    return null; // Or a full-page loader
+  }
+
   return <>{children}</>;
 }
