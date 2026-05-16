@@ -57,7 +57,7 @@ import {
 import { cn } from '@/lib/utils';
 
 export function TimeTrackingClient() {
-  const { tasks, timeEntries, projects, addTimeEntry, updateTimeEntry, deleteTimeEntry, currentUser, getTask } = useApp();
+  const { tasks, timeEntries, projects, addTimeEntry, updateTimeEntry, deleteTimeEntry, currentUser, getTask, isTaskDone } = useApp();
   const [showLogModal, setShowLogModal] = useState(false);
   const [editEntry, setEditEntry] = useState<string | null>(null);
   const [selectedWeek, setSelectedWeek] = useState(new Date());
@@ -154,7 +154,7 @@ export function TimeTrackingClient() {
     setSelectedWeek(newDate);
   };
 
-  const myTasks = tasks.filter(t => t.assignee?.id === currentUser.id && t.status !== 'closed');
+  const myTasks = tasks.filter(t => t.assignee?.id === currentUser.id && !isTaskDone(t));
 
   return (
     <div className="flex h-screen bg-background">

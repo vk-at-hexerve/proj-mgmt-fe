@@ -24,12 +24,12 @@ const severityStyles: Record<AIInsight['severity'], string> = {
 };
 
 // AI-generated insights based on project data
-const generateInsights = (tasks: Task[], projects: Project[]): AIInsight[] => {
+const generateInsights = (tasks: Task[], projects: Project[], isTaskDone: any, getStatusGroup: any): AIInsight[] => {
   const insights: AIInsight[] = [];
   
   // Check for overdue tasks
   const today = new Date();
-  const overdueTasks = tasks.filter((t: Task) => t.dueDate && new Date(t.dueDate) < today && t.status !== 'closed');
+  const overdueTasks = tasks.filter((t: Task) => t.dueDate && new Date(t.dueDate) < today && !isTaskDone(t));
   if (overdueTasks.length > 0) {
     insights.push({
       id: 'overdue-1',
@@ -64,7 +64,7 @@ const generateInsights = (tasks: Task[], projects: Project[]): AIInsight[] => {
 
   // Velocity prediction
   if (projects.length > 0) {
-    const completedTasks = tasks.filter((t: Task) => t.status === 'closed');
+    const completedTasks = tasks.filter((t: Task) => isTaskDone(t));
     const velocity = completedTasks.length;
     insights.push({
       id: 'velocity-1',
@@ -98,7 +98,7 @@ const generateInsights = (tasks: Task[], projects: Project[]): AIInsight[] => {
   }
 
   // Risk detection
-  const inProgressTasks = tasks.filter((t: Task) => t.status === 'in-progress');
+  const inProgressTasks = tasks.filter((t: Task) => getStatusGroup(t.statusId) === 'IN_PROGRESS');
   if (inProgressTasks.length > 5) {
     insights.push({
       id: 'wip-1',
@@ -118,7 +118,7 @@ const generateInsights = (tasks: Task[], projects: Project[]): AIInsight[] => {
 };
 
 export function AIInsightsPanel() {
-  const { tasks, projects, showToast, openModal } = useApp();
+  const { tasks, projects, showToast, openModal, isTaskDone, getStatusGroup } = useApp();
   const [insights, setInsights] = useState<AIInsight[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [askAI, setAskAI] = useState('');
@@ -127,14 +127,14 @@ export function AIInsightsPanel() {
   const [dismissedInsights, setDismissedInsights] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    setInsights(generateInsights(tasks, projects));
-  }, [tasks, projects]);
+    setInsights(generateInsights(tasks, projects, isTaskDone, getStatusGroup));
+  }, [tasks, projects, isTaskDone, getStatusGroup]);
 
   const refreshInsights = async () => {
     setIsRefreshing(true);
     // Simulate AI analysis
     await new Promise(resolve => setTimeout(resolve, 1500));
-    setInsights(generateInsights(tasks, projects));
+    setInsights(generateInsights(tasks, projects, isTaskDone, getStatusGroup));
     setIsRefreshing(false);
     showToast({ title: 'Insights refreshed', description: 'AI analysis complete', type: 'success' });
   };
@@ -177,11 +177,11 @@ export function AIInsightsPanel() {
     let response = '';
     
     if (query.includes('risk') || query.includes('problem')) {
-      const overdueTasksList = tasks.filter((t: Task) => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'closed');
+      const overdueTasksList = tasks.filter((t: Task) => t.dueDate && new Date(t.dueDate) < new Date() && !isTaskDone(t));
       response = `Based on my analysis, I identified ${overdueTasksList.length} overdue tasks and potential resource bottlenecks. The Infrastructure Upgrade project shows a 38% risk increase due to dependency delays. I recommend:\n\n1. Prioritize NXS-102 (Authentication Flow) - it's blocking 3 other tasks\n2. Consider reassigning from Sarah Chen (at 95% capacity) to James Liu (at 70%)\n3. Schedule a risk review meeting for next week`;
     } else if (query.includes('status') || query.includes('progress')) {
-      const completed = tasks.filter((t: Task) => t.status === 'closed').length;
-      const inProgress = tasks.filter((t: Task) => t.status === 'in-progress').length;
+      const completed = tasks.filter((t: Task) => isTaskDone(t)).length;
+      const inProgress = tasks.filter((t: Task) => getStatusGroup(t.statusId) === 'IN_PROGRESS').length;
       response = `Current Sprint Status:\n\n- Completed: ${completed} tasks (${Math.round(completed/tasks.length*100)}%)\n- In Progress: ${inProgress} tasks\n- Velocity: On track for sprint goal\n\nTop performers this sprint:\n1. Sarah Chen - 15 story points\n2. Michael Park - 12 story points\n\nPredicted completion: March 5, 2026`;
     } else if (query.includes('assign') || query.includes('who')) {
       response = `Based on current workload and expertise, I recommend:\n\n- Frontend tasks → Michael Park (React specialist, 70% capacity)\n- Backend tasks → James Liu (API expert, 65% capacity)\n- Design reviews → Sarah Chen (UI/UX lead)\n\nWould you like me to auto-assign pending tasks based on these recommendations?`;

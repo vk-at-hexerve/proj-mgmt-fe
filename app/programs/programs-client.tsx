@@ -316,12 +316,12 @@ export default function ProgramsClient() {
                         <div className="flex items-center justify-between pt-3 border-t border-border">
                           <div className="flex items-center gap-2">
                             <Avatar className="size-6">
-                              <AvatarImage src={program.owner.avatar || '/placeholder.svg'} />
+                              <AvatarImage src={program.owner?.avatar || '/placeholder.svg'} />
                               <AvatarFallback className="text-xs">
-                                {program.owner.name.split(' ').map((n: string) => n[0]).join('')}
+                                {(program.owner?.name || 'SU').split(' ').map((n: string) => n[0]).join('')}
                               </AvatarFallback>
                             </Avatar>
-                            <span className="text-sm text-muted-foreground">{program.owner.name}</span>
+                            <span className="text-sm text-muted-foreground">{program.owner?.name || 'System User'}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <Badge variant="outline" className="gap-1 text-xs">
@@ -401,12 +401,12 @@ export default function ProgramsClient() {
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <Avatar className="size-6">
-                                <AvatarImage src={program.owner.avatar || '/placeholder.svg'} />
+                                <AvatarImage src={program.owner?.avatar || '/placeholder.svg'} />
                                 <AvatarFallback className="text-xs">
-                                  {program.owner.name.split(' ').map((n: string) => n[0]).join('')}
+                                  {(program.owner?.name || 'SU').split(' ').map((n: string) => n[0]).join('')}
                                 </AvatarFallback>
                               </Avatar>
-                              <span className="text-sm">{program.owner.name}</span>
+                              <span className="text-sm">{program.owner?.name || 'System User'}</span>
                             </div>
                           </TableCell>
                           <TableCell>

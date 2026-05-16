@@ -105,7 +105,7 @@ const iconMap: Record<string, React.ReactNode> = {
 };
 
 export default function DashboardPage() {
-  const { tasks, projects, teams, currentUser, aiCopilotOpen, isMounted } = useApp();
+  const { tasks, projects, teams, currentUser, aiCopilotOpen, isMounted, isTaskDone, getStatusGroup } = useApp();
   const [isEditMode, setIsEditMode] = useState(false);
   const [metrics, setMetrics] = useState<MetricConfig[]>(defaultMetrics);
   const [panels, setPanels] = useState<PanelConfig[]>(defaultPanels);
@@ -115,9 +115,9 @@ export default function DashboardPage() {
   // Derived metrics from real data
   const liveMetrics = {
     activeProjects: projects.filter(p => p.status === 'active').length,
-    tasksCompleted: tasks.filter(t => t.status === 'closed').length,
-    tasksInProgress: tasks.filter(t => t.status === 'in-progress').length,
-    overdueTasks: tasks.filter(t => t.status !== 'closed' && t.dueDate && new Date(t.dueDate) < new Date()).length,
+    tasksCompleted: tasks.filter(t => isTaskDone(t)).length,
+    tasksInProgress: tasks.filter(t => getStatusGroup(t.statusId) === 'IN_PROGRESS').length,
+    overdueTasks: tasks.filter(t => !isTaskDone(t) && t.dueDate && new Date(t.dueDate) < new Date()).length,
     teamUtilization: 0, // Should be calculated from real data
     aiConfidenceScore: projects.length > 0 ? Math.round(projects.reduce((acc, p) => acc + (p.aiConfidence || 0), 0) / projects.length) : 0,
   };

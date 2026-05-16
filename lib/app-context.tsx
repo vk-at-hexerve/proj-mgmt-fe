@@ -11,7 +11,6 @@ import {
   Task,
   Project,
   User,
-  TaskStatus,
   TaskPriority,
   Team,
   Program,
@@ -21,6 +20,8 @@ import {
   UserRole,
   TimeEntry,
   ResourceAllocation,
+  WorkflowStatus,
+  WorkflowGroupKey,
 } from "./types";
 
 export type { TimeEntry, ResourceAllocation };
@@ -86,6 +87,7 @@ export type ModalType =
   | 'link-task'
   | 'client-detail'
   | 'create-user'
+  | 'status-settings'
   | null;
 
 interface ModalState {
@@ -112,6 +114,7 @@ interface AppState {
   timeEntries: TimeEntry[];
   resourceAllocations: ResourceAllocation[];
   sprints: Sprint[];
+  workflowStatuses: WorkflowStatus[];
   currentUser: UserWithRole;
   currentProject: string | null;
   selectedTasks: string[];
@@ -128,14 +131,25 @@ interface AppContextType extends AppState {
   addTask: (task: Omit<Task, "id" | "createdAt" | "updatedAt" | "key">) => Promise<void>;
   updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
-  updateTaskStatus: (id: string, status: TaskStatus) => Promise<void>;
+  updateTaskStatus: (id: string, statusId: string) => Promise<void>;
   assignTask: (taskId: string, userId: string | null) => Promise<void>;
   selectTask: (id: string) => void;
   selectAllTasks: (ids: string[]) => void;
   clearSelectedTasks: () => void;
-  bulkUpdateTaskStatus: (ids: string[], status: TaskStatus) => Promise<void>;
+  bulkUpdateTaskStatus: (ids: string[], statusId: string) => Promise<void>;
   bulkAssignTasks: (ids: string[], userId: string) => Promise<void>;
   bulkDeleteTasks: (ids: string[]) => Promise<void>;
+
+  // Workflow status actions
+  addWorkflowStatus: (projectId: string, data: Partial<WorkflowStatus>) => Promise<void>;
+  updateWorkflowStatus: (statusId: string, updates: Partial<WorkflowStatus>) => Promise<void>;
+  deleteWorkflowStatus: (statusId: string, moveToStatusId: string) => Promise<void>;
+  reorderStatuses: (projectId: string, items: { id: string; position: number; groupKey?: WorkflowGroupKey }[]) => Promise<void>;
+
+  // Workflow status helpers
+  getProjectStatuses: (projectId: string) => WorkflowStatus[];
+  getStatusGroup: (statusId: string) => WorkflowGroupKey | undefined;
+  isTaskDone: (task: Task) => boolean;
 
   // Project actions
   setCurrentProject: (id: string | null) => void;
@@ -238,6 +252,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useState<User[]>([]);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
   const [resourceAllocations, setResourceAllocations] = useState<ResourceAllocation[]>([]);
+  const [workflowStatuses, setWorkflowStatuses] = useState<WorkflowStatus[]>([]);
   const [currentUser, setCurrentUser] = useState<UserWithRole>({
     id: "loading",
     name: "Loading...",
@@ -343,6 +358,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           mapBackendProgram,
           mapBackendSprint,
           mapBackendClient,
+          mapBackendWorkflowStatus,
         } = await import("./api");
 
         const [
@@ -369,7 +385,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           fetchAPI("/sprints").catch(() => []),
         ]);
 
-        if (Array.isArray(projectsData)) setProjects(projectsData.map(mapBackendProject));
+        const mappedProjects = Array.isArray(projectsData) ? projectsData.map(mapBackendProject) : [];
+        if (mappedProjects.length) setProjects(mappedProjects);
         if (Array.isArray(tasksData)) setTasks(tasksData.map(mapBackendTask));
         if (Array.isArray(teamsData)) setTeams(teamsData.map(mapBackendTeam));
         if (Array.isArray(timeEntriesData)) setTimeEntries(timeEntriesData.map(mapBackendTimeEntry));
@@ -378,6 +395,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (Array.isArray(clientsData)) setClients(clientsData.map(mapBackendClient));
         if (Array.isArray(usersData)) setUsers(usersData);
         if (Array.isArray(sprintsData)) setSprints(sprintsData.map(mapBackendSprint));
+
+        // Load workflow statuses for all projects
+        if (mappedProjects.length) {
+          const allStatuses: WorkflowStatus[] = [];
+          const statusPromises = mappedProjects.map((p) =>
+            fetchAPI(`/projects/${p.id}/statuses`).catch(() => [])
+          );
+          const statusResults = await Promise.all(statusPromises);
+          statusResults.forEach((statuses) => {
+            if (Array.isArray(statuses)) {
+              allStatuses.push(...statuses.map(mapBackendWorkflowStatus));
+            }
+          });
+          setWorkflowStatuses(allStatuses);
+        }
 
         if (meData) {
           setCurrentUser({
@@ -442,7 +474,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           start_date: task.startDate || null,
           due_date: task.dueDate || null,
           sprint_id: task.sprintId || null,
-          status: task.status === 'open' ? 'TODO' : task.status.toUpperCase().replace('-', '_'),
+          status_id: task.statusId || null,
           priority: task.priority === 'critical' ? 'URGENT' : task.priority.toUpperCase(),
           assignee_id: task.assignee?.id || null,
         }),
@@ -461,8 +493,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     try {
       const { fetchAPI } = await import("./api");
-      const backendPayload: any = { ...updates };
-      if (updates.status) backendPayload.status = updates.status === 'open' ? 'TODO' : updates.status.toUpperCase().replace('-', '_');
+      const backendPayload: any = {};
+      if (updates.statusId) backendPayload.status_id = updates.statusId;
       if (updates.priority) backendPayload.priority = updates.priority === 'critical' ? 'URGENT' : updates.priority.toUpperCase();
       if (updates.storyPoints !== undefined) backendPayload.story_points = updates.storyPoints;
       if (updates.startDate !== undefined) backendPayload.start_date = updates.startDate;
@@ -493,12 +525,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [tasks, showToast]);
 
-  const updateTaskStatus = useCallback(async (id: string, status: TaskStatus) => {
-    setTasks((prev) => prev.map((task) => task.id === id ? { ...task, status, updatedAt: new Date().toISOString() } : task));
+  const updateTaskStatus = useCallback(async (id: string, statusId: string) => {
+    setTasks((prev) => prev.map((task) => task.id === id ? { ...task, statusId, updatedAt: new Date().toISOString() } : task));
     try {
       const { fetchAPI } = await import("./api");
-      const mappedStatus = status === 'open' ? 'TODO' : status.toUpperCase().replace('-', '_');
-      await fetchAPI(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ status: mappedStatus }) });
+      await fetchAPI(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ status_id: statusId }) });
       showToast({ title: "Status updated", type: "success" });
     } catch (err) {
       showToast({ title: "Status update failed", type: "error" });
@@ -507,11 +538,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const assignTask = useCallback(async (taskId: string, userId: string | null) => {
     const user = userId ? users.find((u) => u.id === userId) : null;
-    setTasks((prev) => prev.map((task) => task.id === taskId ? { ...task, assignee: user || undefined, status: user && task.status === 'open' ? 'assigned' : task.status, updatedAt: new Date().toISOString() } : task));
+    setTasks((prev) => prev.map((task) => task.id === taskId ? { ...task, assignee: user || undefined, updatedAt: new Date().toISOString() } : task));
 
     try {
       const { fetchAPI } = await import("./api");
-      await fetchAPI(`/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify({ assignee_id: userId, status: user ? "ASSIGNED" : "TODO" }) });
+      await fetchAPI(`/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify({ assignee_id: userId }) });
       showToast({ title: user ? "Task assigned" : "Task unassigned", description: user ? `Assigned to ${user.name}` : undefined, type: "success" });
     } catch (err) {
       showToast({ title: "Assignment failed", type: "error" });
@@ -525,13 +556,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const selectAllTasks = useCallback((ids: string[]) => setSelectedTasks(ids), []);
   const clearSelectedTasks = useCallback(() => setSelectedTasks([]), []);
 
-  const bulkUpdateTaskStatus = useCallback(async (ids: string[], status: TaskStatus) => {
-    setTasks((prev) => prev.map((task) => ids.includes(task.id) ? { ...task, status, updatedAt: new Date().toISOString() } : task));
+  const bulkUpdateTaskStatus = useCallback(async (ids: string[], statusId: string) => {
+    setTasks((prev) => prev.map((task) => ids.includes(task.id) ? { ...task, statusId, updatedAt: new Date().toISOString() } : task));
     setSelectedTasks([]);
     try {
       const { fetchAPI } = await import("./api");
-      const mappedStatus = status === 'open' ? 'TODO' : status.toUpperCase().replace('-', '_');
-      await Promise.all(ids.map(id => fetchAPI(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ status: mappedStatus }) })));
+      await Promise.all(ids.map(id => fetchAPI(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ status_id: statusId }) })));
       showToast({ title: `${ids.length} tasks updated`, type: "success" });
     } catch (err) {
       showToast({ title: "Bulk update failed", type: "error" });
@@ -541,11 +571,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const bulkAssignTasks = useCallback(async (ids: string[], userId: string) => {
     const user = users.find((u) => u.id === userId);
     if (!user) return;
-    setTasks((prev) => prev.map((task) => ids.includes(task.id) ? { ...task, assignee: user, status: task.status === 'open' ? 'assigned' : task.status, updatedAt: new Date().toISOString() } : task));
+    setTasks((prev) => prev.map((task) => ids.includes(task.id) ? { ...task, assignee: user, updatedAt: new Date().toISOString() } : task));
     setSelectedTasks([]);
     try {
       const { fetchAPI } = await import("./api");
-      await Promise.all(ids.map(id => fetchAPI(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ assignee_id: userId, status: "ASSIGNED" }) })));
+      await Promise.all(ids.map(id => fetchAPI(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ assignee_id: userId }) })));
       showToast({ title: `${ids.length} tasks assigned`, description: `to ${user.name}`, type: "success" });
     } catch (err) {
       showToast({ title: "Bulk assignment failed", type: "error" });
@@ -564,6 +594,105 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [showToast]);
 
+  // ── Workflow Status actions ──────────────────────────────────────────
+
+  const addWorkflowStatus = useCallback(async (projectId: string, data: Partial<WorkflowStatus>) => {
+    try {
+      const { fetchAPI, mapBackendWorkflowStatus } = await import("./api");
+      const saved = await fetchAPI(`/projects/${projectId}/statuses`, {
+        method: "POST",
+        body: JSON.stringify({
+          name: data.name,
+          slug: data.slug || undefined,
+          group_key: data.groupKey,
+          color: data.color,
+          icon: data.icon,
+          position: data.position,
+          is_default: data.isDefault,
+        }),
+      });
+      const mapped = mapBackendWorkflowStatus(saved);
+      setWorkflowStatuses((prev) => [...prev, mapped]);
+      showToast({ title: "Status created", description: mapped.name, type: "success" });
+    } catch (error: any) {
+      showToast({ title: "Status creation failed", description: error.message, type: "error" });
+    }
+  }, [showToast]);
+
+  const updateWorkflowStatus = useCallback(async (statusId: string, updates: Partial<WorkflowStatus>) => {
+    setWorkflowStatuses((prev) => prev.map((s) => s.id === statusId ? { ...s, ...updates } : s));
+    try {
+      const { fetchAPI } = await import("./api");
+      const status = workflowStatuses.find((s) => s.id === statusId);
+      if (!status) return;
+      const payload: any = {};
+      if (updates.name !== undefined) payload.name = updates.name;
+      if (updates.color !== undefined) payload.color = updates.color;
+      if (updates.icon !== undefined) payload.icon = updates.icon;
+      if (updates.position !== undefined) payload.position = updates.position;
+      if (updates.groupKey !== undefined) payload.group_key = updates.groupKey;
+      if (updates.isDefault !== undefined) payload.is_default = updates.isDefault;
+      await fetchAPI(`/projects/${status.projectId}/statuses/${statusId}`, { method: "PATCH", body: JSON.stringify(payload) });
+      showToast({ title: "Status updated", type: "success" });
+    } catch (err) {
+      showToast({ title: "Status update failed", type: "error" });
+    }
+  }, [workflowStatuses, showToast]);
+
+  const deleteWorkflowStatus = useCallback(async (statusId: string, moveToStatusId: string) => {
+    try {
+      const { fetchAPI } = await import("./api");
+      const status = workflowStatuses.find((s) => s.id === statusId);
+      if (!status) return;
+      await fetchAPI(`/projects/${status.projectId}/statuses/${statusId}?move_to_status_id=${moveToStatusId}`, { method: "DELETE" });
+      setWorkflowStatuses((prev) => prev.filter((s) => s.id !== statusId));
+      setTasks((prev) => prev.map((t) => t.statusId === statusId ? { ...t, statusId: moveToStatusId } : t));
+      showToast({ title: "Status deleted", type: "success" });
+    } catch (error: any) {
+      showToast({ title: "Delete failed", description: error.message, type: "error" });
+    }
+  }, [workflowStatuses, showToast]);
+
+  const reorderStatuses = useCallback(async (projectId: string, items: { id: string; position: number; groupKey?: WorkflowGroupKey }[]) => {
+    // Optimistic update
+    setWorkflowStatuses((prev) => prev.map((s) => {
+      const item = items.find((i) => i.id === s.id);
+      if (!item) return s;
+      return { ...s, position: item.position, ...(item.groupKey ? { groupKey: item.groupKey } : {}) };
+    }));
+    try {
+      const { fetchAPI, mapBackendWorkflowStatus } = await import("./api");
+      const payload = items.map((i) => ({ id: i.id, position: i.position, ...(i.groupKey ? { group_key: i.groupKey } : {}) }));
+      const updated = await fetchAPI(`/projects/${projectId}/statuses/reorder`, { method: "POST", body: JSON.stringify(payload) });
+      if (Array.isArray(updated)) {
+        const mapped = updated.map(mapBackendWorkflowStatus);
+        setWorkflowStatuses((prev) => {
+          const others = prev.filter((s) => s.projectId !== projectId);
+          return [...others, ...mapped];
+        });
+      }
+    } catch (err) {
+      showToast({ title: "Reorder failed", type: "error" });
+    }
+  }, [showToast]);
+
+  // ── Workflow Status helpers ──────────────────────────────────────────
+
+  const getProjectStatuses = useCallback((projectId: string): WorkflowStatus[] => {
+    const groupOrder: Record<string, number> = { OPEN: 0, IN_PROGRESS: 1, ON_HOLD: 2, CLOSED: 3 };
+    return workflowStatuses
+      .filter((s) => s.projectId === projectId)
+      .sort((a, b) => (groupOrder[a.groupKey] ?? 99) - (groupOrder[b.groupKey] ?? 99) || a.position - b.position);
+  }, [workflowStatuses]);
+
+  const getStatusGroup = useCallback((statusId: string): WorkflowGroupKey | undefined => {
+    return workflowStatuses.find((s) => s.id === statusId)?.groupKey;
+  }, [workflowStatuses]);
+
+  const isTaskDone = useCallback((task: Task): boolean => {
+    return workflowStatuses.find((s) => s.id === task.statusId)?.groupKey === 'CLOSED';
+  }, [workflowStatuses]);
+
   // Project actions
   const addProject = useCallback(async (project: Omit<Project, "id" | "createdAt">) => {
     const tempId = `proj-temp-${Date.now()}`;
@@ -571,7 +700,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setProjects((prev) => [...prev, newProject]);
 
     try {
-      const { fetchAPI, mapBackendProject } = await import("./api");
+      const { fetchAPI, mapBackendProject, mapBackendWorkflowStatus } = await import("./api");
       const savedProject = await fetchAPI("/projects", {
         method: "POST",
         body: JSON.stringify({
@@ -587,6 +716,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }),
       });
       setProjects((prev) => prev.map((p) => p.id === tempId ? mapBackendProject(savedProject) : p));
+      
+      // Fetch the default statuses created by the backend and add them to state
+      try {
+        const statuses = await fetchAPI(`/projects/${savedProject.id}/statuses`);
+        if (Array.isArray(statuses)) {
+          const newStatuses = statuses.map(mapBackendWorkflowStatus);
+          setWorkflowStatuses((prev) => {
+            const existingIds = new Set(prev.map(s => s.id));
+            const uniqueNew = newStatuses.filter(s => !existingIds.has(s.id));
+            return [...prev, ...uniqueNew];
+          });
+        }
+      } catch (e) {
+        console.error("Failed to fetch default statuses for new project", e);
+      }
+      
       showToast({ title: "Project created", description: savedProject.name, type: "success" });
     } catch (error: any) {
       setProjects((prev) => prev.filter((p) => p.id !== tempId));
@@ -599,7 +744,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const { fetchAPI } = await import("./api");
       const backendPayload: any = { ...updates };
-      if (updates.status) backendPayload.status = updates.status.toUpperCase().replace('-', '_');
+      if (updates.status) backendPayload.status = (updates.status as string).toUpperCase();
       if (updates.startDate) backendPayload.start_date = updates.startDate;
       if (updates.endDate) backendPayload.end_date = updates.endDate;
       if ((updates as any).clientId !== undefined) backendPayload.client_id = (updates as any).clientId;
@@ -1052,8 +1197,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const getSprint = useCallback((id: string) => sprints.find((s) => s.id === id), [sprints]);
 
   const value: AppContextType = {
-    tasks, projects, teams, programs, portfolios, clients, users, timeEntries, resourceAllocations, sprints, currentUser, currentProject, selectedTasks, modal, toasts, searchOpen, aiCopilotOpen, isAuthenticated, token, isAuthInitialized,
+    tasks, projects, teams, programs, portfolios, clients, users, timeEntries, resourceAllocations, sprints, workflowStatuses, currentUser, currentProject, selectedTasks, modal, toasts, searchOpen, aiCopilotOpen, isAuthenticated, token, isAuthInitialized,
     addTask, updateTask, deleteTask, updateTaskStatus, assignTask, selectTask, selectAllTasks, clearSelectedTasks, bulkUpdateTaskStatus, bulkAssignTasks, bulkDeleteTasks,
+    addWorkflowStatus, updateWorkflowStatus, deleteWorkflowStatus, reorderStatuses, getProjectStatuses, getStatusGroup, isTaskDone,
     setCurrentProject, addProject, updateProject, deleteProject,
     addTeam, updateTeam, deleteTeam, addTeamMember, removeTeamMember, setTeamLead,
     addUser,

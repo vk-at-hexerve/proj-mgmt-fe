@@ -5,6 +5,7 @@ import { useApp } from '@/lib/app-context';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { getStatusName } from '@/lib/status-utils';
 import {
   Popover,
   PopoverContent,
@@ -38,7 +39,7 @@ interface CalendarEvent {
   task?: Task;
   sprint?: Sprint;
   priority?: string;
-  status?: string;
+  statusId?: string;
 }
 
 interface DayCell {
@@ -96,11 +97,11 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
-  'open':            <Clock className="size-3" />,
-  'assigned':        <CheckCircle2 className="size-3" />,
-  'in-progress':     <Zap className="size-3" />,
-  'pending-approval':<AlertCircle className="size-3" />,
-  'closed':          <CheckCircle2 className="size-3 text-green-500" />,
+  'OPEN':            <Clock className="size-3" />,
+  'ASSIGNED':        <CheckCircle2 className="size-3" />,
+  'IN_PROGRESS':     <Zap className="size-3" />,
+  'PENDING_APPROVAL':<AlertCircle className="size-3" />,
+  'CLOSED':          <CheckCircle2 className="size-3 text-green-500" />,
 };
 
 function typeIcon(type: string) {
@@ -158,6 +159,7 @@ function OverflowPopover({
   date: Date;
   events: CalendarEvent[];
 }) {
+  const { workflowStatuses } = useApp();
   const label = date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
   return (
     <Popover>
@@ -184,10 +186,10 @@ function OverflowPopover({
                   <p className="font-medium truncate">{ev.title}</p>
                   <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground mt-0.5">
                     <span className="capitalize">{ev.type}</span>
-                    {ev.status && (
+                    {ev.statusId && (
                       <>
                         <span>·</span>
-                        <span className="capitalize">{ev.status.replace('-', ' ')}</span>
+                        <span className="capitalize">{getStatusName(workflowStatuses, ev.statusId)}</span>
                       </>
                     )}
                     {ev.priority && (
@@ -219,6 +221,7 @@ function EventDetailPopover({
   open: boolean;
   onClose: () => void;
 }) {
+  const { workflowStatuses } = useApp();
   if (!event) return null;
   const colors = TASK_COLORS[event.type] ?? TASK_COLORS.task;
   const task = event.task;
@@ -246,9 +249,9 @@ function EventDetailPopover({
             <p className="font-semibold text-sm leading-tight">{event.title}</p>
             <div className="flex items-center gap-1.5 mt-1">
               <Badge variant="outline" className="text-[10px] capitalize">{event.type}</Badge>
-              {event.status && (
+              {event.statusId && (
                 <Badge variant="secondary" className="text-[10px] capitalize">
-                  {event.status.replace('-', ' ')}
+                  {getStatusName(workflowStatuses, event.statusId)}
                 </Badge>
               )}
             </div>
@@ -319,7 +322,8 @@ interface ProjectCalendarViewProps {
 }
 
 export function ProjectCalendarView({ projectId }: ProjectCalendarViewProps) {
-  const { tasks: allTasks, sprints: allSprints } = useApp();
+  const { tasks: allTasks, sprints: allSprints, projects } = useApp();
+  const project = projects.find(p => p.id === projectId);
 
   // ── Month navigation ─────────────────────────────────────────────────────
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -387,7 +391,7 @@ export function ProjectCalendarView({ projectId }: ProjectCalendarViewProps) {
           bgColor: colors.bg,
           task,
           priority: task.priority,
-          status: task.status,
+          statusId: task.statusId,
         });
       });
 
@@ -408,7 +412,7 @@ export function ProjectCalendarView({ projectId }: ProjectCalendarViewProps) {
           color: colors.text,
           bgColor: colors.bg,
           sprint,
-          status: sprint.status,
+          statusId: sprint.status,
         });
       });
 

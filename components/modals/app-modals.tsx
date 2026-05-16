@@ -39,6 +39,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+import {
   Command,
   CommandEmpty,
   CommandGroup,
@@ -54,7 +60,6 @@ import {
 import { users as contextUsers, projects as contextProjects, portfolios as contextPortfolios, tags as availableTags, projectTemplates, clients } from '@/lib/mock-data';
 import {
   TaskPriority,
-  TaskStatus,
   TaskComment,
   TaskAttachment,
   TaskLink,
@@ -70,9 +75,11 @@ import {
   UserRole,
   Portfolio,
   Program,
-   Project,
-   TimeEntry,
-   TimeEntry as AppTimeEntry,
+  Project,
+  TimeEntry,
+  TimeEntry as AppTimeEntry,
+  WorkflowGroupKey,
+  WorkflowStatus,
 } from "@/lib/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -123,7 +130,16 @@ import {
   Lock,
   Target,
   Search,
+  Workflow,
+  GripVertical,
+  Star,
+  Palette,
+  Layout,
+  Save,
+  Download,
 } from "lucide-react";
+import { getStatusName, getStatusGroup, getStatusColor, getProjectStatuses } from "@/lib/status-utils";
+
 
 const getTodayDateInputValue = () => {
   const today = new Date();
@@ -182,6 +198,17 @@ export function AppModals() {
   } = useApp();
 
   if (!isMounted) return null;
+
+  // Status Settings Modal
+  if (modal.type === "status-settings") {
+    return (
+      <StatusSettingsModal
+        isOpen={true}
+        onClose={closeModal}
+        projectId={modal.data?.projectId as string}
+      />
+    );
+  }
 
   // Create Task Modal
   if (modal.type === "create-task") {
@@ -393,7 +420,7 @@ function CreateTaskModal({
   onSubmit: (task: Parameters<ReturnType<typeof useApp>["addTask"]>[0]) => void;
   projectId?: string;
 }) {
-  const { projects, users, sprints } = useApp();
+  const { projects, users, sprints, workflowStatuses } = useApp();
   const [sprint, setSprint] = useState<string>("no-sprint");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -433,7 +460,9 @@ function CreateTaskModal({
       description: description.trim(),
       type,
       priority,
-      status: assignee ? "assigned" : "open",
+      statusId: workflowStatuses.find(s => (s.projectId === project || s.isDefault) && s.groupKey === 'OPEN')?.id ||
+        workflowStatuses.find(s => s.projectId === project || s.isDefault)?.id ||
+        "open",
       projectId: project,
       assignee: selectedUser,
       reporter: users[0],
@@ -689,7 +718,8 @@ function EditTaskModal({
   onClose: () => void;
   onSubmit: (updates: Partial<NonNullable<typeof task>>) => void;
 }) {
-  const { tasks, users, currentUser, getTaskActivities, openModal, addTimeEntry, showToast } = useApp();
+  const { tasks, users, currentUser, getTaskActivities, openModal, addTimeEntry, showToast, projects, workflowStatuses, getStatusGroup } = useApp();
+  const project = projects.find(p => p.id === task?.projectId);
   const [title, setTitle] = useState(task?.title || "");
   const [description, setDescription] = useState(task?.description || "");
   const [type, setType] = useState<
@@ -698,7 +728,7 @@ function EditTaskModal({
   const [priority, setPriority] = useState<TaskPriority>(
     task?.priority || "medium",
   );
-  const [status, setStatus] = useState<TaskStatus>(task?.status || "open");
+  const [statusId, setStatusId] = useState<string>(task?.statusId || "open");
   const [storyPoints, setStoryPoints] = useState<string>(
     task?.storyPoints?.toString() || "",
   );
@@ -841,7 +871,7 @@ function EditTaskModal({
       description: description.trim(),
       type,
       priority,
-      status,
+      statusId,
       storyPoints: storyPoints ? parseInt(storyPoints) : undefined,
       startDate: startDate || undefined,
       dueDate: dueDate || undefined,
@@ -1089,21 +1119,24 @@ function EditTaskModal({
                 <div className="space-y-2">
                   <Label>Status</Label>
                   <Select
-                    value={status}
-                    onValueChange={(v) => setStatus(v as TaskStatus)}
+                    value={statusId}
+                    onValueChange={(v) => setStatusId(v)}
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="open">Open</SelectItem>
-                      <SelectItem value="assigned">Assigned</SelectItem>
-                      <SelectItem value="in-progress">In Progress</SelectItem>
-                      <SelectItem value="pending-approval">
-                        Pending Approval
-                      </SelectItem>
-                      <SelectItem value="on-hold">On Hold</SelectItem>
-                      <SelectItem value="closed">Closed</SelectItem>
+                      {workflowStatuses
+                        .filter(s => !task?.projectId || s.projectId === task.projectId || s.isDefault)
+                        .sort((a, b) => a.position - b.position)
+                        .map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            <div className="flex items-center gap-2">
+                              <div className="size-2 rounded-full" style={{ backgroundColor: s.color }} />
+                              {s.name}
+                            </div>
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1634,7 +1667,7 @@ function TaskDetailModal({
   task: NonNullable<ReturnType<ReturnType<typeof useApp>["getTask"]>>;
   onClose: () => void;
 }) {
-  const { openModal, projects } = useApp();
+  const { openModal, projects, workflowStatuses, getStatusGroup } = useApp();
   const project = projects.find((p) => p.id === task.projectId);
 
   return (
@@ -1669,8 +1702,15 @@ function TaskDetailModal({
           <div className="grid grid-cols-2 gap-6">
             <div>
               <Label className="text-muted-foreground">Status</Label>
-              <Badge className="mt-1 capitalize">
-                {task.status.replace("-", " ")}
+              <Badge
+                variant="secondary"
+                className="mt-1"
+                style={{ backgroundColor: (workflowStatuses.find(s => s.id === task.statusId)?.color || '#94a3b8') + '20', color: workflowStatuses.find(s => s.id === task.statusId)?.color }}
+              >
+                <div className="flex items-center gap-1.5">
+                  <div className="size-1.5 rounded-full" style={{ backgroundColor: workflowStatuses.find(s => s.id === task.statusId)?.color || '#94a3b8' }} />
+                  {getStatusName(workflowStatuses, task.statusId)}
+                </div>
               </Badge>
             </div>
             <div>
@@ -1855,20 +1895,13 @@ function ChangeStatusModal({
 }: {
   taskIds: string[];
   onClose: () => void;
-  onChangeStatus: (status: TaskStatus) => void;
+  onChangeStatus: (statusId: string) => void;
 }) {
-  const statuses: { value: TaskStatus; label: string; color: string }[] = [
-    { value: "open", label: "Open", color: "bg-muted-foreground" },
-    { value: "assigned", label: "Assigned", color: "bg-accent" },
-    { value: "in-progress", label: "In Progress", color: "bg-primary" },
-    {
-      value: "pending-approval",
-      label: "Pending Approval",
-      color: "bg-warning",
-    },
-    { value: "on-hold", label: "On Hold", color: "bg-muted-foreground" },
-    { value: "closed", label: "Closed", color: "bg-success" },
-  ];
+  const { tasks, projects, workflowStatuses } = useApp();
+  const project = projects.find(p => p.id === tasks.find(t => taskIds.includes(t.id))?.projectId);
+  const projectStatuses = workflowStatuses
+    .filter((s) => !project || s.projectId === project.id || s.isDefault)
+    .sort((a, b) => a.position - b.position);
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -1879,15 +1912,15 @@ function ChangeStatusModal({
               ? `Update ${taskIds.length} tasks`
               : "Set status"}
           </p>
-          {statuses.map((status) => (
+          {projectStatuses.map((status) => (
             <button
-              key={status.value}
+              key={status.id}
               type="button"
-              onClick={() => onChangeStatus(status.value)}
+              onClick={() => onChangeStatus(status.id)}
               className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted transition-colors text-left"
             >
-              <div className={`size-2 rounded-full ${status.color}`} />
-              <span className="text-sm">{status.label}</span>
+              <div className="size-2 rounded-full" style={{ backgroundColor: status.color }} />
+              <span className="text-sm">{status.name}</span>
             </button>
           ))}
         </div>
@@ -2910,200 +2943,147 @@ function EditProjectModal({
     onClose();
   };
 
+
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-2xl max-h-[95vh] p-0 overflow-hidden flex flex-col">
-        <DialogHeader className="p-6 pb-4 shrink-0 border-b">
-          <div className="flex items-start gap-3">
-            <div className="size-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+        <DialogHeader className="p-6 pb-2 shrink-0 bg-slate-50/50">
+          <div className="flex items-center gap-3">
+            <div className="size-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
               <Settings className="size-5 text-primary" />
             </div>
-            <div className="flex-1 min-w-0">
-              <DialogTitle className="text-xl">Project Settings</DialogTitle>
-              <DialogDescription className="mt-1">
-                Update project details. Name and key cannot be changed after creation.
+            <div>
+              <DialogTitle>Project Settings</DialogTitle>
+              <DialogDescription>
+                Configure metadata, workflows, and resource assignments
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
-        <form id="edit-project-form" onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-6 custom-scrollbar">
-            {/* Locked Fields – Project Name & Key */}
-            <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800/50 p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Shield className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
-                  Identity Fields — Read Only
-                </p>
-              </div>
-              <p className="text-xs text-amber-700 dark:text-amber-400 mb-3">
-                Project Name and Key are locked after creation because they are linked to task identifiers (e.g.{" "}
-                <span className="font-mono font-semibold">{project.key}-1</span>) and backend relationships.
-              </p>
+        <Tabs defaultValue="general" className="flex-1 overflow-hidden flex flex-col px-6">
+          <TabsList className="grid w-full grid-cols-2 shrink-0 mb-2">
+            <TabsTrigger value="general">General</TabsTrigger>
+            <TabsTrigger value="resources">Resources</TabsTrigger>
+          </TabsList>
+
+          <div className="flex-1 overflow-y-auto p-0 custom-scrollbar bg-slate-50/30 min-h-0">
+            <TabsContent value="general" className="mt-0 space-y-6 outline-none p-6">
+              <form id="edit-project-form" onSubmit={handleSubmit} className="space-y-6">
+                {/* Locked Fields – Project Name & Key */}
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Shield className="size-4 text-amber-600 shrink-0" />
+                    <p className="text-xs font-bold uppercase tracking-wider text-amber-800">Identity Fields (Read Only)</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-amber-700 font-bold uppercase">Project Name</Label>
+                      <div className="text-sm font-medium text-slate-600 bg-white/50 px-2 py-1 rounded border border-amber-100">{project.name}</div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-amber-700 font-bold uppercase">Project Key</Label>
+                      <div className="text-sm font-mono font-medium text-slate-600 bg-white/50 px-2 py-1 rounded border border-amber-100">{project.key}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-proj-desc" className="text-xs font-bold uppercase tracking-wider text-slate-500">Description</Label>
+                  <Textarea
+                    id="edit-proj-desc"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={4}
+                    className="resize-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Status</Label>
+                    <Select value={status} onValueChange={setStatus}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="planning">Planning</SelectItem>
+                        <SelectItem value="on-hold">On Hold</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Methodology</Label>
+                    <Select value={type} onValueChange={setType}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="agile-scrum">Agile — Scrum</SelectItem>
+                        <SelectItem value="agile-kanban">Agile — Kanban</SelectItem>
+                        <SelectItem value="waterfall">Waterfall</SelectItem>
+                        <SelectItem value="hybrid">Hybrid</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </form>
+            </TabsContent>
+
+            <TabsContent value="resources" className="mt-0 space-y-6 outline-none p-6">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Project Name</Label>
-                  <div className="flex items-center gap-2 h-9 px-3 rounded-md border border-border bg-muted/50 text-sm text-muted-foreground cursor-not-allowed">
-                    <span className="truncate">{project.name}</span>
-                    <Lock className="size-3.5 text-muted-foreground/60 ml-auto shrink-0" />
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Client</Label>
+                  <Select value={clientId} onValueChange={setClientId}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Client</SelectItem>
+                      {clients.map((c: any) => (
+                        <SelectItem key={c.id} value={c.id}>{c.company || c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Assigned Team</Label>
+                  <Select value={teamId} onValueChange={setTeamId}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Team</SelectItem>
+                      {teams.map((t: any) => (
+                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t space-y-4">
+                <h4 className="text-sm font-semibold">Project Timeline</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Planned Start</Label>
+                    <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Target End</Label>
+                    <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
                   </div>
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Project Key</Label>
-                  <div className="flex items-center gap-2 h-9 px-3 rounded-md border border-border bg-muted/50 text-sm font-mono text-muted-foreground cursor-not-allowed">
-                    <span className="truncate">{project.key}</span>
-                    <Lock className="size-3.5 text-muted-foreground/60 ml-auto shrink-0" />
-                  </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Budget Allocation ($)</Label>
+                  <Input type="number" value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="0.00" />
                 </div>
               </div>
-            </div>
-
-            {/* Description */}
-            <div className="space-y-2">
-              <Label htmlFor="edit-proj-desc">Description</Label>
-              <Textarea
-                id="edit-proj-desc"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Describe the project's goals and scope..."
-                rows={3}
-              />
-            </div>
-
-            {/* Status & Methodology */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <Select value={status} onValueChange={setStatus}>
-                  <SelectTrigger id="edit-proj-status">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="planning">Planning</SelectItem>
-                    <SelectItem value="on-hold">On Hold</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Methodology</Label>
-                <Select value={type} onValueChange={setType}>
-                  <SelectTrigger id="edit-proj-type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="agile-scrum">Agile — Scrum</SelectItem>
-                    <SelectItem value="agile-kanban">Agile — Kanban</SelectItem>
-                    <SelectItem value="waterfall">Waterfall</SelectItem>
-                    <SelectItem value="hybrid">Hybrid</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Dates */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Start Date</Label>
-                <Input
-                  id="edit-proj-start"
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setStartDate(v);
-                    if (endDate && new Date(v) > new Date(endDate)) {
-                      setDueDateError("End date cannot be before the start date.");
-                    } else {
-                      setDueDateError("");
-                    }
-                  }}
-                />
-                {startDateError && <p className="text-sm text-destructive">{startDateError}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label>End Date</Label>
-                <Input
-                  id="edit-proj-end"
-                  type="date"
-                  value={endDate}
-                  min={startDate || undefined}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setEndDate(v);
-                    if (startDate && new Date(v) < new Date(startDate)) {
-                      setDueDateError("End date cannot be before the start date.");
-                    } else {
-                      setDueDateError("");
-                    }
-                  }}
-                />
-                {dueDateError && <p className="text-sm text-destructive">{dueDateError}</p>}
-              </div>
-            </div>
-
-            {/* Budget */}
-            <div className="space-y-2">
-              <Label htmlFor="edit-proj-budget">Budget ($)</Label>
-              <Input
-                id="edit-proj-budget"
-                type="number"
-                value={budget}
-                onChange={(e) => setBudget(e.target.value)}
-                placeholder="e.g. 100000"
-                min={0}
-              />
-            </div>
-
-            {/* Client */}
-            <div className="space-y-2">
-              <Label>Client</Label>
-              <Select value={clientId} onValueChange={setClientId}>
-                <SelectTrigger id="edit-proj-client">
-                  <SelectValue placeholder="Select client..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">
-                    <span className="text-muted-foreground">No client</span>
-                  </SelectItem>
-                  {clients.map((c: any) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      <div className="flex items-center gap-2">
-                        <Building className="size-3.5 text-primary/70" />
-                        <span>{c.company || c.name}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Team */}
-            <div className="space-y-2">
-              <Label>Team</Label>
-              <Select value={teamId} onValueChange={setTeamId}>
-                <SelectTrigger id="edit-proj-team">
-                  <SelectValue placeholder="Select team..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">
-                    <span className="text-muted-foreground">No team</span>
-                  </SelectItem>
-                  {teams.map((t: any) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      <div className="flex items-center gap-2">
-                        <Users className="size-3.5 text-primary/70" />
-                        <span>{t.name}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            </TabsContent>
           </div>
-        </form>
+        </Tabs>
 
         <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
           <Button type="button" variant="outline" onClick={onClose}>
@@ -3112,6 +3092,8 @@ function EditProjectModal({
           <Button
             form="edit-project-form"
             type="submit"
+            onClick={handleSubmit}
+            className="shadow-lg shadow-primary/20"
           >
             Save Changes
           </Button>
@@ -5290,5 +5272,358 @@ function ClientDetailModal({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ─── Status Settings Modal ──────────────────────────────────────────────────
+
+const COLOR_PRESETS = [
+  '#64748b', // slate
+  '#ef4444', // red
+  '#f97316', // orange
+  '#f59e0b', // amber
+  '#eab308', // yellow
+  '#84cc16', // lime
+  '#22c55e', // green
+  '#10b981', // emerald
+  '#06b6d4', // cyan
+  '#3b82f6', // blue
+  '#6366f1', // indigo
+  '#8b5cf6', // violet
+  '#d946ef', // fuchsia
+  '#ec4899', // pink
+];
+
+const WORKFLOW_GROUP_CONFIG: Record<WorkflowGroupKey, { label: string; color: string; description: string }> = {
+  OPEN: { label: 'Open', color: 'bg-slate-500', description: 'Starting points for new work' },
+  IN_PROGRESS: { label: 'In Progress', color: 'bg-blue-500', description: 'Work actively being done' },
+  ON_HOLD: { label: 'On Hold', color: 'bg-amber-500', description: 'Paused or blocked items' },
+  CLOSED: { label: 'Closed', color: 'bg-green-500', description: 'Completed or cancelled work' },
+};
+
+interface StatusSettingsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  projectId: string;
+}
+
+export function StatusSettingsModal({ isOpen, onClose, projectId }: StatusSettingsModalProps) {
+  const {
+    workflowStatuses,
+    tasks,
+    addWorkflowStatus,
+    updateWorkflowStatus,
+    deleteWorkflowStatus,
+    reorderStatuses,
+    showToast
+  } = useApp();
+
+  const projectStatuses = workflowStatuses
+    .filter(s => s.projectId === projectId)
+    .sort((a, b) => a.position - b.position);
+
+  const [editingStatusId, setEditingStatusId] = useState<string | null>(null);
+  const [deletingStatus, setDeletingStatus] = useState<WorkflowStatus | null>(null);
+  const [moveToStatusId, setMoveToStatusId] = useState<string>('');
+  const [draggedStatusId, setDraggedStatusId] = useState<string | null>(null);
+
+  const statusesByGroup = (group: WorkflowGroupKey) =>
+    projectStatuses.filter(s => s.groupKey === group);
+
+  const handleAddStatus = (group: WorkflowGroupKey) => {
+    const groupStatuses = statusesByGroup(group);
+    const maxPos = groupStatuses.length > 0
+      ? Math.max(...groupStatuses.map(s => s.position))
+      : 0;
+
+    addWorkflowStatus(projectId, {
+      name: 'New Status',
+      groupKey: group,
+      color: COLOR_PRESETS[0],
+      position: maxPos + 1,
+      isDefault: false,
+    });
+  };
+
+  const handleToggleDefault = (status: WorkflowStatus) => {
+    if (status.groupKey !== 'OPEN') {
+      showToast({ title: "Invalid action", description: "Default status must be in the OPEN group", type: "error" });
+      return;
+    }
+
+    // Find current default and unset it
+    const currentDefault = projectStatuses.find(s => s.isDefault);
+    if (currentDefault) {
+      updateWorkflowStatus(currentDefault.id, { isDefault: false });
+    }
+
+    updateWorkflowStatus(status.id, { isDefault: true });
+  };
+
+  const confirmDelete = () => {
+    if (!deletingStatus) return;
+
+    const affectedTasks = tasks.filter(t => t.statusId === deletingStatus.id);
+    if (affectedTasks.length > 0 && !moveToStatusId) {
+      showToast({ title: "Error", description: "Please select a target status for existing tasks", type: "error" });
+      return;
+    }
+
+    deleteWorkflowStatus(deletingStatus.id, moveToStatusId || projectStatuses.find(s => s.id !== deletingStatus.id)?.id || '');
+    setDeletingStatus(null);
+    setMoveToStatusId('');
+  };
+
+  // ─── Drag & Drop ───────────────────────────────────────────────────────────
+
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    setDraggedStatusId(id);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string, targetGroup: WorkflowGroupKey) => {
+    e.preventDefault();
+    if (!draggedStatusId || draggedStatusId === targetId) return;
+
+    const sourceStatus = projectStatuses.find(s => s.id === draggedStatusId);
+    const targetStatus = projectStatuses.find(s => s.id === targetId);
+    if (!sourceStatus || !targetStatus) return;
+
+    // Filter statuses in the target group
+    const targetGroupStatuses = statusesByGroup(targetGroup);
+
+    const newItems = [...projectStatuses];
+    const sourceIdx = newItems.findIndex(i => i.id === draggedStatusId);
+    const [movedItem] = newItems.splice(sourceIdx, 1);
+
+    const targetIdx = newItems.findIndex(i => i.id === targetId);
+    newItems.splice(targetIdx, 0, movedItem);
+
+    // Update positions
+    const reorderPayload = newItems.map((s, idx) => ({
+      id: s.id,
+      position: idx,
+      groupKey: s.id === draggedStatusId ? targetGroup : s.groupKey
+    }));
+
+    reorderStatuses(projectId, reorderPayload);
+    setDraggedStatusId(null);
+  };
+
+  return (
+    <>
+      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="p-6 pb-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="text-2xl font-bold">Workflow Settings</DialogTitle>
+                <DialogDescription>
+                  Configure and customize your project's task statuses and lifecycle.
+                </DialogDescription>
+              </div>
+              <Layout className="size-8 text-primary/20" />
+            </div>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto px-6 py-2">
+            <Accordion type="multiple" defaultValue={['OPEN', 'IN_PROGRESS']} className="space-y-4">
+              {(Object.keys(WORKFLOW_GROUP_CONFIG) as WorkflowGroupKey[]).map((groupKey) => {
+                const config = WORKFLOW_GROUP_CONFIG[groupKey];
+                const groupStatuses = statusesByGroup(groupKey);
+
+                return (
+                  <AccordionItem key={groupKey} value={groupKey} className="border rounded-xl overflow-hidden bg-card shadow-sm">
+                    <AccordionTrigger className="hover:no-underline px-4 py-3 bg-muted/30">
+                      <div className="flex items-center gap-3 text-left">
+                        <div className={cn("size-3 rounded-full", config.color)} />
+                        <div>
+                          <p className="font-bold text-sm uppercase tracking-wider">{config.label}</p>
+                          <p className="text-xs text-muted-foreground font-normal">{config.description}</p>
+                        </div>
+                        <Badge variant="outline" className="ml-2 text-[10px] h-5">
+                          {groupStatuses.length} Statuses
+                        </Badge>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="p-0">
+                      <div className="divide-y border-t">
+                        {groupStatuses.map((status) => (
+                          <div
+                            key={status.id}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, status.id)}
+                            onDragOver={handleDragOver}
+                            onDrop={(e) => handleDrop(e, status.id, groupKey)}
+                            className={cn(
+                              "flex items-center gap-3 p-3 group hover:bg-muted/50 transition-colors",
+                              draggedStatusId === status.id && "opacity-50"
+                            )}
+                          >
+                            <div className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded text-muted-foreground/40 group-hover:text-muted-foreground transition-colors">
+                              <GripVertical className="size-4" />
+                            </div>
+
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <button
+                                  className="size-5 rounded-full border shadow-sm shrink-0 transition-transform hover:scale-110"
+                                  style={{ backgroundColor: status.color }}
+                                />
+                              </PopoverTrigger>
+                              <PopoverContent className="w-48 p-2" align="start">
+                                <div className="grid grid-cols-5 gap-1.5">
+                                  {COLOR_PRESETS.map((color) => (
+                                    <button
+                                      key={color}
+                                      className={cn(
+                                        "size-6 rounded-md border transition-all hover:scale-110",
+                                        status.color === color && "ring-2 ring-primary ring-offset-1"
+                                      )}
+                                      style={{ backgroundColor: color }}
+                                      onClick={() => updateWorkflowStatus(status.id, { color })}
+                                    />
+                                  ))}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+
+                            <div className="flex-1 min-w-0">
+                              <Input
+                                value={status.name}
+                                onChange={(e) => updateWorkflowStatus(status.id, { name: e.target.value })}
+                                className="h-8 text-sm font-medium bg-transparent border-transparent hover:border-input focus:bg-background transition-all px-2 -ml-2"
+                              />
+                            </div>
+
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {groupKey === 'OPEN' && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className={cn(
+                                    "size-8 rounded-full",
+                                    status.isDefault ? "text-yellow-500 hover:text-yellow-600 bg-yellow-500/10" : "text-muted-foreground hover:text-yellow-500"
+                                  )}
+                                  onClick={() => handleToggleDefault(status)}
+                                  title={status.isDefault ? "Default status" : "Set as default"}
+                                >
+                                  <Star className={cn("size-4", status.isDefault && "fill-current")} />
+                                </Button>
+                              )}
+
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-8 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => {
+                                  const affectedTasks = tasks.filter(t => t.statusId === status.id);
+                                  if (affectedTasks.length > 0) {
+                                    setDeletingStatus(status);
+                                  } else {
+                                    setDeletingStatus(status); // Still show confirm for empty status
+                                  }
+                                }}
+                              >
+                                <Trash2 className="size-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full h-10 rounded-none text-muted-foreground hover:text-primary hover:bg-primary/5 gap-2"
+                          onClick={() => handleAddStatus(groupKey)}
+                        >
+                          <Plus className="size-4" />
+                          Add Status to {config.label}
+                        </Button>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                );
+              })}
+            </Accordion>
+          </div>
+
+          <DialogFooter className="p-6 bg-muted/30 border-t flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2 mr-auto">
+              <Button variant="outline" size="sm" className="gap-2 h-9 border-dashed">
+                <Download className="size-4" />
+                Apply Template
+              </Button>
+              <Button variant="outline" size="sm" className="gap-2 h-9 border-dashed">
+                <Save className="size-4" />
+                Save as Template
+              </Button>
+            </div>
+            <Button onClick={onClose} className="h-9 px-6 shadow-md shadow-primary/20">
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={!!deletingStatus} onOpenChange={() => setDeletingStatus(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="size-5" />
+              Delete Status?
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove the "<span className="font-bold">{deletingStatus?.name}</span>" status?
+              {tasks.filter(t => t.statusId === deletingStatus?.id).length > 0 && (
+                <div className="mt-4 p-4 rounded-lg bg-destructive/5 border border-destructive/10">
+                  <p className="text-foreground font-semibold mb-2">
+                    Warning: {tasks.filter(t => t.statusId === deletingStatus?.id).length} tasks are currently in this status.
+                  </p>
+                  <p className="mb-4">You must choose a new status for these tasks before deleting.</p>
+
+                  <div className="space-y-2">
+                    <Label>Move tasks to:</Label>
+                    <Select value={moveToStatusId} onValueChange={setMoveToStatusId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select target status..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {projectStatuses
+                          .filter(s => s.id !== deletingStatus?.id)
+                          .map(s => (
+                            <SelectItem key={s.id} value={s.id}>
+                              <div className="flex items-center gap-2">
+                                <div className="size-2 rounded-full" style={{ backgroundColor: s.color }} />
+                                {s.name}
+                              </div>
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-6">
+            <Button variant="outline" onClick={() => setDeletingStatus(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={tasks.filter(t => t.statusId === deletingStatus?.id).length > 0 && !moveToStatusId}
+            >
+              Confirm Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

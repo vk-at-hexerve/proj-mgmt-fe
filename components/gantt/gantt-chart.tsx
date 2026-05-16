@@ -13,6 +13,7 @@ import {
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/lib/app-context';
+import { GROUP_PROGRESS_MAP } from '@/lib/status-utils';
 import type { GanttTask } from '@/lib/mock-data';
 
 interface GanttChartProps {
@@ -27,7 +28,7 @@ export function GanttChart({ projectId }: GanttChartProps) {
   const [zoom, setZoom] = useState(1);
   const [scrollOffset, setScrollOffset] = useState(0);
 
-  const { tasks: allAppTasks, projects: allProjects } = useApp();
+  const { tasks: allAppTasks, projects: allProjects, isTaskDone, getStatusGroup } = useApp();
 
   const tasks = useMemo(() => {
     const ganttTasks: GanttTask[] = [];
@@ -69,14 +70,8 @@ export function GanttChart({ projectId }: GanttChartProps) {
         safeDueDate = new Date(safeStartDate.getTime() + 24 * 60 * 60 * 1000);
       }
 
-      let progress = 0;
-      switch (task.status) {
-        case 'closed': progress = 100; break;
-        case 'pending-approval': progress = 90; break;
-        case 'in-progress': progress = 50; break;
-        case 'assigned': progress = 10; break;
-        default: progress = 0;
-      }
+      const group = getStatusGroup(task.statusId);
+      const progress = group ? GROUP_PROGRESS_MAP[group] : 0;
 
       ganttTasks.push({
         id: task.id,

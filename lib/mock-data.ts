@@ -200,14 +200,7 @@ export const generateGanttData = (): GanttTask[] => {
     const createdDate = new Date(task.createdAt);
     const dueDate = task.dueDate ? new Date(task.dueDate) : new Date(createdDate.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-    let progress = 0;
-    switch (task.status) {
-      case 'closed': progress = 100; break;
-      case 'pending-approval': progress = 90; break;
-      case 'in-progress': progress = 50; break;
-      case 'assigned': progress = 10; break;
-      default: progress = 0;
-    }
+    let progress = task.storyPoints ? Math.min(100, task.storyPoints * 10) : 0;
 
     ganttTasks.push({
       id: task.id,
