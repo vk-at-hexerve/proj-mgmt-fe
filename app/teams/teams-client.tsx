@@ -50,7 +50,7 @@ import {
 import { cn } from '@/lib/utils';
 
 export default function TeamsClient() {
-  const { teams, tasks, projects, openModal, removeTeamMember, setTeamLead, deleteTeam, showToast } = useApp();
+  const { teams, tasks, projects, openModal, removeTeamMember, setTeamLead, deleteTeam, showToast, isTaskDone, getStatusGroup } = useApp();
   const [search, setSearch] = useState('');
   const [selectedTeam, setSelectedTeam] = useState(teams[0]?.id);
   const [memberToRemove, setMemberToRemove] = useState<{ teamId: string; userId: string; userName: string } | null>(null);
@@ -365,7 +365,7 @@ export default function TeamsClient() {
                               const isProdM = member.id === currentTeam.productManager?.id;
                               const isScrumMaster = member.id === currentTeam.scrumMaster?.id;
                               const memberTasks = tasks.filter(t => t.assignee?.id === member.id);
-                              const inProgressTasks = memberTasks.filter(t => t.status === 'in-progress').length;
+                              const inProgressTasks = memberTasks.filter(t => getStatusGroup(t.statusId) === 'IN_PROGRESS').length;
 
                               return (
                                 <div
@@ -545,7 +545,7 @@ export default function TeamsClient() {
                               <CardContent className="p-4">
                                 <p className="text-sm text-muted-foreground">Active Tasks</p>
                                 <p className="text-3xl font-bold mt-1">
-                                  {tasks.filter(t => currentTeam.members.some(m => m.id === t.assignee?.id) && t.status !== 'closed').length}
+                                  {tasks.filter(t => currentTeam.members.some(m => m.id === t.assignee?.id) && !isTaskDone(t)).length}
                                 </p>
                                 <p className="text-xs text-muted-foreground mt-1">across all projects</p>
                               </CardContent>
@@ -554,7 +554,7 @@ export default function TeamsClient() {
                               <CardContent className="p-4">
                                 <p className="text-sm text-muted-foreground">Completed This Sprint</p>
                                 <p className="text-3xl font-bold mt-1">
-                                  {tasks.filter(t => currentTeam.members.some(m => m.id === t.assignee?.id) && t.status === 'closed').length}
+                                  {tasks.filter(t => currentTeam.members.some(m => m.id === t.assignee?.id) && isTaskDone(t)).length}
                                 </p>
                                 <p className="text-xs text-muted-foreground mt-1">tasks closed</p>
                               </CardContent>

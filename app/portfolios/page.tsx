@@ -146,9 +146,9 @@ export default function PortfoliosPage() {
             {/* Portfolio Cards */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
               {portfolios.map((portfolio: Portfolio) => {
-                const pPrograms = programs.filter((p: Program) => portfolio.programIds.includes(p.id));
+                const pPrograms = programs.filter((p: Program) => (portfolio.programIds || []).includes(p.id));
                 const pProjects = pPrograms.flatMap((prog: Program) =>
-                  projects.filter((p: Project) => prog.projectIds.includes(p.id))
+                  projects.filter((p: Project) => (prog.projectIds || []).includes(p.id))
                 );
                 const budgetUsed = (portfolio.spent / portfolio.budget) * 100;
 
@@ -221,12 +221,12 @@ export default function PortfoliosPage() {
                       <div className="flex items-center justify-between pt-2 border-t border-border">
                         <div className="flex items-center gap-2">
                           <Avatar className="size-6">
-                            <AvatarImage src={portfolio.owner.avatar || '/placeholder.svg'} />
+                            <AvatarImage src={portfolio.owner?.avatar || '/placeholder.svg'} />
                             <AvatarFallback className="text-xs">
-                              {portfolio.owner.name.split(' ').map((n: string) => n[0]).join('')}
+                              {(portfolio.owner?.name || 'SU').split(' ').map((n: string) => n[0]).join('')}
                             </AvatarFallback>
                           </Avatar>
-                          <span className="text-sm text-muted-foreground">{portfolio.owner.name}</span>
+                          <span className="text-sm text-muted-foreground">{portfolio.owner?.name || 'System User'}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Badge variant={getRiskBadgeVariant(portfolio.riskLevel)} className="capitalize">
@@ -273,7 +273,7 @@ export default function PortfoliosPage() {
                     <TabsContent value="programs" className="mt-4">
                       <div className="space-y-4">
                         {portfolioPrograms.map((program: Program) => {
-                          const programProjects = projects.filter((p: Project) => program.projectIds.includes(p.id));
+                          const programProjects = projects.filter((p: Project) => (program.projectIds || []).includes(p.id));
 
                           return (
                             <div

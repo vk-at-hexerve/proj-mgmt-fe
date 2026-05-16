@@ -9,7 +9,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ArrowRight, Bug, BookOpen, Zap, ListTodo } from 'lucide-react';
 import { useApp } from '@/lib/app-context';
-import type { Task, TaskPriority, TaskStatus } from '@/lib/types';
+import type { Task, TaskPriority } from '@/lib/types';
+import { getStatusName } from '@/lib/status-utils';
 import { cn } from '@/lib/utils';
 
 const priorityStyles: Record<TaskPriority, string> = {
@@ -19,14 +20,6 @@ const priorityStyles: Record<TaskPriority, string> = {
   low: 'bg-muted text-muted-foreground',
 };
 
-const statusStyles: Record<TaskStatus, string> = {
-  open: 'bg-muted text-muted-foreground',
-  assigned: 'bg-accent/20 text-accent',
-  'in-progress': 'bg-primary/20 text-primary',
-  'pending-approval': 'bg-warning/20 text-warning-foreground',
-  'on-hold': 'bg-muted text-muted-foreground',
-  closed: 'bg-success/20 text-success',
-};
 
 const typeIcons: Record<Task['type'], React.ReactNode> = {
   epic: <Zap className="size-4" />,
@@ -37,7 +30,7 @@ const typeIcons: Record<Task['type'], React.ReactNode> = {
 };
 
 export function RecentTasks() {
-  const { tasks } = useApp();
+  const { tasks, isTaskDone, getStatusGroup, workflowStatuses } = useApp();
   const recentTasks = tasks.slice(0, 5);
 
   return (
@@ -60,7 +53,7 @@ export function RecentTasks() {
                 className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group"
               >
                 <Checkbox
-                  checked={task.status === 'closed'}
+                  checked={isTaskDone(task)}
                   className="shrink-0"
                 />
                 
@@ -81,20 +74,26 @@ export function RecentTasks() {
                     <span
                       className={cn(
                         'font-medium text-sm truncate',
-                        task.status === 'closed' && 'line-through text-muted-foreground'
+                        isTaskDone(task) && 'line-through text-muted-foreground'
                       )}
                     >
                       {task.title}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <Badge
-                      variant="secondary"
-                      className={cn('text-xs px-1.5 py-0', statusStyles[task.status])}
-                    >
-                      {task.status.replace('-', ' ')}
-                    </Badge>
-                    {task.storyPoints && (
+                    {(() => {
+                      const status = workflowStatuses.find(s => s.id === task.statusId);
+                      const color = status?.color || '#6B7280';
+                      return (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-1.5 py-0 h-4 border-none"
+                          style={{ backgroundColor: `${color}20`, color }}
+                        >
+                          {status?.name || 'Unknown'}
+                        </Badge>
+                      );
+                    })()}                    {task.storyPoints && (
                       <span className="text-xs text-muted-foreground">
                         {task.storyPoints} pts
                       </span>

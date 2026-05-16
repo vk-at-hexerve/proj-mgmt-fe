@@ -54,8 +54,9 @@ import {
   CornerDownRight,
   UserCheck,
 } from 'lucide-react';
-import type { Task, TaskPriority, TaskStatus } from '@/lib/types';
+import type { Task, TaskPriority } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { getStatusName, getStatusColor, getStatusGroup, GROUP_PROGRESS_MAP } from '@/lib/status-utils';
 
 interface TaskListViewProps {
   projectId?: string;
@@ -85,14 +86,6 @@ const typeConfig: Record<string, { icon: React.ReactNode; color: string }> = {
   bug: { icon: <Bug className="size-4" />, color: 'text-red-500' },
 };
 
-const statusConfig: Record<TaskStatus, { label: string; color: string }> = {
-  'open': { label: 'Open', color: 'bg-muted text-muted-foreground' },
-  'assigned': { label: 'Assigned', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' },
-  'in-progress': { label: 'In Progress', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' },
-  'pending-approval': { label: 'Pending Review', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' },
-  'on-hold': { label: 'On Hold', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400' },
-  'closed': { label: 'Done', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' },
-};
 
 const defaultColumns: ColumnConfig[] = [
   { id: 'type', label: 'Type', width: 56, minWidth: 40, sortable: false, visible: true },
@@ -107,7 +100,7 @@ const defaultColumns: ColumnConfig[] = [
 ];
 
 export function TaskListView({ projectId }: TaskListViewProps) {
-  const { tasks: allTasks, openModal, selectTask, selectedTasks, selectAllTasks, clearSelectedTasks, addTask, showToast, currentUser, assignTask, users } = useApp();
+  const { tasks: allTasks, openModal, selectTask, selectedTasks, selectAllTasks, clearSelectedTasks, addTask, showToast, currentUser, assignTask, users, isTaskDone, getStatusGroup, workflowStatuses, getProjectStatuses } = useApp();
   const [sortField, setSortField] = useState<string>('key');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [columns, setColumns] = useState<ColumnConfig[]>(defaultColumns);
@@ -180,7 +173,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
         comparison = priorityOrder[a.priority] - priorityOrder[b.priority];
         break;
       case 'status':
-        comparison = a.status.localeCompare(b.status);
+        comparison = getStatusName(workflowStatuses, a.statusId).localeCompare(getStatusName(workflowStatuses, b.statusId));
         break;
       case 'dueDate':
         const dateA = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
@@ -322,7 +315,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
       title: newTaskTitle.trim(),
       type: isSubtask ? inheritedType : newTaskType,
       priority: isSubtask && parentTask ? parentTask.priority : 'medium',
-      status: 'open',
+      statusId: 'open',
       projectId: taskProjectId,
       parentId: inlineSubtaskParent || undefined,
       reporter: currentUser,
@@ -576,7 +569,12 @@ export function TaskListView({ projectId }: TaskListViewProps) {
               {sortedParentTasks.map((task) => {
                 const priority = priorityConfig[task.priority];
                 const type = typeConfig[task.type];
-                const status = statusConfig[task.status];
+                const status = workflowStatuses.find(s => s.id === task.statusId);
+                const statusColor = status?.color || '#6B7280';
+                const statusGroup = getStatusGroup(task.statusId);
+                const progressPct = statusGroup ? GROUP_PROGRESS_MAP[statusGroup] : 0;
+                const { projects } = useApp();
+                const project = projects.find(p => p.id === task.projectId);
                 const isSelected = selectedTasks.includes(task.id);
                 const isCreatingSubtask = inlineSubtaskParent === task.id;
                 const taskSubtasks = subtaskMap.get(task.id) || [];
@@ -659,8 +657,16 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                         </div>
                       </TableCell>
                       <TableCell style={{ width: columns[3].width }} className="border-r-2 border-border/60">
-                        <Badge className={cn('text-xs', status.color)}>
-                          {status.label}
+                        <Badge 
+                          className="text-xs" 
+                          style={{ 
+                            backgroundColor: `${statusColor}20`, 
+                            color: statusColor,
+                            borderColor: `${statusColor}40`
+                          }}
+                          variant="outline"
+                        >
+                          {status?.name || 'Unknown'}
                         </Badge>
                       </TableCell>
                       <TableCell style={{ width: columns[4].width }} className="border-r-2 border-border/60">
@@ -669,13 +675,13 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                             <div
                               className={cn(
                                 "h-full rounded-full transition-all",
-                                task.status === 'closed' ? 'bg-green-500' : 'bg-primary'
+                                isTaskDone(task) ? 'bg-green-500' : 'bg-primary'
                               )}
-                              style={{ width: `${task.status === 'closed' ? 100 : task.status === 'in-progress' ? 50 : task.status === 'pending-approval' ? 80 : 0}%` }}
+                              style={{ width: `${progressPct}%` }}
                             />
                           </div>
                           <span className="text-xs text-muted-foreground w-10">
-                            {task.status === 'closed' ? 100 : task.status === 'in-progress' ? 50 : task.status === 'pending-approval' ? 80 : 0}%
+                            {progressPct}%
                           </span>
                         </div>
                       </TableCell>
@@ -804,7 +810,8 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                     {isExpanded && taskSubtasks.map((subtask) => {
                       const subtaskPriority = priorityConfig[subtask.priority];
                       const subtaskType = typeConfig[subtask.type];
-                      const subtaskStatus = statusConfig[subtask.status];
+                      const subtaskStatus = workflowStatuses.find(s => s.id === subtask.statusId);
+                      const subtaskColor = subtaskStatus?.color || '#6B7280';
                       const isSubtaskSelected = selectedTasks.includes(subtask.id);
 
                       return (
@@ -841,8 +848,16 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                             </div>
                           </TableCell>
                           <TableCell style={{ width: columns[3].width }} className="border-r-2 border-border/60">
-                            <Badge className={cn('text-xs', subtaskStatus.color)}>
-                              {subtaskStatus.label}
+                            <Badge 
+                              className="text-xs"
+                              style={{ 
+                                backgroundColor: `${subtaskColor}20`, 
+                                color: subtaskColor,
+                                borderColor: `${subtaskColor}40`
+                              }}
+                              variant="outline"
+                            >
+                              {subtaskStatus?.name || 'Unknown'}
                             </Badge>
                           </TableCell>
                           <TableCell style={{ width: columns[4].width }} className="border-r-2 border-border/60">

@@ -1,6 +1,19 @@
 // Core data types for the PM platform
 
-export type TaskStatus = 'open' | 'assigned' | 'in-progress' | 'pending-approval' | 'on-hold' | 'closed';
+export type WorkflowGroupKey = 'OPEN' | 'IN_PROGRESS' | 'ON_HOLD' | 'CLOSED';
+
+export interface WorkflowStatus {
+  id: string;
+  projectId: string;
+  name: string;
+  slug: string;
+  groupKey: WorkflowGroupKey;
+  color: string;
+  icon?: string;
+  position: number;
+  isDefault: boolean;
+}
+
 export type TaskPriority = 'critical' | 'high' | 'medium' | 'low';
 export type ProjectType = 'agile-scrum' | 'agile-kanban' | 'waterfall' | 'hybrid';
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
@@ -54,7 +67,7 @@ export interface Task {
   key: string; // e.g., PRO-1234
   title: string;
   description?: string;
-  status: TaskStatus;
+  statusId: string;
   priority: TaskPriority;
   type: 'epic' | 'story' | 'task' | 'subtask' | 'bug';
   assignee?: User;
@@ -327,7 +340,8 @@ export interface BackendTask {
   task_code?: string;
   title: string;
   description?: string;
-  status: string;
+  status_id: string;
+  status?: any; // Nested WorkflowStatus object from API
   priority: string;
   story_points?: number;
   project_id: number | string;

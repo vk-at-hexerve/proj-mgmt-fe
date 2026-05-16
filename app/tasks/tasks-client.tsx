@@ -60,7 +60,8 @@ import {
   CornerDownRight,
 } from 'lucide-react';
 // import { projects as mockProjects } from '@/lib/mock-data';
-import type { Task, TaskPriority, TaskStatus } from '@/lib/types';
+import type { Task, TaskPriority } from '@/lib/types';
+import { getStatusName } from '@/lib/status-utils';
 import { cn } from '@/lib/utils';
 
 const priorityStyles: Record<TaskPriority, string> = {
@@ -70,14 +71,6 @@ const priorityStyles: Record<TaskPriority, string> = {
   low: 'bg-muted text-muted-foreground',
 };
 
-const statusStyles: Record<TaskStatus, string> = {
-  open: 'bg-muted text-muted-foreground',
-  assigned: 'bg-accent/20 text-accent',
-  'in-progress': 'bg-primary/20 text-primary',
-  'pending-approval': 'bg-warning/20 text-warning-foreground',
-  'on-hold': 'bg-muted text-muted-foreground',
-  closed: 'bg-success/20 text-success',
-};
 
 const typeIcons: Record<Task['type'], React.ReactNode> = {
   epic: <Zap className="size-4 text-primary" />,
@@ -108,7 +101,7 @@ const defaultColumns: ColumnConfig[] = [
 ];
 
 export default function TasksClient() {
-  const { tasks, projects, openModal, currentUser, selectTask, selectedTasks, selectAllTasks, clearSelectedTasks, addTask, showToast } = useApp();
+  const { tasks, projects, openModal, currentUser, selectTask, selectedTasks, selectAllTasks, clearSelectedTasks, addTask, showToast, isTaskDone, getStatusGroup, workflowStatuses, getProjectStatuses } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
@@ -203,7 +196,7 @@ export default function TasksClient() {
   const filteredTasks = myTasks.filter(task => {
     const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       task.key.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || task.status === statusFilter;
+    const matchesStatus = statusFilter === 'all' || getStatusGroup(task.statusId) === statusFilter;
     const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter;
     const matchesProject = projectFilter === 'all' || task.projectId === projectFilter;
     return matchesSearch && matchesStatus && matchesPriority && matchesProject;
@@ -275,11 +268,14 @@ export default function TasksClient() {
       ? (parentTask.type === 'epic' ? 'task' : parentTask.type === 'subtask' ? 'subtask' : parentTask.type)
       : newTaskType;
 
+    const projectStatuses = getProjectStatuses(taskProjectId);
+    const defaultOpenStatus = projectStatuses.find((s: any) => getStatusGroup(s.id) === 'OPEN') || projectStatuses[0];
+
     addTask({
       title: newTaskTitle.trim(),
       type: isSubtask ? inheritedType : newTaskType,
       priority: isSubtask && parentTask ? parentTask.priority : 'medium',
-      status: 'open',
+      statusId: defaultOpenStatus ? defaultOpenStatus.id : '',
       projectId: taskProjectId,
       parentId: inlineSubtaskParent || undefined,
       reporter: currentUser,
@@ -377,12 +373,12 @@ export default function TasksClient() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="open">Open</SelectItem>
-                  <SelectItem value="assigned">Assigned</SelectItem>
-                  <SelectItem value="in-progress">In Progress</SelectItem>
-                  <SelectItem value="pending-approval">Pending Approval</SelectItem>
-                  <SelectItem value="on-hold">On Hold</SelectItem>
-                  <SelectItem value="closed">Closed</SelectItem>
+                  <SelectItem value="OPEN">Open</SelectItem>
+                  <SelectItem value="ASSIGNED">Assigned</SelectItem>
+                  <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                  <SelectItem value="PENDING_APPROVAL">Pending Approval</SelectItem>
+                  <SelectItem value="ON_HOLD">On Hold</SelectItem>
+                  <SelectItem value="CLOSED">Closed</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -406,7 +402,11 @@ export default function TasksClient() {
                 <SelectContent>
                   <SelectItem value="all">All Projects</SelectItem>
                   {projects.map((p: any) => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    <SelectItem key={p.id} value={p.id}>
+                      <div className="flex items-center gap-2">
+                        {p.name}
+                      </div>
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -586,12 +586,13 @@ export default function TasksClient() {
                   {parentTasks.length > 0 ? (
                     parentTasks.map(task => {
                       const project = projects.find((p: any) => p.id === task.projectId);
-                      const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'closed';
+                      const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && !isTaskDone(task);
                       const isSelected = selectedTasks.includes(task.id);
                       const isCreatingSubtask = inlineSubtaskParent === task.id;
                       const taskSubtasks = subtaskMap.get(task.id) || [];
                       const isExpanded = expandedTasks.has(task.id);
                       const hasChildren = taskSubtasks.length > 0;
+                      const status = workflowStatuses.find(s => s.id === task.statusId);
 
                       return (
                         <React.Fragment key={task.id}>
@@ -648,7 +649,7 @@ export default function TasksClient() {
                               <div className="max-w-full">
                                 <p className={cn(
                                   'font-medium truncate',
-                                  task.status === 'closed' && 'line-through text-muted-foreground'
+                                  isTaskDone(task) && 'line-through text-muted-foreground'
                                 )}>
                                   {task.title}
                                 </p>
@@ -657,10 +658,13 @@ export default function TasksClient() {
                             <TableCell style={{ width: columns[3].width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
                               <Badge
                                 variant="secondary"
-                                className={cn('text-xs cursor-pointer', statusStyles[task.status])}
+                                className="text-xs cursor-pointer"
                                 onClick={() => openModal('change-status', { taskId: task.id })}
                               >
-                                {task.status.replace('-', ' ')}
+                                <div className="flex items-center gap-2">
+                                  <div className="size-2 rounded-full" style={{ backgroundColor: status?.color || '#94a3b8' }} />
+                                  <span className="truncate">{status?.name || 'Unknown'}</span>
+                                </div>
                               </Badge>
                             </TableCell>
                             <TableCell style={{ width: columns[4].width }} className="border-r-2 border-border/60">
@@ -760,7 +764,7 @@ export default function TasksClient() {
                           {/* Render Subtasks when expanded */}
                           {isExpanded && taskSubtasks.map((subtask) => {
                             const subtaskProject = projects.find((p: any) => p.id === subtask.projectId);
-                            const isSubtaskOverdue = subtask.dueDate && new Date(subtask.dueDate) < new Date() && subtask.status !== 'closed';
+                            const isSubtaskOverdue = subtask.dueDate && new Date(subtask.dueDate) < new Date() && !isTaskDone(subtask);
                             const isSubtaskSelected = selectedTasks.includes(subtask.id);
 
                             return (
@@ -795,7 +799,7 @@ export default function TasksClient() {
                                   <div className="max-w-full pl-2">
                                     <p className={cn(
                                       'font-medium truncate text-sm',
-                                      subtask.status === 'closed' && 'line-through text-muted-foreground'
+                                      isTaskDone(subtask) && 'line-through text-muted-foreground'
                                     )}>
                                       {subtask.title}
                                     </p>
@@ -804,10 +808,13 @@ export default function TasksClient() {
                                 <TableCell style={{ width: columns[3].width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
                                   <Badge
                                     variant="secondary"
-                                    className={cn('text-xs cursor-pointer', statusStyles[subtask.status])}
+                                    className="text-xs cursor-pointer"
                                     onClick={() => openModal('change-status', { taskId: subtask.id })}
                                   >
-                                    {subtask.status.replace('-', ' ')}
+                                    <div className="flex items-center gap-2">
+                                      <div className="size-2 rounded-full" style={{ backgroundColor: workflowStatuses.find(s => s.id === subtask.statusId)?.color || '#94a3b8' }} />
+                                      <span className="truncate">{getStatusName(workflowStatuses, subtask.statusId)}</span>
+                                    </div>
                                   </Badge>
                                 </TableCell>
                                 <TableCell style={{ width: columns[4].width }} className="border-r-2 border-border/60">
@@ -960,7 +967,7 @@ export default function TasksClient() {
                   {/* Also show orphaned subtasks (subtasks whose parents are filtered out) */}
                   {filteredTasks.filter(t => t.parentId && !parentTasks.find(p => p.id === t.parentId)).map(subtask => {
                     const subtaskProject = projects.find(p => p.id === subtask.projectId);
-                    const isSubtaskOverdue = subtask.dueDate && new Date(subtask.dueDate) < new Date() && subtask.status !== 'closed';
+                    const isSubtaskOverdue = subtask.dueDate && new Date(subtask.dueDate) < new Date() && !isTaskDone(subtask);
                     const isSubtaskSelected = selectedTasks.includes(subtask.id);
                     const parentTask = tasks.find(t => t.id === subtask.parentId);
 
@@ -996,7 +1003,7 @@ export default function TasksClient() {
                           <div className="max-w-full pl-2">
                             <p className={cn(
                               'font-medium truncate text-sm',
-                              subtask.status === 'closed' && 'line-through text-muted-foreground'
+                              isTaskDone(subtask) && 'line-through text-muted-foreground'
                             )}>
                               {subtask.title}
                             </p>
@@ -1008,10 +1015,13 @@ export default function TasksClient() {
                         <TableCell style={{ width: columns[3].width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
                           <Badge
                             variant="secondary"
-                            className={cn('text-xs cursor-pointer', statusStyles[subtask.status])}
+                            className="text-xs cursor-pointer"
                             onClick={() => openModal('change-status', { taskId: subtask.id })}
                           >
-                            {subtask.status.replace('-', ' ')}
+                            <div className="flex items-center gap-2">
+                              <div className="size-2 rounded-full" style={{ backgroundColor: workflowStatuses.find(s => s.id === subtask.statusId)?.color || '#94a3b8' }} />
+                              <span className="truncate">{getStatusName(workflowStatuses, subtask.statusId)}</span>
+                            </div>
                           </Badge>
                         </TableCell>
                         <TableCell style={{ width: columns[4].width }} className="border-r-2 border-border/60">

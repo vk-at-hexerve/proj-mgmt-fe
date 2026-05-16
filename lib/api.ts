@@ -1,4 +1,4 @@
-import { BackendProject, BackendTask, BackendTeam, BackendUser, Project, Task, Team, ProjectStatus, TaskStatus, TaskPriority, UserRole } from './types';
+import { BackendProject, BackendTask, BackendTeam, BackendUser, Project, Task, Team, ProjectStatus, TaskPriority, UserRole, WorkflowStatus } from './types';
 import type { LoginResponse } from './auth';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8100/api/v1";
 
@@ -71,14 +71,6 @@ export function mapBackendProject(backendProject: BackendProject): Project {
 }
 
 export function mapBackendTask(backendTask: BackendTask): Task {
-  const statusMap: Record<string, TaskStatus> = {
-    'TODO': 'open',
-    'ASSIGNED': 'assigned',
-    'IN_PROGRESS': 'in-progress',
-    'IN_REVIEW': 'pending-approval',
-    'DONE': 'closed',
-  };
-
   const priorityMap: Record<string, TaskPriority> = {
     'LOW': 'low',
     'MEDIUM': 'medium',
@@ -92,7 +84,7 @@ export function mapBackendTask(backendTask: BackendTask): Task {
     key: backendTask.task_code || `TSK-${backendTask.id}`,
     title: backendTask.title,
     description: backendTask.description || '',
-    status: statusMap[backendTask.status] || 'open',
+    statusId: String(backendTask.status_id || backendTask.status?.id || ''),
     priority: priorityMap[backendTask.priority] || 'medium',
     type: 'task',
     projectId: String(backendTask.project_id),
@@ -115,6 +107,20 @@ export function mapBackendTask(backendTask: BackendTask): Task {
     dueDate: backendTask.due_date,
     createdAt: backendTask.created_at || new Date().toISOString(),
     updatedAt: backendTask.updated_at || new Date().toISOString()
+  };
+}
+
+export function mapBackendWorkflowStatus(backendStatus: any): WorkflowStatus {
+  return {
+    id: String(backendStatus.id),
+    projectId: String(backendStatus.project_id),
+    name: backendStatus.name,
+    slug: backendStatus.slug,
+    groupKey: backendStatus.group_key,
+    color: backendStatus.color || '#6B7280',
+    icon: backendStatus.icon || undefined,
+    position: backendStatus.position ?? 0,
+    isDefault: backendStatus.is_default ?? false,
   };
 }
 
@@ -175,6 +181,23 @@ export function mapBackendPortfolio(backendPortfolio: any) {
     budget: backendPortfolio.budget || 0,
     spent: backendPortfolio.spent || 0,
     programs: backendPortfolio.programs ? backendPortfolio.programs.map(mapBackendProgram) : [],
+    programIds: backendPortfolio.program_ids ? backendPortfolio.program_ids.map(String) : 
+                (backendPortfolio.programs ? backendPortfolio.programs.map((p: any) => String(p.id)) : []),
+    owner: backendPortfolio.owner ? {
+      id: String(backendPortfolio.owner.id),
+      name: backendPortfolio.owner.name,
+      email: backendPortfolio.owner.email,
+      avatar: backendPortfolio.owner.avatar,
+      role: backendPortfolio.owner.role
+    } : {
+      id: 'system',
+      name: 'System User',
+      email: 'system@nexuspm.com',
+      role: 'project-manager'
+    },
+    status: backendPortfolio.status || 'active',
+    riskLevel: backendPortfolio.risk_level || backendPortfolio.riskLevel || 'low',
+    aiConfidence: backendPortfolio.ai_confidence || backendPortfolio.aiConfidence || 0,
   };
 }
 
@@ -188,6 +211,23 @@ export function mapBackendProgram(backendProgram: any) {
     budget: backendProgram.budget || 0,
     spent: backendProgram.spent || 0,
     projects: backendProgram.projects ? backendProgram.projects.map(mapBackendProject) : [],
+    projectIds: backendProgram.project_ids ? backendProgram.project_ids.map(String) : 
+                (backendProgram.projects ? backendProgram.projects.map((p: any) => String(p.id)) : []),
+    owner: backendProgram.owner ? {
+      id: String(backendProgram.owner.id),
+      name: backendProgram.owner.name,
+      email: backendProgram.owner.email,
+      avatar: backendProgram.owner.avatar,
+      role: backendProgram.owner.role
+    } : {
+      id: 'system',
+      name: 'System User',
+      email: 'system@nexuspm.com',
+      role: 'project-manager'
+    },
+    status: backendProgram.status || 'active',
+    riskLevel: backendProgram.risk_level || backendProgram.riskLevel || 'low',
+    aiConfidence: backendProgram.ai_confidence || backendProgram.aiConfidence || 0,
   };
 }
 

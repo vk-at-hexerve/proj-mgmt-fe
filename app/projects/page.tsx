@@ -60,10 +60,14 @@ import {
   Play,
   Archive,
   MoreHorizontal,
-  MoveRight,
+  Pencil,
   Check,
+  Workflow,
+  PlusCircle,
   Settings,
+  MoveRight,
 } from 'lucide-react';
+import { getStatusName } from '@/lib/status-utils';
 // import { sprints as initialSprints, generateCalendarEvents, users } from '@/lib/mock-data';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -87,7 +91,7 @@ const viewOptions: { id: ViewType; label: string; icon: React.ReactNode }[] = [
 ];
 
 export default function ProjectsPage() {
-  const { projects, tasks: allTasks, showToast, teams, currentProject: currentProjectId, sprints: contextSprints, users, addSprint, updateSprint, openModal } = useApp();
+  const { projects, tasks: allTasks, showToast, teams, currentProject: currentProjectId, sprints: contextSprints, users, addSprint, updateSprint, openModal, workflowStatuses } = useApp();
   const [currentView, setCurrentView] = useState<ViewType>('kanban');
   const [filters, setFilters] = useState<FilterState>({ assignees: [], priorities: [], types: [] });
   const [filterOpen, setFilterOpen] = useState(false);
@@ -448,15 +452,26 @@ export default function ProjectsPage() {
               </Popover>
 
               {/* Project Settings */}
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 gap-2 bg-transparent"
-                onClick={() => openModal('edit-project', { projectId: currentProject.id })}
-              >
-                <Settings className="size-4" />
-                Settings
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-2 bg-transparent"
+                  onClick={() => openModal('status-settings', { projectId: currentProject.id })}
+                >
+                  <Workflow className="size-4" />
+                  Workflow
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-2 bg-transparent"
+                  onClick={() => openModal('edit-project', { projectId: currentProject.id })}
+                >
+                  <Settings className="size-4" />
+                  Settings
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -522,7 +537,7 @@ export default function ProjectsPage() {
                                   {task.key}
                                 </span>
                                 <span className="flex-1 text-sm truncate">{task.title}</span>
-                                <Badge variant="outline" className="text-xs capitalize hidden sm:flex">{task.status.replace('-', ' ')}</Badge>
+                                <Badge variant="outline" className="text-xs capitalize hidden sm:flex">{getStatusName(workflowStatuses, task.statusId)}</Badge>
                                 <Badge variant="outline" className="text-xs capitalize hidden md:flex">{task.priority}</Badge>
                                 {task.assignee ? (
                                   <Avatar className="size-6">
@@ -600,7 +615,7 @@ export default function ProjectsPage() {
                             {task.storyPoints && (
                               <Badge variant="secondary" className="text-xs hidden lg:flex">{task.storyPoints} pts</Badge>
                             )}
-                            <Badge variant="outline" className="text-xs capitalize hidden sm:flex">{task.status.replace('-', ' ')}</Badge>
+                            <Badge variant="outline" className="text-xs capitalize hidden sm:flex">{getStatusName(workflowStatuses, task.statusId)}</Badge>
                             <Badge variant="outline" className="text-xs capitalize hidden md:flex">{task.priority}</Badge>
                             {task.assignee ? (
                               <Avatar className="size-6">

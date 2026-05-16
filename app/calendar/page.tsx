@@ -147,7 +147,7 @@ export default function CalendarPage() {
         description: description.trim(),
         type: taskType,
         priority: taskPriority,
-        status: 'open',
+        statusId: 'open',
         projectId: projId,
         startDate: startDate || undefined,
         dueDate: dueDate || undefined,

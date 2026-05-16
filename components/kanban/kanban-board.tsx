@@ -1,10 +1,11 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +20,19 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Plus,
   MoreHorizontal,
   Calendar,
@@ -29,24 +43,41 @@ import {
   Maximize2,
   Minimize2,
   Users,
+  Pencil,
+  Check,
+  Workflow,
+  PlusCircle,
+  Settings,
 } from 'lucide-react';
 import { useApp } from '@/lib/app-context';
-import type { Task, TaskStatus, TaskPriority } from '@/lib/types';
+import type { Task, TaskPriority, WorkflowStatus, WorkflowGroupKey } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
-interface Column {
-  id: TaskStatus;
-  title: string;
-  color: string;
-  wipLimit?: number;
-}
+// ─── Constants ──────────────────────────────────────────────────────────────
 
-const columns: Column[] = [
-  { id: 'open', title: 'Open', color: 'bg-muted-foreground' },
-  { id: 'assigned', title: 'Assigned', color: 'bg-accent' },
-  { id: 'in-progress', title: 'In Progress', color: 'bg-primary', wipLimit: 5 },
-  { id: 'pending-approval', title: 'Pending Approval', color: 'bg-warning' },
-  { id: 'closed', title: 'Closed', color: 'bg-success' },
+const GROUP_ORDER: Record<WorkflowGroupKey, number> = {
+  OPEN: 0,
+  IN_PROGRESS: 1,
+  ON_HOLD: 2,
+  CLOSED: 3,
+};
+
+const GROUP_PROGRESS_MAP: Record<WorkflowGroupKey, number> = {
+  OPEN: 0,
+  IN_PROGRESS: 50,
+  ON_HOLD: 80,
+  CLOSED: 100,
+};
+
+const COLOR_PRESETS = [
+  '#94a3b8', // slate
+  '#3b82f6', // blue
+  '#f59e0b', // amber
+  '#ef4444', // red
+  '#10b981', // emerald
+  '#8b5cf6', // violet
+  '#ec4899', // pink
+  '#f97316', // orange
 ];
 
 const priorityBorder: Record<TaskPriority, string> = {
@@ -71,6 +102,8 @@ const typeIcons: Record<Task['type'], React.ReactNode> = {
   bug: <Bug className="size-3 text-destructive" />,
 };
 
+// ─── Components ─────────────────────────────────────────────────────────────
+
 interface KanbanCardProps {
   task: Task;
   onDragStart: (e: React.DragEvent, taskId: string) => void;
@@ -81,11 +114,10 @@ interface KanbanCardProps {
 }
 
 function KanbanCard({ task, onDragStart, onEdit, onAssign, onDelete, onViewDetail }: KanbanCardProps) {
-  const progressPct =
-    task.status === 'closed' ? 100
-    : task.status === 'in-progress' ? 50
-    : task.status === 'pending-approval' ? 80
-    : 0;
+  const { getStatusGroup } = useApp();
+  const group = getStatusGroup(task.statusId);
+  const progressPct = group ? GROUP_PROGRESS_MAP[group] : 0;
+  const isDone = group === 'CLOSED';
 
   return (
     <Card
@@ -180,7 +212,7 @@ function KanbanCard({ task, onDragStart, onEdit, onAssign, onDelete, onViewDetai
         {progressPct > 0 && (
           <div className="h-0.5 bg-muted rounded-full overflow-hidden">
             <div
-              className={cn('h-full rounded-full', task.status === 'closed' ? 'bg-success' : 'bg-primary')}
+              className={cn('h-full rounded-full', isDone ? 'bg-success' : 'bg-primary')}
               style={{ width: `${progressPct}%` }}
             />
           </div>
@@ -191,21 +223,22 @@ function KanbanCard({ task, onDragStart, onEdit, onAssign, onDelete, onViewDetai
 }
 
 interface KanbanColumnProps {
-  column: Column;
+  status: WorkflowStatus;
   tasks: Task[];
   isFullscreen: boolean;
   onDragStart: (e: React.DragEvent, taskId: string) => void;
   onDragOver: (e: React.DragEvent) => void;
-  onDrop: (e: React.DragEvent, status: TaskStatus) => void;
+  onDrop: (e: React.DragEvent, statusId: string) => void;
   onAddTask: () => void;
   onEditTask: (taskId: string) => void;
   onAssignTask: (taskId: string) => void;
   onDeleteTask: (taskId: string) => void;
   onViewTaskDetail: (taskId: string) => void;
+  onRename: (newName: string) => void;
 }
 
 function KanbanColumn({
-  column,
+  status,
   tasks,
   isFullscreen,
   onDragStart,
@@ -216,38 +249,70 @@ function KanbanColumn({
   onAssignTask,
   onDeleteTask,
   onViewTaskDetail,
+  onRename,
 }: KanbanColumnProps) {
-  const isOverLimit = column.wipLimit && tasks.length > column.wipLimit;
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(status.name);
+
+  const handleRenameSubmit = () => {
+    if (editName.trim() && editName !== status.name) {
+      onRename(editName.trim());
+    }
+    setIsEditing(false);
+  };
 
   return (
     <div
       className={cn(
-        'flex flex-col bg-muted/30 rounded-lg',
+        'flex flex-col bg-muted/30 rounded-lg group/column shrink-0',
         isFullscreen ? 'min-w-[280px] max-w-[280px]' : 'min-w-[260px] max-w-[260px]'
       )}
       onDragOver={onDragOver}
-      onDrop={(e) => onDrop(e, column.id)}
+      onDrop={(e) => onDrop(e, status.id)}
     >
       <CardHeader className="p-2.5 pb-1.5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <div className={cn('size-2 rounded-full', column.color)} />
-            <h3 className="font-medium text-xs">{column.title}</h3>
+        <div className="flex items-center justify-between gap-1">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            <div className="size-2 rounded-full shrink-0" style={{ backgroundColor: status.color }} />
+            {isEditing ? (
+              <Input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onBlur={handleRenameSubmit}
+                onKeyDown={(e) => e.key === 'Enter' && handleRenameSubmit()}
+                autoFocus
+                className="h-6 text-xs py-0 px-1"
+              />
+            ) : (
+              <div className="flex items-center gap-1 min-w-0 flex-1 group/header">
+                <h3 className="font-medium text-xs truncate">{status.name}</h3>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-4 opacity-0 group-hover/header:opacity-100 transition-opacity"
+                  onClick={() => setIsEditing(true)}
+                >
+                  <Pencil className="size-2.5 text-muted-foreground" />
+                </Button>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
             <Badge
               variant="secondary"
-              className={cn('text-[10px] px-1.5 py-0 h-4', isOverLimit && 'bg-destructive/20 text-destructive')}
+              className="text-[10px] px-1.5 py-0 h-4 shrink-0"
             >
-              {tasks.length}{column.wipLimit && `/${column.wipLimit}`}
+              {tasks.length}
             </Badge>
+            <Button variant="ghost" size="icon" className="size-6" onClick={onAddTask}>
+              <Plus className="size-3.5" />
+            </Button>
           </div>
-          <Button variant="ghost" size="icon" className="size-6" onClick={onAddTask}>
-            <Plus className="size-3.5" />
-          </Button>
         </div>
       </CardHeader>
       <div
         className={cn(
-          'flex-1 p-2 pt-1 space-y-1.5 overflow-y-auto',
+          'flex-1 p-2 pt-1 space-y-1.5 overflow-y-auto custom-scrollbar',
           isFullscreen ? 'max-h-[calc(100vh-120px)]' : 'max-h-[calc(100vh-220px)]'
         )}
       >
@@ -272,14 +337,126 @@ function KanbanColumn({
   );
 }
 
+function AddStatusButton({ projectId, onAdd }: { projectId: string; onAdd: (name: string, groupKey: WorkflowGroupKey, color: string) => void }) {
+  const [name, setName] = useState('');
+  const [groupKey, setGroupKey] = useState<WorkflowGroupKey>('OPEN');
+  const [color, setColor] = useState(COLOR_PRESETS[0]);
+  const [isOpen, setIsOpen] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (name.trim()) {
+      onAdd(name.trim(), groupKey, color);
+      setName('');
+      setIsOpen(false);
+    }
+  };
+
+  return (
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          className="h-10 min-w-[260px] max-w-[260px] border-dashed border-2 hover:bg-primary/5 hover:border-primary/50 group transition-all"
+        >
+          <div className="flex items-center gap-2 text-muted-foreground group-hover:text-primary">
+            <PlusCircle className="size-4" />
+            <span className="text-sm font-medium">Add Status</span>
+          </div>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80 p-4" align="end">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1">
+            <h4 className="font-semibold text-sm">Add New Status</h4>
+            <p className="text-[10px] text-muted-foreground">Create a custom workflow stage for this project</p>
+          </div>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="status-name" className="text-[10px] uppercase font-bold text-slate-500">Name</Label>
+              <Input
+                id="status-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. In Review"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase font-bold text-slate-500">Group</Label>
+              <Select value={groupKey} onValueChange={(v) => setGroupKey(v as WorkflowGroupKey)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="OPEN">Open</SelectItem>
+                  <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                  <SelectItem value="ON_HOLD">On Hold</SelectItem>
+                  <SelectItem value="CLOSED">Closed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase font-bold text-slate-500">Color</Label>
+              <div className="flex flex-wrap gap-2">
+                {COLOR_PRESETS.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    className={cn(
+                      "size-6 rounded-full border-2 transition-all",
+                      color === p ? "border-primary scale-110 shadow-sm" : "border-transparent opacity-70 hover:opacity-100"
+                    )}
+                    style={{ backgroundColor: p }}
+                    onClick={() => setColor(p)}
+                  >
+                    {color === p && <Check className="size-3 text-white mx-auto" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <Button type="submit" className="w-full gap-2" disabled={!name.trim()}>
+            <Check className="size-4" />
+            Create Status
+          </Button>
+        </form>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ─── Main KanbanBoard ───────────────────────────────────────────────────────
+
 interface KanbanBoardProps {
   projectId?: string;
 }
 
 export function KanbanBoard({ projectId }: KanbanBoardProps) {
-  const { tasks, updateTaskStatus, openModal } = useApp();
-  const [draggedTaskId, setDraggedTaskId] = React.useState<string | null>(null);
-  const [isFullscreen, setIsFullscreen] = React.useState(false);
+  const {
+    tasks,
+    updateTaskStatus,
+    openModal,
+    getProjectStatuses,
+    addWorkflowStatus,
+    updateWorkflowStatus,
+  } = useApp();
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Derive columns dynamically from project statuses
+  const columns = useMemo(() => {
+    if (!projectId) return [];
+    const statuses = getProjectStatuses(projectId);
+    return [...statuses].sort((a, b) => {
+      // Sort by group order first
+      if (GROUP_ORDER[a.groupKey] !== GROUP_ORDER[b.groupKey]) {
+        return GROUP_ORDER[a.groupKey] - GROUP_ORDER[b.groupKey];
+      }
+      // Then by position within group
+      return a.position - b.position;
+    });
+  }, [getProjectStatuses, projectId]);
 
   const filteredTasks = projectId
     ? tasks.filter((t) => t.projectId === projectId)
@@ -295,18 +472,40 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
     e.dataTransfer.dropEffect = 'move';
   };
 
-  const handleDrop = (e: React.DragEvent, newStatus: TaskStatus) => {
+  const handleDrop = (e: React.DragEvent, newStatusId: string) => {
     e.preventDefault();
     if (!draggedTaskId) return;
-    updateTaskStatus(draggedTaskId, newStatus);
+    updateTaskStatus(draggedTaskId, newStatusId);
     setDraggedTaskId(null);
   };
 
-  const handleAddTask = () => openModal('create-task', { projectId });
+  const handleAddTask = (statusId: string) => {
+    openModal('create-task', { projectId, initialStatusId: statusId });
+  };
+
   const handleEditTask = (taskId: string) => openModal('edit-task', { taskId });
   const handleAssignTask = (taskId: string) => openModal('assign-task', { taskId });
   const handleDeleteTask = (taskId: string) => openModal('confirm-delete', { taskId });
   const handleViewTaskDetail = (taskId: string) => openModal('task-detail', { taskId });
+
+  const handleAddStatus = (name: string, groupKey: WorkflowGroupKey, color: string) => {
+    if (projectId) {
+      addWorkflowStatus(projectId, { name, groupKey, color });
+    }
+  };
+
+  const handleRenameColumn = (statusId: string, newName: string) => {
+    updateWorkflowStatus(statusId, { name: newName });
+  };
+
+  if (!projectId) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed rounded-xl bg-muted/20">
+        <Workflow className="size-10 text-muted-foreground/30 mb-4" />
+        <h3 className="text-sm font-semibold text-muted-foreground">Select a project to view its board</h3>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -315,8 +514,16 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
         isFullscreen && 'fixed inset-0 z-50 bg-background p-4'
       )}
     >
-      {/* Fullscreen toolbar */}
-      <div className="flex items-center justify-end mb-2">
+      <div className="flex items-center justify-end mb-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 gap-1.5 text-xs text-muted-foreground mr-2"
+          onClick={() => openModal('status-settings', { projectId })}
+        >
+          <Settings className="size-3.5" />
+          Workflow Settings
+        </Button>
         <Button
           variant="ghost"
           size="sm"
@@ -337,23 +544,44 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
         </Button>
       </div>
 
-      <div className="flex gap-3 overflow-x-auto pb-2">
-        {columns.map((column) => (
-          <KanbanColumn
-            key={column.id}
-            column={column}
-            tasks={filteredTasks.filter((t) => t.status === column.id)}
-            isFullscreen={isFullscreen}
-            onDragStart={handleDragStart}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-            onAddTask={handleAddTask}
-            onEditTask={handleEditTask}
-            onAssignTask={handleAssignTask}
-            onDeleteTask={handleDeleteTask}
-            onViewTaskDetail={handleViewTaskDetail}
-          />
-        ))}
+      <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar min-h-[500px]">
+        {columns.map((status, idx) => {
+          // Visual group separators
+          const showGroupSeparator = idx === 0 || columns[idx - 1].groupKey !== status.groupKey;
+
+          return (
+            <React.Fragment key={status.id}>
+              {showGroupSeparator && (
+                <div className="flex flex-col gap-3 py-2 px-1 border-l border-border/50 first:border-l-0 shrink-0">
+                   <div className="flex items-center justify-center min-w-[24px]">
+                      <span className="[writing-mode:vertical-lr] rotate-180 text-[9px] font-bold tracking-[0.2em] text-muted-foreground/50 uppercase whitespace-nowrap">
+                        {status.groupKey.replace('_', ' ')}
+                      </span>
+                   </div>
+                </div>
+              )}
+              <KanbanColumn
+                status={status}
+                tasks={filteredTasks.filter((t) => t.statusId === status.id)}
+                isFullscreen={isFullscreen}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                onAddTask={() => handleAddTask(status.id)}
+                onEditTask={handleEditTask}
+                onAssignTask={handleAssignTask}
+                onDeleteTask={handleDeleteTask}
+                onViewTaskDetail={handleViewTaskDetail}
+                onRename={(newName) => handleRenameColumn(status.id, newName)}
+              />
+            </React.Fragment>
+          );
+        })}
+
+        {/* Add Status Button */}
+        <div className="flex items-start pt-0 shrink-0">
+          <AddStatusButton projectId={projectId} onAdd={handleAddStatus} />
+        </div>
       </div>
     </div>
   );

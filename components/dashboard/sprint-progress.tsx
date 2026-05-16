@@ -7,13 +7,13 @@ import { Calendar, Target, TrendingUp, Clock } from 'lucide-react';
 import { useApp } from '@/lib/app-context';
 
 export function SprintProgress() {
-  const { sprints, tasks } = useApp();
+  const { sprints, tasks, isTaskDone } = useApp();
   const activeSprint = sprints.find((s) => s.status === 'active');
   const sprintTasks = tasks.filter((t) => t.sprintId === activeSprint?.id);
-  const completedTasks = sprintTasks.filter((t) => t.status === 'closed').length;
+  const completedTasks = sprintTasks.filter((t) => isTaskDone(t)).length;
   const totalPoints = sprintTasks.reduce((acc, t) => acc + (t.storyPoints || 0), 0);
   const completedPoints = sprintTasks
-    .filter((t) => t.status === 'closed')
+    .filter((t) => isTaskDone(t))
     .reduce((acc, t) => acc + (t.storyPoints || 0), 0);
   
   const progress = totalPoints > 0 ? Math.round((completedPoints / totalPoints) * 100) : 0;

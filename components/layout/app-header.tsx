@@ -25,8 +25,8 @@ interface AppHeaderProps {
 
 export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
   const router = useRouter();
-  const { setSearchOpen, openModal, showToast, currentUser, logoutAction, isAuthenticated, tasks, isMounted } = useApp();
-  
+  const { setSearchOpen, openModal, showToast, currentUser, logoutAction, isAuthenticated, tasks, isMounted, isTaskDone } = useApp();
+
   if (!isMounted) {
     return (
       <header className="h-16 border-b border-border bg-card px-6 flex items-center justify-between">
@@ -39,11 +39,11 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
       </header>
     );
   }
-  
+
   // Basic live insights derived from tasks
-  const overdueTasks = tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'closed');
+  const overdueTasks = tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && !isTaskDone(t));
   const highPriorityTasks = tasks.filter(t => t.priority === 'high' || t.priority === 'critical');
-  
+
   const liveInsights = [
     ...overdueTasks.slice(0, 2).map(t => ({
       id: `overdue-${t.id}`,
@@ -77,9 +77,9 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
 
       <div className="flex items-center gap-2">
         {/* Quick Search */}
-        <Button 
-          variant="outline" 
-          size="sm" 
+        <Button
+          variant="outline"
+          size="sm"
           className="gap-2 text-muted-foreground bg-transparent"
           onClick={() => setSearchOpen(true)}
         >

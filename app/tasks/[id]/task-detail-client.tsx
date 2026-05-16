@@ -42,19 +42,19 @@ import {
   Calendar
 } from 'lucide-react';
 import { tags as availableTags } from '@/lib/mock-data';
-import { TaskPriority, TaskStatus, TaskComment, TaskAttachment, TaskLink, Task, Project, User, TimeEntry } from '@/lib/types';
+import { TaskPriority, TaskComment, TaskAttachment, TaskLink, Task, Project, User, TimeEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 export default function TaskDetailClient({ taskId }: { taskId: string }) {
   const router = useRouter();
-  const { tasks, users, currentUser, getTask, updateTask, openModal, projects, isMounted, getTaskActivities, addTimeEntry, showToast } = useApp();
+  const { tasks, users, currentUser, getTask, updateTask, openModal, projects, isMounted, getTaskActivities, addTimeEntry, showToast, getProjectStatuses, workflowStatuses } = useApp();
   const task = getTask(taskId);
   
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [type, setType] = useState<'task' | 'bug' | 'story' | 'epic' | 'subtask'>('task');
   const [priority, setPriority] = useState<TaskPriority>('medium');
-  const [status, setStatus] = useState<TaskStatus>('open');
+  const [statusId, setStatusId] = useState<string>('');
   const [storyPoints, setStoryPoints] = useState<string>('');
   const [startDate, setStartDate] = useState<string>('');
   const [dueDate, setDueDate] = useState<string>('');
@@ -91,7 +91,7 @@ export default function TaskDetailClient({ taskId }: { taskId: string }) {
       setDescription(task.description || '');
       setType(task.type);
       setPriority(task.priority);
-      setStatus(task.status);
+      setStatusId(task.statusId || '');
       setStoryPoints(task.storyPoints?.toString() || '');
       setStartDate(task.startDate || '');
       setDueDate(task.dueDate || '');
@@ -121,7 +121,7 @@ export default function TaskDetailClient({ taskId }: { taskId: string }) {
         description !== (task.description || '') ||
         type !== task.type ||
         priority !== task.priority ||
-        status !== task.status ||
+        statusId !== task.statusId ||
         storyPoints !== (task.storyPoints?.toString() || '') ||
         startDate !== (task.startDate || '') ||
         dueDate !== (task.dueDate || '') ||
@@ -133,7 +133,7 @@ export default function TaskDetailClient({ taskId }: { taskId: string }) {
       
       setIsChanged(changed);
     }
-  }, [title, description, type, priority, status, storyPoints, startDate, dueDate, assignee, selectedTags, comments, attachments, linkedTasks, task]);
+  }, [title, description, type, priority, statusId, storyPoints, startDate, dueDate, assignee, selectedTags, comments, attachments, linkedTasks, task]);
 
   if (!isMounted) return null;
 
@@ -167,7 +167,7 @@ export default function TaskDetailClient({ taskId }: { taskId: string }) {
       description: description.trim(),
       type,
       priority,
-      status,
+      statusId,
       storyPoints: storyPoints ? parseInt(storyPoints) : undefined,
       startDate: startDate || undefined,
       dueDate: dueDate || undefined,
@@ -761,17 +761,19 @@ export default function TaskDetailClient({ taskId }: { taskId: string }) {
                   <div className="p-6 space-y-6">
                     <div className="space-y-3">
                       <Label className="text-sm text-muted-foreground">Status</Label>
-                      <Select value={status} onValueChange={(v) => setStatus(v as TaskStatus)}>
+                      <Select value={statusId} onValueChange={setStatusId}>
                         <SelectTrigger className="h-10">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="open">Open</SelectItem>
-                          <SelectItem value="assigned">Assigned</SelectItem>
-                          <SelectItem value="in-progress">In Progress</SelectItem>
-                          <SelectItem value="pending-approval">Pending Approval</SelectItem>
-                          <SelectItem value="on-hold">On Hold</SelectItem>
-                          <SelectItem value="closed">Closed</SelectItem>
+                          {getProjectStatuses(project?.id || '').map((s: any) => (
+                            <SelectItem key={s.id} value={s.id}>
+                              <div className="flex items-center gap-2">
+                                <div className="size-2 rounded-full" style={{ backgroundColor: s.color }} />
+                                {s.name}
+                              </div>
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>

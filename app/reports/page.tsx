@@ -50,14 +50,14 @@ import { cn } from '@/lib/utils';
 import type { Task, Project } from '@/lib/types';
 
 export default function ReportsPage() {
-  const { tasks, projects, users, sprints } = useApp();
+  const { tasks, projects, users, sprints, isTaskDone, getStatusGroup } = useApp();
   const [dateRange, setDateRange] = useState('this-month');
 
   // Velocity data calculated from actual sprints
   const velocityData = sprints.map(s => {
     const sprintTasks = tasks.filter(t => t.sprintId === s.id);
     const planned = sprintTasks.reduce((acc, t) => acc + (t.storyPoints || 0), 0);
-    const completed = sprintTasks.filter(t => t.status === 'closed').reduce((acc, t) => acc + (t.storyPoints || 0), 0);
+    const completed = sprintTasks.filter(t => isTaskDone(t)).reduce((acc, t) => acc + (t.storyPoints || 0), 0);
     return {
       sprint: s.name,
       planned,
@@ -69,15 +69,15 @@ export default function ReportsPage() {
 
 
   const taskDistribution = [
-    { name: 'Completed', value: tasks.filter(t => t.status === 'closed').length, color: '#22C55E' },
-    { name: 'In Progress', value: tasks.filter(t => t.status === 'in-progress').length, color: '#7B68EE' },
-    { name: 'Open', value: tasks.filter(t => t.status === 'open' || t.status === 'assigned').length, color: '#94A3B8' },
-    { name: 'On Hold', value: tasks.filter(t => t.status === 'on-hold').length, color: '#F59E0B' },
+    { name: 'Completed', value: tasks.filter(t => isTaskDone(t)).length, color: '#22C55E' },
+    { name: 'In Progress', value: tasks.filter(t => getStatusGroup(t.statusId) === 'IN_PROGRESS').length, color: '#7B68EE' },
+    { name: 'Open', value: tasks.filter(t => getStatusGroup(t.statusId) === 'OPEN').length, color: '#94A3B8' },
+    { name: 'On Hold', value: tasks.filter(t => getStatusGroup(t.statusId) === 'ON_HOLD').length, color: '#F59E0B' },
   ].filter(d => d.value > 0);
 
   const teamPerformance = users.slice(0, 4).map(u => {
     const userTasks = tasks.filter(t => t.assignee?.id === u.id);
-    const completed = userTasks.filter(t => t.status === 'closed').length;
+    const completed = userTasks.filter(t => isTaskDone(t)).length;
     return {
       name: u.name,
       completed: completed,
@@ -89,7 +89,7 @@ export default function ReportsPage() {
   const budgetData: any[] = [];
 
   const aiInsightsText = projects.length > 0
-    ? `Your active projects are currently being analyzed. Based on recent activity, the overall health is stable with ${tasks.filter(t => t.status === 'closed').length} tasks completed this period.`
+    ? `Your active projects are currently being analyzed. Based on recent activity, the overall health is stable with ${tasks.filter(t => isTaskDone(t)).length} tasks completed this period.`
     : "AI analysis will begin once you create your first project and add tasks. Nexus PM will provide velocity predictions, risk assessments, and resource optimization tips.";
 
   return (
@@ -175,7 +175,7 @@ export default function ReportsPage() {
                     <div>
                       <p className="text-sm text-muted-foreground">Sprint Velocity</p>
                       <p className="text-2xl font-bold mt-1">
-                        {tasks.filter(t => t.status === 'closed').reduce((acc, t) => acc + (t.storyPoints || 0), 0)} pts
+                        {tasks.filter(t => isTaskDone(t)).reduce((acc, t) => acc + (t.storyPoints || 0), 0)} pts
                       </p>
                       <div className="flex items-center gap-1 mt-1">
                         <TrendingUp className="size-4 text-success" />
