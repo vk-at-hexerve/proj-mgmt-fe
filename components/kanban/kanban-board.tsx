@@ -510,11 +510,11 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
   return (
     <div
       className={cn(
-        'flex flex-col gap-0',
+        'flex flex-col gap-0 w-full max-w-full h-full min-w-0 overflow-hidden',
         isFullscreen && 'fixed inset-0 z-50 bg-background p-4'
       )}
     >
-      <div className="flex items-center justify-end mb-4">
+      <div className="flex items-center justify-end mb-4 shrink-0">
         <Button
           variant="ghost"
           size="sm"
@@ -544,7 +544,7 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
         </Button>
       </div>
 
-      <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar min-h-[500px]">
+      <div className="flex-1 flex gap-4 overflow-x-auto pb-4 custom-scrollbar min-h-0 w-full">
         {columns.map((status, idx) => {
           // Visual group separators
           const showGroupSeparator = idx === 0 || columns[idx - 1].groupKey !== status.groupKey;
@@ -553,11 +553,11 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
             <React.Fragment key={status.id}>
               {showGroupSeparator && (
                 <div className="flex flex-col gap-3 py-2 px-1 border-l border-border/50 first:border-l-0 shrink-0">
-                   <div className="flex items-center justify-center min-w-[24px]">
-                      <span className="[writing-mode:vertical-lr] rotate-180 text-[9px] font-bold tracking-[0.2em] text-muted-foreground/50 uppercase whitespace-nowrap">
-                        {status.groupKey.replace('_', ' ')}
-                      </span>
-                   </div>
+                  <div className="flex items-center justify-center min-w-[24px]">
+                    <span className="[writing-mode:vertical-lr] rotate-180 text-[9px] font-bold tracking-[0.2em] text-muted-foreground/50 uppercase whitespace-nowrap">
+                      {status.groupKey.replace('_', ' ')}
+                    </span>
+                  </div>
                 </div>
               )}
               <KanbanColumn

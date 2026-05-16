@@ -721,7 +721,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         const statuses = await fetchAPI(`/projects/${savedProject.id}/statuses`);
         if (Array.isArray(statuses)) {
-          setWorkflowStatuses((prev) => [...prev, ...statuses.map(mapBackendWorkflowStatus)]);
+          const newStatuses = statuses.map(mapBackendWorkflowStatus);
+          setWorkflowStatuses((prev) => {
+            const existingIds = new Set(prev.map(s => s.id));
+            const uniqueNew = newStatuses.filter(s => !existingIds.has(s.id));
+            return [...prev, ...uniqueNew];
+          });
         }
       } catch (e) {
         console.error("Failed to fetch default statuses for new project", e);
