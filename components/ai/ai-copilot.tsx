@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import {
   Bot,
   Send,
@@ -362,10 +362,7 @@ Is there something specific you'd like me to help you with? I can assist with:
                   <Sparkles className="size-4 text-primary-foreground" />
                 </div>
               ) : (
-                <Avatar className="size-8 shrink-0">
-                  <AvatarImage src={currentUser.avatar || "/placeholder.svg"} alt={currentUser.name} />
-                  <AvatarFallback>AM</AvatarFallback>
-                </Avatar>
+                <UserAvatar user={currentUser} size="md" className="shrink-0" />
               )}
               <div
                 className={cn(

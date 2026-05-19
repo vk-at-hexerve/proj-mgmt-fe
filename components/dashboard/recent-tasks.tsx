@@ -5,7 +5,7 @@ import React from "react"
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ArrowRight, Bug, BookOpen, Zap, ListTodo } from 'lucide-react';
 import { useApp } from '@/lib/app-context';
@@ -108,15 +108,7 @@ export function RecentTasks() {
                 </Badge>
 
                 {task.assignee ? (
-                  <Avatar className="size-6 shrink-0">
-                    <AvatarImage src={task.assignee.avatar || "/placeholder.svg"} alt={task.assignee.name} />
-                    <AvatarFallback className="text-xs">
-                      {task.assignee.name
-                        .split(' ')
-                        .map((n) => n[0])
-                        .join('')}
-                    </AvatarFallback>
-                  </Avatar>
+                  <UserAvatar user={task.assignee} size="sm" />
                 ) : (
                   <div className="size-6 rounded-full border-2 border-dashed border-muted-foreground/30 shrink-0" />
                 )}

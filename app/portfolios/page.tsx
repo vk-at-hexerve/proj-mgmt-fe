@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   DropdownMenu,
@@ -220,12 +220,7 @@ export default function PortfoliosPage() {
 
                       <div className="flex items-center justify-between pt-2 border-t border-border">
                         <div className="flex items-center gap-2">
-                          <Avatar className="size-6">
-                            <AvatarImage src={portfolio.owner?.avatar || '/placeholder.svg'} />
-                            <AvatarFallback className="text-xs">
-                              {(portfolio.owner?.name || 'SU').split(' ').map((n: string) => n[0]).join('')}
-                            </AvatarFallback>
-                          </Avatar>
+                          <UserAvatar user={portfolio.owner} size="sm" />
                           <span className="text-sm text-muted-foreground">{portfolio.owner?.name || 'System User'}</span>
                         </div>
                         <div className="flex items-center gap-2">

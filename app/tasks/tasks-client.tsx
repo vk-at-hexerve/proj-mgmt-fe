@@ -7,7 +7,7 @@ import { AICopilot } from '@/components/ai/ai-copilot';
 import { useApp } from '@/lib/app-context';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import {
@@ -701,12 +701,7 @@ export default function TasksClient() {
                                   className="flex items-center gap-2 cursor-pointer"
                                   onClick={() => openModal('assign-task', { taskId: task.id })}
                                 >
-                                  <Avatar className="size-6">
-                                    <AvatarImage src={task.assignee.avatar || '/placeholder.svg'} />
-                                    <AvatarFallback className="text-xs">
-                                      {task.assignee.name.split(' ').map((n: string) => n[0]).join('')}
-                                    </AvatarFallback>
-                                  </Avatar>
+                                  <UserAvatar user={task.assignee} size="sm" />
                                   <span className="text-sm truncate">{task.assignee.name}</span>
                                 </div>
                               ) : (
@@ -851,12 +846,7 @@ export default function TasksClient() {
                                       className="flex items-center gap-2 cursor-pointer"
                                       onClick={() => openModal('assign-task', { taskId: subtask.id })}
                                     >
-                                      <Avatar className="size-6">
-                                        <AvatarImage src={subtask.assignee.avatar || '/placeholder.svg'} />
-                                        <AvatarFallback className="text-xs">
-                                          {subtask.assignee.name.split(' ').map(n => n[0]).join('')}
-                                        </AvatarFallback>
-                                      </Avatar>
+                                      <UserAvatar user={subtask.assignee} size="sm" />
                                       <span className="text-sm truncate">{subtask.assignee.name}</span>
                                     </div>
                                   ) : (
@@ -1058,12 +1048,7 @@ export default function TasksClient() {
                               className="flex items-center gap-2 cursor-pointer"
                               onClick={() => openModal('assign-task', { taskId: subtask.id })}
                             >
-                              <Avatar className="size-6">
-                                <AvatarImage src={subtask.assignee.avatar || '/placeholder.svg'} />
-                                <AvatarFallback className="text-xs">
-                                  {subtask.assignee.name.split(' ').map(n => n[0]).join('')}
-                                </AvatarFallback>
-                              </Avatar>
+                              <UserAvatar user={subtask.assignee} size="sm" />
                               <span className="text-sm truncate">{subtask.assignee.name}</span>
                             </div>
                           ) : (

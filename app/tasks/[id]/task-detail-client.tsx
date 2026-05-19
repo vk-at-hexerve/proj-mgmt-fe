@@ -7,7 +7,7 @@ import { AppSidebar } from '@/components/layout/app-sidebar';
 import { AppHeader } from '@/components/layout/app-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -535,12 +535,7 @@ export default function TaskDetailClient({ taskId }: { taskId: string }) {
                               const user = users.find((u) => u.id === entry.userId);
                               return (
                                 <div key={entry.id} className="flex items-start gap-4 p-5 rounded-2xl border bg-card hover:shadow-md transition-all duration-300">
-                                  <Avatar className="size-10 border shadow-sm shrink-0">
-                                    <AvatarImage src={user?.avatar || "/placeholder.svg"} />
-                                    <AvatarFallback className="bg-primary/5 text-primary font-bold">
-                                      {user?.name?.split(" ").map((n) => n[0]).join("") || "?"}
-                                    </AvatarFallback>
-                                  </Avatar>
+                                  <UserAvatar user={user} size="lg" className="border shadow-sm shrink-0" />
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 flex-wrap mb-1.5">
                                       <span className="font-bold text-foreground">{user?.name || 'Unknown'}</span>
@@ -573,12 +568,7 @@ export default function TaskDetailClient({ taskId }: { taskId: string }) {
 
                               return (
                                 <div key={comment.id} className="flex gap-4 p-5 rounded-2xl border bg-muted/20">
-                                  <Avatar className="size-10 shrink-0">
-                                    <AvatarImage src={user?.avatar || "/placeholder.svg"} />
-                                    <AvatarFallback>
-                                      {user?.name?.split(" ").map((n: string) => n[0]).join("") || "?"}
-                                    </AvatarFallback>
-                                  </Avatar>
+                                  <UserAvatar user={user} size="lg" className="shrink-0" />
                                   <div className="flex-1 space-y-2">
                                     <div className="flex items-center justify-between">
                                       <div className="flex items-center gap-2">
@@ -804,10 +794,7 @@ export default function TaskDetailClient({ taskId }: { taskId: string }) {
                           {users.map((user) => (
                             <SelectItem key={user.id} value={user.id}>
                               <div className="flex items-center gap-2">
-                                <Avatar className="size-5">
-                                  <AvatarImage src={user.avatar || '/placeholder.svg'} />
-                                  <AvatarFallback className="text-xs">{user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                                </Avatar>
+                                <UserAvatar user={user} size="xs" />
                                 {user.name}
                               </div>
                             </SelectItem>
@@ -848,10 +835,7 @@ export default function TaskDetailClient({ taskId }: { taskId: string }) {
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">Reporter</span>
                         <div className="flex items-center gap-2">
-                          <Avatar className="size-6">
-                            <AvatarImage src={task.reporter.avatar || '/placeholder.svg'} />
-                            <AvatarFallback>{task.reporter.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                          </Avatar>
+                          <UserAvatar user={task.reporter} size="sm" />
                           <span className="font-medium">{task.reporter.name}</span>
                         </div>
                       </div>

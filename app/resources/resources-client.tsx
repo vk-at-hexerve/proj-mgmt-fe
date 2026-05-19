@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -206,12 +206,7 @@ export function ResourcesClient() {
                     <Card key={user.id}>
                       <CardContent className="p-4">
                         <div className="flex items-start gap-4">
-                          <Avatar className="size-12">
-                            <AvatarImage src={user.avatar || '/placeholder.svg'} />
-                            <AvatarFallback>
-                              {user.name.split(' ').map(n => n[0]).join('')}
-                            </AvatarFallback>
-                          </Avatar>
+                          <UserAvatar user={user} size="lg" />
                           <div className="flex-1">
                             <div className="flex items-center justify-between mb-2">
                               <div>
@@ -324,12 +319,7 @@ export function ResourcesClient() {
                                   return (
                                     <div key={allocation.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
                                       <div className="flex items-center gap-3">
-                                        <Avatar className="size-8">
-                                          <AvatarImage src={user?.avatar || '/placeholder.svg'} />
-                                          <AvatarFallback className="text-xs">
-                                            {user?.name.split(' ').map(n => n[0]).join('')}
-                                          </AvatarFallback>
-                                        </Avatar>
+                                        <UserAvatar user={user} size="md" />
                                           <div>
                                             <p className="text-sm font-medium">{user?.name}</p>
                                             <p className="text-xs text-muted-foreground capitalize">{user?.role?.replace('-', ' ') || 'Contributor'}</p>

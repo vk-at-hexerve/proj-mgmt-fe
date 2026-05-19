@@ -5,7 +5,7 @@ import { useApp } from '@/lib/app-context';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -501,10 +501,7 @@ export function ProjectGridView({ projectId, projectKey = 'PRJ' }: ProjectGridVi
         <div className="flex flex-col gap-0.5 px-2 py-0.5">
           {user ? (
             <div className="flex items-center gap-1.5">
-              <Avatar className="size-4 shrink-0">
-                <AvatarImage src={user.avatar || '/placeholder.svg'} />
-                <AvatarFallback className="text-[9px]">{user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-              </Avatar>
+              <UserAvatar user={user} size="xs" />
               <span className="text-xs truncate">{user.name.split(' ')[0]}</span>
             </div>
           ) : (
@@ -546,10 +543,7 @@ export function ProjectGridView({ projectId, projectKey = 'PRJ' }: ProjectGridVi
                   }}
                   className="flex items-center gap-2"
                 >
-                  <Avatar className="size-4 shrink-0">
-                    <AvatarImage src={u.avatar || '/placeholder.svg'} />
-                    <AvatarFallback className="text-[9px]">{u.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                  </Avatar>
+                  <UserAvatar user={u} size="xs" />
                   <span className="text-xs">{u.name}</span>
                   {value === u.id && <UserCheck className="size-3 ml-auto text-primary" />}
                 </DropdownMenuItem>

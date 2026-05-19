@@ -105,6 +105,7 @@ export function mapBackendTask(backendTask: BackendTask): Task {
     tags: [],
     startDate: backendTask.start_date,
     dueDate: backendTask.due_date,
+    sprintId: backendTask.sprint_id ? String(backendTask.sprint_id) : undefined,
     createdAt: backendTask.created_at || new Date().toISOString(),
     updatedAt: backendTask.updated_at || new Date().toISOString()
   };

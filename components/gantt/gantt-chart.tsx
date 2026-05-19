@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useRef } from 'react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -151,7 +151,7 @@ export function GanttChart({ projectId }: GanttChartProps) {
     if (progress === 100) return 'bg-success';
     if (progress >= 50) return 'bg-primary';
     if (progress > 0) return 'bg-warning';
-    return 'bg-muted';
+    return 'bg-slate-400';
   };
 
   const isToday = (date: Date) => {
@@ -238,12 +238,7 @@ export function GanttChart({ projectId }: GanttChartProps) {
                   style={{ height: ROW_HEIGHT }}
                 >
                   {task.assignee && (
-                    <Avatar className="size-6">
-                      <AvatarImage src={task.assignee.avatar || '/placeholder.svg'} />
-                      <AvatarFallback className="text-xs">
-                        {task.assignee.name.split(' ').map(n => n[0]).join('')}
-                      </AvatarFallback>
-                    </Avatar>
+                    <UserAvatar user={task.assignee} size="sm" />
                   )}
                   <div className="flex-1 min-w-0">
                     <p className={cn(
@@ -409,7 +404,7 @@ export function GanttChart({ projectId }: GanttChartProps) {
             <span className="text-muted-foreground">Started</span>
           </div>
           <div className="flex items-center gap-2 text-sm">
-            <div className="w-6 h-3 rounded bg-muted" />
+            <div className="w-6 h-3 rounded bg-slate-400" />
             <span className="text-muted-foreground">Not Started</span>
           </div>
           <div className="flex items-center gap-2 text-sm">

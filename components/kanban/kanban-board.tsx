@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
@@ -19,11 +19,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -32,6 +27,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import {
   Plus,
   MoreHorizontal,
@@ -132,7 +135,7 @@ function KanbanCard({ task, onDragStart, onEdit, onAssign, onDelete, onViewDetai
       <CardContent className="p-2.5 space-y-1.5">
         {/* Top row: type icon + key + menu */}
         <div className="flex items-center justify-between gap-1">
-          <div className="flex items-center gap-1.5 min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
             {typeIcons[task.type]}
             <span className="text-[10px] font-mono text-muted-foreground">{task.key}</span>
           </div>
@@ -188,12 +191,7 @@ function KanbanCard({ task, onDragStart, onEdit, onAssign, onDelete, onViewDetai
               <Tooltip>
                 <TooltipTrigger asChild>
                   {task.assignee ? (
-                    <Avatar className="size-5">
-                      <AvatarImage src={task.assignee.avatar || '/placeholder.svg'} alt={task.assignee.name} />
-                      <AvatarFallback className="text-[8px]">
-                        {task.assignee.name.split(' ').map((n) => n[0]).join('')}
-                      </AvatarFallback>
-                    </Avatar>
+                    <UserAvatar user={task.assignee} size="xs" />
                   ) : (
                     <div className="size-5 rounded-full border border-dashed border-muted-foreground/40 flex items-center justify-center">
                       <Users className="size-2.5 text-muted-foreground/40" />
@@ -234,7 +232,7 @@ interface KanbanColumnProps {
   onAssignTask: (taskId: string) => void;
   onDeleteTask: (taskId: string) => void;
   onViewTaskDetail: (taskId: string) => void;
-  onRename: (newName: string) => void;
+  onEditStatus: () => void;
 }
 
 function KanbanColumn({
@@ -249,18 +247,8 @@ function KanbanColumn({
   onAssignTask,
   onDeleteTask,
   onViewTaskDetail,
-  onRename,
+  onEditStatus,
 }: KanbanColumnProps) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editName, setEditName] = useState(status.name);
-
-  const handleRenameSubmit = () => {
-    if (editName.trim() && editName !== status.name) {
-      onRename(editName.trim());
-    }
-    setIsEditing(false);
-  };
-
   return (
     <div
       className={cn(
@@ -274,28 +262,17 @@ function KanbanColumn({
         <div className="flex items-center justify-between gap-1">
           <div className="flex items-center gap-1.5 min-w-0 flex-1">
             <div className="size-2 rounded-full shrink-0" style={{ backgroundColor: status.color }} />
-            {isEditing ? (
-              <Input
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                onBlur={handleRenameSubmit}
-                onKeyDown={(e) => e.key === 'Enter' && handleRenameSubmit()}
-                autoFocus
-                className="h-6 text-xs py-0 px-1"
-              />
-            ) : (
-              <div className="flex items-center gap-1 min-w-0 flex-1 group/header">
-                <h3 className="font-medium text-xs truncate">{status.name}</h3>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-4 opacity-0 group-hover/header:opacity-100 transition-opacity"
-                  onClick={() => setIsEditing(true)}
-                >
-                  <Pencil className="size-2.5 text-muted-foreground" />
-                </Button>
-              </div>
-            )}
+            <div className="flex items-center gap-1 min-w-0 flex-1 group/header">
+              <h3 className="font-medium text-xs truncate">{status.name}</h3>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-4 opacity-0 group-hover/header:opacity-100 transition-opacity"
+                onClick={onEditStatus}
+              >
+                <Pencil className="size-2.5 text-muted-foreground" />
+              </Button>
+            </div>
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <Badge
@@ -337,45 +314,61 @@ function KanbanColumn({
   );
 }
 
-function AddStatusButton({ projectId, onAdd }: { projectId: string; onAdd: (name: string, groupKey: WorkflowGroupKey, color: string) => void }) {
+// ─── Workflow Status Dialog Component ──────────────────────────────────────────
+
+interface WorkflowStatusModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  status: WorkflowStatus | null; // null means Create mode
+  projectId: string;
+  onSave: (name: string, groupKey: WorkflowGroupKey, color: string) => void;
+}
+
+function WorkflowStatusModal({ isOpen, onClose, status, projectId, onSave }: WorkflowStatusModalProps) {
   const [name, setName] = useState('');
   const [groupKey, setGroupKey] = useState<WorkflowGroupKey>('OPEN');
   const [color, setColor] = useState(COLOR_PRESETS[0]);
-  const [isOpen, setIsOpen] = useState(false);
+
+  // Synchronize internal state when the modal is opened or changes mode
+  React.useEffect(() => {
+    if (isOpen) {
+      if (status) {
+        setName(status.name);
+        setGroupKey(status.groupKey);
+        setColor(status.color);
+      } else {
+        setName('');
+        setGroupKey('OPEN');
+        setColor(COLOR_PRESETS[0]);
+      }
+    }
+  }, [isOpen, status]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (name.trim()) {
-      onAdd(name.trim(), groupKey, color);
-      setName('');
-      setIsOpen(false);
+      onSave(name.trim(), groupKey, color);
+      onClose();
     }
   };
 
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          className="h-10 min-w-[260px] max-w-[260px] border-dashed border-2 hover:bg-primary/5 hover:border-primary/50 group transition-all"
-        >
-          <div className="flex items-center gap-2 text-muted-foreground group-hover:text-primary">
-            <PlusCircle className="size-4" />
-            <span className="text-sm font-medium">Add Status</span>
-          </div>
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-80 p-4" align="end">
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1">
-            <h4 className="font-semibold text-sm">Add New Status</h4>
-            <p className="text-[10px] text-muted-foreground">Create a custom workflow stage for this project</p>
-          </div>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>{status ? 'Edit Status' : 'Add New Status'}</DialogTitle>
+          <DialogDescription>
+            {status
+              ? 'Update this workflow stage for this project'
+              : 'Create a custom workflow stage for this project'}
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 py-2">
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <Label htmlFor="status-name" className="text-[10px] uppercase font-bold text-slate-500">Name</Label>
+              <Label htmlFor="modal-status-name" className="text-[10px] uppercase font-bold text-slate-500">Name</Label>
               <Input
-                id="status-name"
+                id="modal-status-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. In Review"
@@ -416,13 +409,18 @@ function AddStatusButton({ projectId, onAdd }: { projectId: string; onAdd: (name
               </div>
             </div>
           </div>
-          <Button type="submit" className="w-full gap-2" disabled={!name.trim()}>
-            <Check className="size-4" />
-            Create Status
-          </Button>
+          <DialogFooter className="pt-2">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" className="gap-2" disabled={!name.trim()}>
+              <Check className="size-4" />
+              {status ? 'Save Changes' : 'Create Status'}
+            </Button>
+          </DialogFooter>
         </form>
-      </PopoverContent>
-    </Popover>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -443,6 +441,10 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
   } = useApp();
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Unified modal-based status editing state
+  const [statusModalOpen, setStatusModalOpen] = useState(false);
+  const [editingStatus, setEditingStatus] = useState<WorkflowStatus | null>(null);
 
   // Derive columns dynamically from project statuses
   const columns = useMemo(() => {
@@ -488,14 +490,20 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
   const handleDeleteTask = (taskId: string) => openModal('confirm-delete', { taskId });
   const handleViewTaskDetail = (taskId: string) => openModal('task-detail', { taskId });
 
-  const handleAddStatus = (name: string, groupKey: WorkflowGroupKey, color: string) => {
-    if (projectId) {
-      addWorkflowStatus(projectId, { name, groupKey, color });
-    }
+  const handleOpenAddStatus = () => {
+    setEditingStatus(null);
+    setStatusModalOpen(true);
   };
 
-  const handleRenameColumn = (statusId: string, newName: string) => {
-    updateWorkflowStatus(statusId, { name: newName });
+  const handleSaveStatus = (name: string, groupKey: WorkflowGroupKey, color: string) => {
+    if (!projectId) return;
+    if (editingStatus) {
+      // Update existing workflow status
+      updateWorkflowStatus(editingStatus.id, { name, groupKey, color });
+    } else {
+      // Add new workflow status
+      addWorkflowStatus(projectId, { name, groupKey, color });
+    }
   };
 
   if (!projectId) {
@@ -572,7 +580,10 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
                 onAssignTask={handleAssignTask}
                 onDeleteTask={handleDeleteTask}
                 onViewTaskDetail={handleViewTaskDetail}
-                onRename={(newName) => handleRenameColumn(status.id, newName)}
+                onEditStatus={() => {
+                  setEditingStatus(status);
+                  setStatusModalOpen(true);
+                }}
               />
             </React.Fragment>
           );
@@ -580,9 +591,27 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
 
         {/* Add Status Button */}
         <div className="flex items-start pt-0 shrink-0">
-          <AddStatusButton projectId={projectId} onAdd={handleAddStatus} />
+          <Button
+            variant="outline"
+            className="h-10 min-w-[260px] max-w-[260px] border-dashed border-2 hover:bg-primary/5 hover:border-primary/50 group transition-all"
+            onClick={handleOpenAddStatus}
+          >
+            <div className="flex items-center gap-2 text-muted-foreground group-hover:text-primary">
+              <PlusCircle className="size-4" />
+              <span className="text-sm font-medium">Add Status</span>
+            </div>
+          </Button>
         </div>
       </div>
+
+      <WorkflowStatusModal
+        isOpen={statusModalOpen}
+        onClose={() => setStatusModalOpen(false)}
+        status={editingStatus}
+        projectId={projectId}
+        onSave={handleSaveStatus}
+      />
     </div>
   );
 }
+

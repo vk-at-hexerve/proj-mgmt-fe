@@ -8,7 +8,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/lib/app-context";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Task, Project } from "@/lib/types";
 import {
@@ -569,18 +569,7 @@ export function AppSidebar() {
                   collapsed && "w-auto p-1",
                 )}
               >
-                <Avatar className="size-8">
-                  <AvatarImage
-                    src={currentUser.avatar || "/placeholder.svg"}
-                    alt={currentUser.name}
-                  />
-                  <AvatarFallback>
-                    {(currentUser?.name || "User")
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")}
-                  </AvatarFallback>
-                </Avatar>
+                <UserAvatar user={currentUser} size="md" />
                 {!collapsed && (
                   <div className="flex-1 text-left min-w-0">
                     <p className="text-sm font-medium text-sidebar-foreground truncate">
