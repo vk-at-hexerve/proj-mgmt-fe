@@ -72,6 +72,13 @@ const GROUP_PROGRESS_MAP: Record<WorkflowGroupKey, number> = {
   CLOSED: 100,
 };
 
+const GROUP_BACKGROUND_STYLES: Record<WorkflowGroupKey, string> = {
+  OPEN: 'bg-slate-100/85 border-slate-200/70',
+  IN_PROGRESS: 'bg-indigo-100/85 border-indigo-200/70',
+  ON_HOLD: 'bg-amber-100/85 border-amber-200/70',
+  CLOSED: 'bg-emerald-100/85 border-emerald-200/70',
+};
+
 const COLOR_PRESETS = [
   '#94a3b8', // slate
   '#3b82f6', // blue
@@ -125,28 +132,28 @@ function KanbanCard({ task, onDragStart, onEdit, onAssign, onDelete, onViewDetai
   return (
     <Card
       className={cn(
-        'cursor-grab active:cursor-grabbing border-l-4 hover:shadow-md transition-shadow group',
+        'cursor-grab active:cursor-grabbing border-l-4 hover:shadow-md transition-shadow group py-2 gap-2',
         priorityBorder[task.priority]
       )}
       draggable
       onDragStart={(e) => onDragStart(e, task.id)}
       onClick={onViewDetail}
     >
-      <CardContent className="p-2.5 space-y-1.5">
+      <CardContent className="p-1.5 pt-1.5 space-y-1">
         {/* Top row: type icon + key + menu */}
-        <div className="flex items-center justify-between gap-1">
-          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-1">
+          <div className="flex items-center gap-1 min-w-0 flex-1 pt-0.5">
             {typeIcons[task.type]}
-            <span className="text-[10px] font-mono text-muted-foreground">{task.key}</span>
+            <span className="text-[9px] font-mono leading-none text-muted-foreground">{task.key}</span>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                className="size-4 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 -mr-0.5 -mt-0.5"
               >
-                <MoreHorizontal className="size-3.5" />
+                <MoreHorizontal className="size-3" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -159,33 +166,33 @@ function KanbanCard({ task, onDragStart, onEdit, onAssign, onDelete, onViewDetai
         </div>
 
         {/* Title */}
-        <p className="text-xs font-medium leading-snug line-clamp-2">{task.title}</p>
+        <p className="text-[11px] font-medium leading-tight line-clamp-2">{task.title}</p>
 
         {/* Footer row: tags + priority dot + due date + assignee */}
-        <div className="flex items-center justify-between gap-1.5 pt-0.5">
+        <div className="flex items-center justify-between gap-1 pt-0.5">
           <div className="flex items-center gap-1 min-w-0 flex-1">
             {task.tags.slice(0, 1).map((tag) => (
               <Badge
                 key={tag.id}
                 variant="secondary"
-                className="text-[9px] px-1 py-0 leading-4 shrink-0"
+                className="text-[8px] px-1 py-0 h-4 leading-none shrink-0"
                 style={{ backgroundColor: `${tag.color}20`, color: tag.color }}
               >
                 {tag.name}
               </Badge>
             ))}
             {task.tags.length > 1 && (
-              <span className="text-[9px] text-muted-foreground">+{task.tags.length - 1}</span>
+              <span className="text-[8px] text-muted-foreground">+{task.tags.length - 1}</span>
             )}
             {task.dueDate && (
-              <span className="flex items-center gap-0.5 text-[9px] text-muted-foreground ml-auto shrink-0">
-                <Calendar className="size-2.5" />
+              <span className="flex items-center gap-0.5 text-[8px] text-muted-foreground ml-auto shrink-0 leading-none">
+                <Calendar className="size-2" />
                 {new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
               </span>
             )}
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1 shrink-0">
             <div className={cn('size-1.5 rounded-full', priorityDots[task.priority])} />
             <TooltipProvider>
               <Tooltip>
@@ -193,8 +200,8 @@ function KanbanCard({ task, onDragStart, onEdit, onAssign, onDelete, onViewDetai
                   {task.assignee ? (
                     <UserAvatar user={task.assignee} size="xs" />
                   ) : (
-                    <div className="size-5 rounded-full border border-dashed border-muted-foreground/40 flex items-center justify-center">
-                      <Users className="size-2.5 text-muted-foreground/40" />
+                    <div className="size-4 rounded-full border border-dashed border-muted-foreground/40 flex items-center justify-center">
+                      <Users className="size-2 text-muted-foreground/40" />
                     </div>
                   )}
                 </TooltipTrigger>
@@ -208,7 +215,7 @@ function KanbanCard({ task, onDragStart, onEdit, onAssign, onDelete, onViewDetai
 
         {/* Slim progress bar */}
         {progressPct > 0 && (
-          <div className="h-0.5 bg-muted rounded-full overflow-hidden">
+          <div className="mt-0.5 h-0.5 bg-muted rounded-full overflow-hidden">
             <div
               className={cn('h-full rounded-full', isDone ? 'bg-success' : 'bg-primary')}
               style={{ width: `${progressPct}%` }}
@@ -252,7 +259,7 @@ function KanbanColumn({
   return (
     <div
       className={cn(
-        'flex flex-col bg-muted/30 rounded-lg group/column shrink-0',
+        'flex flex-col bg-background/70 rounded-lg group/column shrink-0 border border-border/40 backdrop-blur-[1px]',
         isFullscreen ? 'min-w-[280px] max-w-[280px]' : 'min-w-[260px] max-w-[260px]'
       )}
       onDragOver={onDragOver}
@@ -460,6 +467,17 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
     });
   }, [getProjectStatuses, projectId]);
 
+  const groupedColumns = useMemo(() => {
+    const orderedGroupKeys: WorkflowGroupKey[] = ['OPEN', 'IN_PROGRESS', 'ON_HOLD', 'CLOSED'];
+
+    return orderedGroupKeys
+      .map((groupKey) => ({
+        groupKey,
+        statuses: columns.filter((status) => status.groupKey === groupKey),
+      }))
+      .filter((group) => group.statuses.length > 0);
+  }, [columns]);
+
   const filteredTasks = projectId
     ? tasks.filter((t) => t.projectId === projectId)
     : tasks;
@@ -553,41 +571,44 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
       </div>
 
       <div className="flex-1 flex gap-4 overflow-x-auto pb-4 custom-scrollbar min-h-0 w-full">
-        {columns.map((status, idx) => {
-          // Visual group separators
-          const showGroupSeparator = idx === 0 || columns[idx - 1].groupKey !== status.groupKey;
+        {groupedColumns.map((group) => (
+          <div
+            key={group.groupKey}
+            className={cn(
+              'flex shrink-0 rounded-2xl border p-2 gap-2 shadow-sm',
+              GROUP_BACKGROUND_STYLES[group.groupKey]
+            )}
+          >
+            <div className="flex items-center justify-center min-w-[24px] px-0.5">
+              <span className="[writing-mode:vertical-lr] rotate-180 text-[9px] font-bold tracking-[0.2em] text-muted-foreground/50 uppercase whitespace-nowrap">
+                {group.groupKey.replace('_', ' ')}
+              </span>
+            </div>
 
-          return (
-            <React.Fragment key={status.id}>
-              {showGroupSeparator && (
-                <div className="flex flex-col gap-3 py-2 px-1 border-l border-border/50 first:border-l-0 shrink-0">
-                  <div className="flex items-center justify-center min-w-[24px]">
-                    <span className="[writing-mode:vertical-lr] rotate-180 text-[9px] font-bold tracking-[0.2em] text-muted-foreground/50 uppercase whitespace-nowrap">
-                      {status.groupKey.replace('_', ' ')}
-                    </span>
-                  </div>
-                </div>
-              )}
-              <KanbanColumn
-                status={status}
-                tasks={filteredTasks.filter((t) => t.statusId === status.id)}
-                isFullscreen={isFullscreen}
-                onDragStart={handleDragStart}
-                onDragOver={handleDragOver}
-                onDrop={handleDrop}
-                onAddTask={() => handleAddTask(status.id)}
-                onEditTask={handleEditTask}
-                onAssignTask={handleAssignTask}
-                onDeleteTask={handleDeleteTask}
-                onViewTaskDetail={handleViewTaskDetail}
-                onEditStatus={() => {
-                  setEditingStatus(status);
-                  setStatusModalOpen(true);
-                }}
-              />
-            </React.Fragment>
-          );
-        })}
+            <div className="flex gap-4 shrink-0">
+              {group.statuses.map((status) => (
+                <KanbanColumn
+                  key={status.id}
+                  status={status}
+                  tasks={filteredTasks.filter((t) => t.statusId === status.id)}
+                  isFullscreen={isFullscreen}
+                  onDragStart={handleDragStart}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                  onAddTask={() => handleAddTask(status.id)}
+                  onEditTask={handleEditTask}
+                  onAssignTask={handleAssignTask}
+                  onDeleteTask={handleDeleteTask}
+                  onViewTaskDetail={handleViewTaskDetail}
+                  onEditStatus={() => {
+                    setEditingStatus(status);
+                    setStatusModalOpen(true);
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
 
         {/* Add Status Button */}
         <div className="flex items-start pt-0 shrink-0">
