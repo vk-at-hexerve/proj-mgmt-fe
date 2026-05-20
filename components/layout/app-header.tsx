@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Bell, Plus, Search, MessageSquare, HelpCircle, LogOut, User as UserIcon, Settings } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/ui/user-avatar';
 // import { aiInsights } from '@/lib/mock-data';
 const aiInsights: any[] = []; // Placeholder or derived from tasks
 
@@ -177,22 +177,12 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full size-8 p-0">
-                <Avatar className="size-8">
-                  <AvatarImage src={currentUser.avatar || "/placeholder.svg"} alt={currentUser.name} />
-                  <AvatarFallback className="text-xs">
-                    {(currentUser?.name || "User").split(' ').map((n: string) => n[0]).join('')}
-                  </AvatarFallback>
-                </Avatar>
+                <UserAvatar user={currentUser} size="md" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <div className="flex items-center gap-2 p-2">
-                <Avatar className="size-8">
-                  <AvatarImage src={currentUser.avatar || "/placeholder.svg"} alt={currentUser.name} />
-                  <AvatarFallback className="text-xs">
-                    {(currentUser?.name || "User").split(' ').map((n: string) => n[0]).join('')}
-                  </AvatarFallback>
-                </Avatar>
+                <UserAvatar user={currentUser} size="md" />
                 <div className="flex flex-col space-y-0.5">
                   <p className="text-sm font-medium leading-none">{currentUser.name}</p>
                   <p className="text-xs leading-none text-muted-foreground">{currentUser.email}</p>

@@ -70,7 +70,7 @@ import {
 import { getStatusName } from '@/lib/status-utils';
 // import { sprints as initialSprints, generateCalendarEvents, users } from '@/lib/mock-data';
 import { cn } from '@/lib/utils';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import type { Sprint } from '@/lib/types';
 
 type ViewType = 'kanban' | 'list' | 'gantt' | 'calendar' | 'grid' | 'backlog';
@@ -91,7 +91,7 @@ const viewOptions: { id: ViewType; label: string; icon: React.ReactNode }[] = [
 ];
 
 export default function ProjectsPage() {
-  const { projects, tasks: allTasks, showToast, teams, currentProject: currentProjectId, sprints: contextSprints, users, addSprint, updateSprint, openModal, workflowStatuses } = useApp();
+  const { projects, tasks: allTasks, showToast, teams, currentProject: currentProjectId, sprints: contextSprints, users, addSprint, updateSprint, openModal, workflowStatuses, updateTask } = useApp();
   const [currentView, setCurrentView] = useState<ViewType>('kanban');
   const [filters, setFilters] = useState<FilterState>({ assignees: [], priorities: [], types: [] });
   const [filterOpen, setFilterOpen] = useState(false);
@@ -99,7 +99,6 @@ export default function ProjectsPage() {
   const [sprintDialogOpen, setSprintDialogOpen] = useState(false);
   const [newSprint, setNewSprint] = useState({ name: '', goal: '', startDate: '', endDate: '' });
   const [selectedBacklogTasks, setSelectedBacklogTasks] = useState<string[]>([]);
-  const [localTasks, setLocalTasks] = useState(allTasks);
   const [dateError, setDateError] = useState('');
 
 
@@ -108,7 +107,7 @@ export default function ProjectsPage() {
   const activeSprint = sprints.find((s) => s.status === 'active');
   const projectTeam = teams.find(t => t.projects.some(p => p.id === currentProject?.id)) || teams[0];
 
-  const backlogTasks = localTasks.filter(t =>
+  const backlogTasks = allTasks.filter(t =>
     t.projectId === currentProject?.id && !t.sprintId
   );
 
@@ -156,13 +155,7 @@ export default function ProjectsPage() {
       status: 'planning',
       projectId: currentProject.id,
     };
-    addSprint(sprint);
-    // Move selected backlog tasks to this sprint
-    if (selectedBacklogTasks.length > 0) {
-      setLocalTasks((prev: typeof allTasks) => prev.map(t =>
-        selectedBacklogTasks.includes(t.id) ? { ...t, sprintId } : t
-      ));
-    }
+    addSprint(sprint, selectedBacklogTasks);
     setSprintDialogOpen(false);
     setNewSprint({ name: '', goal: '', startDate: '', endDate: '' });
     setSelectedBacklogTasks([]);
@@ -174,9 +167,7 @@ export default function ProjectsPage() {
   };
 
   const handleMoveToSprint = (taskId: string, sprintId: string | null) => {
-    setLocalTasks((prev: typeof allTasks) => prev.map(t =>
-      t.id === taskId ? { ...t, sprintId: sprintId || undefined } : t
-    ));
+    updateTask(taskId, { sprintId: sprintId || undefined });
     showToast({
       title: sprintId ? 'Task moved to sprint' : 'Task moved to backlog',
       type: 'success'
@@ -377,12 +368,7 @@ export default function ProjectsPage() {
                     <div className="space-y-4">
                       {/* Project Manager (Mandatory) */}
                       <div className="flex items-center gap-2 p-2 rounded-lg bg-primary/5 border border-primary/10">
-                        <Avatar className="size-8">
-                          <AvatarImage src={projectTeam.projectManager.avatar || '/placeholder.svg'} />
-                          <AvatarFallback className="text-xs">
-                            {projectTeam.projectManager.name.split(' ').map((n: string) => n[0]).join('')}
-                          </AvatarFallback>
-                        </Avatar>
+                        <UserAvatar user={projectTeam.projectManager} size="md" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{projectTeam.projectManager.name}</p>
                           <p className="text-[10px] uppercase tracking-wider font-semibold text-primary/70">Project Manager</p>
@@ -392,12 +378,7 @@ export default function ProjectsPage() {
                       {/* Team Lead (Optional) */}
                       {projectTeam.lead && (
                         <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border/50">
-                          <Avatar className="size-8">
-                            <AvatarImage src={projectTeam.lead.avatar || '/placeholder.svg'} />
-                            <AvatarFallback className="text-xs">
-                              {projectTeam.lead.name.split(' ').map((n: string) => n[0]).join('')}
-                            </AvatarFallback>
-                          </Avatar>
+                          <UserAvatar user={projectTeam.lead} size="md" />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium truncate">{projectTeam.lead.name}</p>
                             <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Team Lead</p>
@@ -408,12 +389,7 @@ export default function ProjectsPage() {
                       {/* Product Manager (Optional) */}
                       {projectTeam.productManager && (
                         <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border/50">
-                          <Avatar className="size-8">
-                            <AvatarImage src={projectTeam.productManager.avatar || '/placeholder.svg'} />
-                            <AvatarFallback className="text-xs">
-                              {projectTeam.productManager.name.split(' ').map((n: string) => n[0]).join('')}
-                            </AvatarFallback>
-                          </Avatar>
+                          <UserAvatar user={projectTeam.productManager} size="md" />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium truncate">{projectTeam.productManager.name}</p>
                             <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Product Manager</p>
@@ -424,12 +400,7 @@ export default function ProjectsPage() {
                         <p className="text-xs text-muted-foreground">Members ({projectTeam.members.length})</p>
                         <div className="flex flex-wrap gap-1">
                           {projectTeam.members.slice(0, 6).map((member: any) => (
-                            <Avatar key={member.id} className="size-7" title={member.name}>
-                              <AvatarImage src={member.avatar || '/placeholder.svg'} />
-                              <AvatarFallback className="text-xs">
-                                {member.name.split(' ').map((n: string) => n[0]).join('')}
-                              </AvatarFallback>
-                            </Avatar>
+                            <UserAvatar key={member.id} user={member} size="sm" className="ring-1 ring-background" />
                           ))}
                           {projectTeam.members.length > 6 && (
                             <div className="size-7 rounded-full bg-muted flex items-center justify-center text-xs">
@@ -491,7 +462,7 @@ export default function ProjectsPage() {
               <div className="h-full flex flex-col gap-4 overflow-auto">
                 {/* Sprint sections */}
                 {sprints.map(sprint => {
-                  const sprintTasks = localTasks.filter(t => t.sprintId === sprint.id && t.projectId === currentProject.id);
+                  const sprintTasks = allTasks.filter(t => t.sprintId === sprint.id && t.projectId === currentProject.id);
                   return (
                     <Card key={sprint.id} className="shrink-0">
                       <div className="px-4 py-3 border-b border-border flex items-center justify-between">
@@ -540,10 +511,7 @@ export default function ProjectsPage() {
                                 <Badge variant="outline" className="text-xs capitalize hidden sm:flex">{getStatusName(workflowStatuses, task.statusId)}</Badge>
                                 <Badge variant="outline" className="text-xs capitalize hidden md:flex">{task.priority}</Badge>
                                 {task.assignee ? (
-                                  <Avatar className="size-6">
-                                    <AvatarImage src={task.assignee.avatar || '/placeholder.svg'} />
-                                    <AvatarFallback className="text-[10px]">{task.assignee.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                                  </Avatar>
+                                  <UserAvatar user={task.assignee} size="sm" />
                                 ) : (
                                   <div className="size-6 rounded-full bg-muted border border-dashed border-border flex items-center justify-center">
                                     <Users className="size-3 text-muted-foreground" />
@@ -618,10 +586,7 @@ export default function ProjectsPage() {
                             <Badge variant="outline" className="text-xs capitalize hidden sm:flex">{getStatusName(workflowStatuses, task.statusId)}</Badge>
                             <Badge variant="outline" className="text-xs capitalize hidden md:flex">{task.priority}</Badge>
                             {task.assignee ? (
-                              <Avatar className="size-6">
-                                <AvatarImage src={task.assignee.avatar || '/placeholder.svg'} />
-                                <AvatarFallback className="text-[10px]">{task.assignee.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                              </Avatar>
+                              <UserAvatar user={task.assignee} size="sm" />
                             ) : (
                               <div className="size-6 rounded-full bg-muted border border-dashed border-border flex items-center justify-center">
                                 <Users className="size-3 text-muted-foreground" />

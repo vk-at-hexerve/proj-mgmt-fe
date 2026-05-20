@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -372,12 +372,7 @@ export default function TeamsClient() {
                                   key={member.id}
                                   className="flex items-center gap-4 p-4 rounded-lg border border-border hover:bg-muted/30 transition-colors"
                                 >
-                                  <Avatar className="size-10">
-                                    <AvatarImage src={member.avatar || '/placeholder.svg'} />
-                                    <AvatarFallback>
-                                      {member.name.split(' ').map((n: string) => n[0]).join('')}
-                                    </AvatarFallback>
-                                  </Avatar>
+                                  <UserAvatar user={member} size="lg" />
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2">
                                       <p className="font-medium">{member.name}</p>

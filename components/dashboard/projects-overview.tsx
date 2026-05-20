@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import { ArrowRight, Sparkles, AlertCircle, CheckCircle2, Clock, FolderKanban } from 'lucide-react';
 import { useApp } from '@/lib/app-context';
 import type { RiskLevel, ProjectStatus } from '@/lib/types';
@@ -112,15 +112,7 @@ export function ProjectsOverview() {
                 {/* Team */}
                 <div className="flex -space-x-2">
                   {project.members.slice(0, 4).map((member) => (
-                    <Avatar key={member.id} className="size-6 border-2 border-card">
-                      <AvatarImage src={member.avatar || "/placeholder.svg"} alt={member.name} />
-                      <AvatarFallback className="text-xs">
-                        {member.name
-                          .split(' ')
-                          .map((n) => n[0])
-                          .join('')}
-                      </AvatarFallback>
-                    </Avatar>
+                    <UserAvatar key={member.id} user={member} size="sm" className="border-2 border-card" />
                   ))}
                   {project.members.length > 4 && (
                     <div className="flex items-center justify-center size-6 rounded-full bg-muted text-xs font-medium border-2 border-card">

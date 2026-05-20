@@ -29,7 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -609,17 +609,7 @@ function CreateTaskModal({
                   {users.map((user: User) => (
                     <SelectItem key={user.id} value={user.id}>
                       <span className="flex items-center gap-2">
-                        <Avatar className="size-5">
-                          <AvatarImage
-                            src={user.avatar || "/placeholder.svg"}
-                          />
-                          <AvatarFallback className="text-xs">
-                            {user.name
-                              .split(" ")
-                              .map((n: string) => n[0])
-                              .join("")}
-                          </AvatarFallback>
-                        </Avatar>
+                        <UserAvatar user={user} size="xs" />
                         {user.name}
                       </span>
                     </SelectItem>
@@ -1172,17 +1162,7 @@ function EditTaskModal({
                       {users.map((user) => (
                         <SelectItem key={user.id} value={user.id}>
                           <span className="flex items-center gap-2">
-                            <Avatar className="size-5">
-                              <AvatarImage
-                                src={user.avatar || "/placeholder.svg"}
-                              />
-                              <AvatarFallback className="text-xs">
-                                {user.name
-                                  .split(" ")
-                                  .map((n) => n[0])
-                                  .join("")}
-                              </AvatarFallback>
-                            </Avatar>
+                            <UserAvatar user={user} size="xs" />
                             {user.name}
                           </span>
                         </SelectItem>
@@ -1339,12 +1319,7 @@ function EditTaskModal({
                       const user = users.find((u: User) => u.id === entry.userId);
                       return (
                         <div key={entry.id} className="flex items-start gap-3 p-4 rounded-xl border bg-card/50 hover:bg-muted/30 transition-all duration-200 shadow-sm">
-                          <Avatar className="size-8 border shadow-sm shrink-0">
-                            <AvatarImage src={user?.avatar || "/placeholder.svg"} />
-                            <AvatarFallback className="bg-primary/5 text-primary text-[10px] font-bold">
-                              {user?.name?.split(" ").map((n: string) => n[0]).join("") || "?"}
-                            </AvatarFallback>
-                          </Avatar>
+                          <UserAvatar user={user} size="md" className="border shadow-sm shrink-0" />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap mb-1.5">
                               <span className="font-bold text-sm text-foreground">{user?.name || 'Unknown'}</span>
@@ -1371,12 +1346,7 @@ function EditTaskModal({
 
                       return (
                         <div key={comment.id} className="flex gap-3">
-                          <Avatar className="size-8">
-                            <AvatarImage src={user?.avatar || "/placeholder.svg"} />
-                            <AvatarFallback>
-                              {user?.name?.split(" ").map((n: string) => n[0]).join("") || "?"}
-                            </AvatarFallback>
-                          </Avatar>
+                          <UserAvatar user={user} size="md" className="shrink-0" />
                           <div className="flex-1 space-y-1">
                             <div className="flex items-center gap-2">
                               <span className="font-medium text-sm">{user?.name || "Unknown"}</span>
@@ -1667,8 +1637,9 @@ function TaskDetailModal({
   task: NonNullable<ReturnType<ReturnType<typeof useApp>["getTask"]>>;
   onClose: () => void;
 }) {
-  const { openModal, projects, workflowStatuses, getStatusGroup } = useApp();
+  const { openModal, projects, workflowStatuses, getStatusGroup, sprints } = useApp();
   const project = projects.find((p) => p.id === task.projectId);
+  const sprint = sprints?.find((s) => s.id === task.sprintId);
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -1719,55 +1690,57 @@ function TaskDetailModal({
             </div>
             <div>
               <Label className="text-muted-foreground">Project</Label>
-              <p className="mt-1">{project?.name}</p>
+              <p className="mt-1">{project?.name || "—"}</p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground">Sprint</Label>
+              <p className="mt-1">{sprint ? sprint.name : "Backlog / No Sprint"}</p>
             </div>
             <div>
               <Label className="text-muted-foreground">Story Points</Label>
-              <p className="mt-1">{task.storyPoints || "-"}</p>
+              <p className="mt-1">{task.storyPoints || "—"}</p>
             </div>
             <div>
               <Label className="text-muted-foreground">Assignee</Label>
               {task.assignee ? (
                 <div className="flex items-center gap-2 mt-1">
-                  <Avatar className="size-6">
-                    <AvatarImage
-                      src={task.assignee.avatar || "/placeholder.svg"}
-                    />
-                    <AvatarFallback>
-                      {task.assignee.name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")}
-                    </AvatarFallback>
-                  </Avatar>
+                  <UserAvatar user={task.assignee} size="sm" />
                   <span>{task.assignee.name}</span>
                 </div>
               ) : (
-                <p className="mt-1 text-muted-foreground">Unassigned</p>
+                <p className="mt-1 text-muted-foreground italic">Unassigned</p>
               )}
             </div>
             <div>
               <Label className="text-muted-foreground">Reporter</Label>
               <div className="flex items-center gap-2 mt-1">
-                <Avatar className="size-6">
-                  <AvatarImage
-                    src={task.reporter.avatar || "/placeholder.svg"}
-                  />
-                  <AvatarFallback>
-                    {task.reporter.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")}
-                  </AvatarFallback>
-                </Avatar>
+                <UserAvatar user={task.reporter} size="sm" />
                 <span>{task.reporter.name}</span>
               </div>
             </div>
-            {task.dueDate && (
+            <div>
+              <Label className="text-muted-foreground">Start Date</Label>
+              <p className="mt-1">
+                {task.startDate ? new Date(task.startDate).toLocaleDateString() : "—"}
+              </p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground">Due Date</Label>
+              <p className="mt-1">
+                {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : "—"}
+              </p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground">Created At</Label>
+              <p className="mt-1 text-muted-foreground">
+                {new Date(task.createdAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
+              </p>
+            </div>
+            {task.updatedAt && (
               <div>
-                <Label className="text-muted-foreground">Due Date</Label>
-                <p className="mt-1">
-                  {new Date(task.dueDate).toLocaleDateString()}
+                <Label className="text-muted-foreground">Updated At</Label>
+                <p className="mt-1 text-muted-foreground">
+                  {new Date(task.updatedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
                 </p>
               </div>
             )}
@@ -1852,15 +1825,7 @@ function AssignTaskModal({
                 : "border-border hover:bg-muted"
                 }`}
             >
-              <Avatar className="size-8">
-                <AvatarImage src={user.avatar || "/placeholder.svg"} />
-                <AvatarFallback>
-                  {user.name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")}
-                </AvatarFallback>
-              </Avatar>
+              <UserAvatar user={user} size="md" />
               <div className="text-left">
                 <p className="font-medium text-sm">{user.name}</p>
                 <p className="text-xs text-muted-foreground capitalize">
@@ -2482,17 +2447,7 @@ function CreateProjectModal({
 
                         {selectedTeamData && teamId !== "none" && (
                           <div className="mt-2 p-2 rounded-md bg-primary/5 border border-primary/10 flex items-center gap-2 animate-in fade-in duration-300">
-                            <Avatar className="size-6 border border-border">
-                              <AvatarImage
-                                src={selectedTeamData.projectManager.avatar || "/placeholder.svg"}
-                              />
-                              <AvatarFallback className="text-[8px]">
-                                {selectedTeamData.projectManager.name
-                                  .split(" ")
-                                  .map((n) => n[0])
-                                  .join("")}
-                              </AvatarFallback>
-                            </Avatar>
+                            <UserAvatar user={selectedTeamData.projectManager} size="sm" className="border border-border" />
                             <div className="flex-1 min-w-0">
                               <p className="text-[10px] text-muted-foreground leading-none mb-0.5">Assigned Lead</p>
                               <p className="text-xs font-medium truncate">{selectedTeamData.projectManager.name}</p>
@@ -2565,20 +2520,7 @@ function CreateProjectModal({
                               Project Manager
                             </p>
                             <div className="flex items-center gap-1.5">
-                              <Avatar className="size-5 border border-border">
-                                <AvatarImage
-                                  src={
-                                    selectedTeamData.projectManager.avatar ||
-                                    "/placeholder.svg"
-                                  }
-                                />
-                                <AvatarFallback className="text-[8px]">
-                                  {selectedTeamData.projectManager.name
-                                    .split(" ")
-                                    .map((n) => n[0])
-                                    .join("")}
-                                </AvatarFallback>
-                              </Avatar>
+                              <UserAvatar user={selectedTeamData.projectManager} size="xs" className="border border-border" />
                               <span className="text-xs font-medium truncate">
                                 {selectedTeamData.projectManager.name}
                               </span>
@@ -2590,20 +2532,7 @@ function CreateProjectModal({
                             </p>
                             {selectedTeamData.lead ? (
                               <div className="flex items-center gap-1.5">
-                                <Avatar className="size-5 border border-border">
-                                  <AvatarImage
-                                    src={
-                                      selectedTeamData.lead.avatar ||
-                                      "/placeholder.svg"
-                                    }
-                                  />
-                                  <AvatarFallback className="text-[8px]">
-                                    {selectedTeamData.lead.name
-                                      .split(" ")
-                                      .map((n) => n[0])
-                                      .join("")}
-                                  </AvatarFallback>
-                                </Avatar>
+                                <UserAvatar user={selectedTeamData.lead} size="xs" className="border border-border" />
                                 <span className="text-xs font-medium truncate">
                                   {selectedTeamData.lead.name}
                                 </span>
@@ -2620,20 +2549,7 @@ function CreateProjectModal({
                             </p>
                             {selectedTeamData.productManager ? (
                               <div className="flex items-center gap-1.5">
-                                <Avatar className="size-5 border border-border">
-                                  <AvatarImage
-                                    src={
-                                      selectedTeamData.productManager.avatar ||
-                                      "/placeholder.svg"
-                                    }
-                                  />
-                                  <AvatarFallback className="text-[8px]">
-                                    {selectedTeamData.productManager.name
-                                      .split(" ")
-                                      .map((n) => n[0])
-                                      .join("")}
-                                  </AvatarFallback>
-                                </Avatar>
+                                <UserAvatar user={selectedTeamData.productManager} size="xs" className="border border-border" />
                                 <span className="text-xs font-medium truncate">
                                   {selectedTeamData.productManager.name}
                                 </span>
@@ -3390,10 +3306,7 @@ function CreateTeamModal({
                           setMemberSearch("");
                         }}
                       >
-                        <Avatar className="size-6">
-                          <AvatarImage src={user.avatar} />
-                          <AvatarFallback className="text-[10px]">{user.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
+                        <UserAvatar user={user} size="sm" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{user.name}</p>
                           <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>
@@ -3417,10 +3330,7 @@ function CreateTeamModal({
                     if (!user) return null;
                     return (
                       <div key={userId} className="flex items-center gap-4 p-3 rounded-lg border bg-card animate-in fade-in slide-in-from-top-1 duration-200">
-                        <Avatar className="size-10 border border-border">
-                          <AvatarImage src={user.avatar} />
-                          <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
+                        <UserAvatar user={user} size="lg" className="border border-border" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold truncate">{user.name}</p>
                           <p className="text-xs text-muted-foreground truncate">{user.email}</p>
@@ -3737,10 +3647,7 @@ function EditTeamModal({
                           setMemberSearch("");
                         }}
                       >
-                        <Avatar className="size-6">
-                          <AvatarImage src={user.avatar} />
-                          <AvatarFallback className="text-[10px]">{user.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
+                        <UserAvatar user={user} size="sm" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{user.name}</p>
                           <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>
@@ -3764,10 +3671,7 @@ function EditTeamModal({
                     if (!user) return null;
                     return (
                       <div key={userId} className="flex items-center gap-4 p-3 rounded-lg border bg-card animate-in fade-in slide-in-from-top-1 duration-200">
-                        <Avatar className="size-10 border border-border">
-                          <AvatarImage src={user.avatar} />
-                          <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
+                        <UserAvatar user={user} size="lg" className="border border-border" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold truncate">{user.name}</p>
                           <p className="text-xs text-muted-foreground truncate">{user.email}</p>
@@ -4792,15 +4696,7 @@ function AddMemberModal({
                       : "border-border hover:bg-muted"
                       }`}
                   >
-                    <Avatar className="size-8">
-                      <AvatarImage src={user.avatar || "/placeholder.svg"} />
-                      <AvatarFallback>
-                        {user.name
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")}
-                      </AvatarFallback>
-                    </Avatar>
+                    <UserAvatar user={user} size="md" />
                     <div className="text-left flex-1 min-w-0">
                       <p className="font-medium text-sm truncate">{user.name}</p>
                       <p className="text-xs text-muted-foreground truncate">{user.email}</p>
@@ -5114,11 +5010,7 @@ function ClientDetailModal({
       <DialogContent className="max-w-2xl max-h-[95vh] p-0 overflow-hidden flex flex-col">
         <DialogHeader className="p-6 pb-4 border-b bg-muted/30">
           <div className="flex items-center gap-4">
-            <Avatar className="size-16 border-2 border-background shadow-sm">
-              <AvatarFallback className="bg-primary/10 text-primary text-xl font-bold">
-                {getInitials(client.name)}
-              </AvatarFallback>
-            </Avatar>
+            <UserAvatar user={{ id: client.id, name: client.name }} size="xl" className="size-16 border-2 border-background shadow-sm" />
             <div className="flex-1 min-w-0">
               <DialogTitle className="text-xl font-bold truncate">
                 {client.name}
@@ -5326,6 +5218,7 @@ export function StatusSettingsModal({ isOpen, onClose, projectId }: StatusSettin
   const [deletingStatus, setDeletingStatus] = useState<WorkflowStatus | null>(null);
   const [moveToStatusId, setMoveToStatusId] = useState<string>('');
   const [draggedStatusId, setDraggedStatusId] = useState<string | null>(null);
+  const [dragEnabledStatusId, setDragEnabledStatusId] = useState<string | null>(null);
 
   const statusesByGroup = (group: WorkflowGroupKey) =>
     projectStatuses.filter(s => s.groupKey === group);
@@ -5456,8 +5349,12 @@ export function StatusSettingsModal({ isOpen, onClose, projectId }: StatusSettin
                         {groupStatuses.map((status) => (
                           <div
                             key={status.id}
-                            draggable
+                            draggable={dragEnabledStatusId === status.id || draggedStatusId === status.id}
                             onDragStart={(e) => handleDragStart(e, status.id)}
+                            onDragEnd={() => {
+                              setDraggedStatusId(null);
+                              setDragEnabledStatusId(null);
+                            }}
                             onDragOver={handleDragOver}
                             onDrop={(e) => handleDrop(e, status.id, groupKey)}
                             className={cn(
@@ -5465,7 +5362,11 @@ export function StatusSettingsModal({ isOpen, onClose, projectId }: StatusSettin
                               draggedStatusId === status.id && "opacity-50"
                             )}
                           >
-                            <div className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded text-muted-foreground/40 group-hover:text-muted-foreground transition-colors">
+                            <div
+                              onMouseEnter={() => setDragEnabledStatusId(status.id)}
+                              onMouseLeave={() => setDragEnabledStatusId(null)}
+                              className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded text-muted-foreground/40 group-hover:text-muted-foreground transition-colors"
+                            >
                               <GripVertical className="size-4" />
                             </div>
 
@@ -5493,7 +5394,7 @@ export function StatusSettingsModal({ isOpen, onClose, projectId }: StatusSettin
                               </PopoverContent>
                             </Popover>
 
-                            <div className="flex-1 min-w-0">
+                            <div className="flex-1 min-w-0" onDragStart={(e) => e.stopPropagation()}>
                               <Input
                                 value={status.name}
                                 onChange={(e) => updateWorkflowStatus(status.id, { name: e.target.value })}

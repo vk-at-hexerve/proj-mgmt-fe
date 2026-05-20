@@ -349,6 +349,7 @@ export interface BackendTask {
   reporter?: BackendUser;
   start_date?: string;
   due_date?: string;
+  sprint_id?: string;
   created_at?: string;
   updated_at?: string;
 }

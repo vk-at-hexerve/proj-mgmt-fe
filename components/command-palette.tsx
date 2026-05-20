@@ -13,7 +13,7 @@ import {
   CommandSeparator,
 } from '@/components/ui/command';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import {
   LayoutDashboard,
   FolderKanban,
@@ -165,12 +165,7 @@ export function CommandPalette() {
                   <span className="ml-2 font-mono text-xs text-muted-foreground">{task.key}</span>
                   <span className="ml-2 truncate">{task.title}</span>
                   {task.assignee && (
-                    <Avatar className="ml-auto size-5">
-                      <AvatarImage src={task.assignee.avatar || '/placeholder.svg'} />
-                      <AvatarFallback className="text-xs">
-                        {task.assignee.name.split(' ').map(n => n[0]).join('')}
-                      </AvatarFallback>
-                    </Avatar>
+                    <UserAvatar user={task.assignee} size="xs" className="ml-auto" />
                   )}
                 </CommandItem>
               ))}

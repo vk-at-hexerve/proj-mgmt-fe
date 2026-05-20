@@ -494,12 +494,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const { fetchAPI } = await import("./api");
       const backendPayload: any = {};
+      if (updates.title !== undefined) backendPayload.title = updates.title;
+      if (updates.description !== undefined) backendPayload.description = updates.description;
       if (updates.statusId) backendPayload.status_id = updates.statusId;
       if (updates.priority) backendPayload.priority = updates.priority === 'critical' ? 'URGENT' : updates.priority.toUpperCase();
       if (updates.storyPoints !== undefined) backendPayload.story_points = updates.storyPoints;
       if (updates.startDate !== undefined) backendPayload.start_date = updates.startDate;
       if (updates.dueDate !== undefined) backendPayload.due_date = updates.dueDate;
-      if (updates.assignee) backendPayload.assignee_id = updates.assignee.id;
+      if (updates.assignee !== undefined) backendPayload.assignee_id = updates.assignee?.id || null;
+      if (updates.sprintId !== undefined) backendPayload.sprint_id = updates.sprintId || null;
 
       await fetchAPI(`/tasks/${id}`, {
         method: "PATCH",
