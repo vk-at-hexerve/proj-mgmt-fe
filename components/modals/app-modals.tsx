@@ -5210,18 +5210,67 @@ export function StatusSettingsModal({ isOpen, onClose, projectId }: StatusSettin
     showToast
   } = useApp();
 
-  const projectStatuses = workflowStatuses
-    .filter(s => s.projectId === projectId)
-    .sort((a, b) => a.position - b.position);
+  const projectStatuses = React.useMemo(
+    () => workflowStatuses
+      .filter(s => s.projectId === projectId)
+      .sort((a, b) => a.position - b.position),
+    [workflowStatuses, projectId]
+  );
 
   const [editingStatusId, setEditingStatusId] = useState<string | null>(null);
   const [deletingStatus, setDeletingStatus] = useState<WorkflowStatus | null>(null);
   const [moveToStatusId, setMoveToStatusId] = useState<string>('');
   const [draggedStatusId, setDraggedStatusId] = useState<string | null>(null);
   const [dragEnabledStatusId, setDragEnabledStatusId] = useState<string | null>(null);
+  const [statusNameDrafts, setStatusNameDrafts] = useState<Record<string, string>>({});
+  const lastSavedStatusNameRef = React.useRef<Record<string, string>>({});
 
   const statusesByGroup = (group: WorkflowGroupKey) =>
     projectStatuses.filter(s => s.groupKey === group);
+
+  React.useEffect(() => {
+    if (!isOpen) {
+      setStatusNameDrafts({});
+      lastSavedStatusNameRef.current = {};
+      return;
+    }
+
+    setStatusNameDrafts((prev) => {
+      const nextDrafts: Record<string, string> = {};
+
+      for (const status of projectStatuses) {
+        nextDrafts[status.id] = prev[status.id] ?? status.name;
+      }
+
+      return nextDrafts;
+    });
+  }, [isOpen, projectStatuses]);
+
+  const commitStatusName = async (status: WorkflowStatus, nextName?: string) => {
+    const draftName = (nextName ?? statusNameDrafts[status.id] ?? status.name).trim();
+
+    if (!draftName || draftName === status.name) {
+      setStatusNameDrafts((prev) => ({ ...prev, [status.id]: status.name }));
+      return;
+    }
+
+    if (lastSavedStatusNameRef.current[status.id] === draftName) {
+      return;
+    }
+
+    lastSavedStatusNameRef.current[status.id] = draftName;
+    setStatusNameDrafts((prev) => ({ ...prev, [status.id]: draftName }));
+    await updateWorkflowStatus(status.id, { name: draftName });
+  };
+
+  const commitAllStatusNames = async () => {
+    const dirtyStatuses = projectStatuses.filter((status) => {
+      const draftName = (statusNameDrafts[status.id] ?? status.name).trim();
+      return draftName && draftName !== status.name;
+    });
+
+    await Promise.all(dirtyStatuses.map((status) => commitStatusName(status)));
+  };
 
   const handleAddStatus = (group: WorkflowGroupKey) => {
     const groupStatuses = statusesByGroup(group);
@@ -5396,8 +5445,22 @@ export function StatusSettingsModal({ isOpen, onClose, projectId }: StatusSettin
 
                             <div className="flex-1 min-w-0" onDragStart={(e) => e.stopPropagation()}>
                               <Input
-                                value={status.name}
-                                onChange={(e) => updateWorkflowStatus(status.id, { name: e.target.value })}
+                                value={statusNameDrafts[status.id] ?? status.name}
+                                onChange={(e) =>
+                                  setStatusNameDrafts((prev) => ({
+                                    ...prev,
+                                    [status.id]: e.target.value,
+                                  }))
+                                }
+                                onBlur={() => {
+                                  void commitStatusName(status);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    void commitStatusName(status);
+                                  }
+                                }}
                                 className="h-8 text-sm font-medium bg-transparent border-transparent hover:border-input focus:bg-background transition-all px-2 -ml-2"
                               />
                             </div>
@@ -5465,7 +5528,13 @@ export function StatusSettingsModal({ isOpen, onClose, projectId }: StatusSettin
                 Save as Template
               </Button>
             </div>
-            <Button onClick={onClose} className="h-9 px-6 shadow-md shadow-primary/20">
+            <Button
+              onClick={async () => {
+                await commitAllStatusNames();
+                onClose();
+              }}
+              className="h-9 px-6 shadow-md shadow-primary/20"
+            >
               Done
             </Button>
           </DialogFooter>
