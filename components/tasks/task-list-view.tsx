@@ -56,10 +56,14 @@ import {
   CornerDownRight,
   UserCheck,
   Settings,
+  Tag as TagIcon,
+  FolderKanban,
+  Check,
 } from 'lucide-react';
 import type { Task, TaskPriority } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { getStatusName, getStatusColor, getStatusGroup, GROUP_PROGRESS_MAP } from '@/lib/status-utils';
+import { tags as availableTags } from '@/lib/mock-data';
 
 interface TaskListViewProps {
   projectId?: string;
@@ -101,6 +105,8 @@ const defaultColumns: ColumnConfig[] = [
   { id: 'startDate', label: 'Start Date', width: 120, minWidth: 90, sortable: true, visible: true },
   { id: 'dueDate', label: 'Due Date', width: 120, minWidth: 90, sortable: true, visible: true },
   { id: 'points', label: 'Points', width: 80, minWidth: 60, sortable: false, visible: true },
+  { id: 'group', label: 'Group', width: 130, minWidth: 80, sortable: true, visible: true },
+  { id: 'tags', label: 'Tags', width: 160, minWidth: 100, sortable: false, visible: true },
 ];
 
 export function TaskListView({ projectId }: TaskListViewProps) {
@@ -120,7 +126,44 @@ export function TaskListView({ projectId }: TaskListViewProps) {
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
+  const [newGroupName, setNewGroupName] = useState('');
+  const [showNewGroupInputTaskId, setShowNewGroupInputTaskId] = useState<string | null>(null);
+  const [newTagName, setNewTagName] = useState('');
+  const [newTagColor, setNewTagColor] = useState('#3B82F6');
+  const [showNewTagInputTaskId, setShowNewTagInputTaskId] = useState<string | null>(null);
+  const tagPresetColors = ['#3B82F6', '#EF4444', '#22C55E', '#F59E0B', '#7B68EE', '#8B5CF6', '#EC4899', '#14B8A6'];
   const resizeStartX = useRef(0);
+
+  const getProjectGroups = useCallback((taskProjectId: string) => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const groupsRaw = localStorage.getItem(`pmtool:project:${taskProjectId}:groups`);
+      return groupsRaw ? (JSON.parse(groupsRaw) as { id: string; name: string }[]) : [];
+    } catch (e) {
+      console.error(e);
+      return [];
+    }
+  }, []);
+
+  const getGroupName = useCallback((taskProjectId: string, groupId?: string) => {
+    if (!groupId) return '';
+    const groups = getProjectGroups(taskProjectId);
+    const found = groups.find(g => g.id === groupId);
+    return found ? found.name : groupId;
+  }, [getProjectGroups]);
+
+  const generateGroupId = () => `g-${Date.now().toString(36)}${Math.random().toString(36).slice(2,8)}`;
+  const getProjectTags = useCallback((taskProjectId: string) => {
+    if (typeof window === 'undefined') return availableTags;
+    try {
+      const customTagsRaw = localStorage.getItem(`pmtool:project:${taskProjectId}:tags`);
+      const customTags = customTagsRaw ? (JSON.parse(customTagsRaw) as { id: string; name: string; color: string }[]) : [];
+      return [...availableTags, ...customTags];
+    } catch (e) {
+      console.error(e);
+      return availableTags;
+    }
+  }, []);
   const resizeStartWidth = useRef(0);
 
   useEffect(() => {
@@ -504,11 +547,16 @@ export function TaskListView({ projectId }: TaskListViewProps) {
           <Table>
             <TableHeader className="sticky top-0 bg-card z-10">
               <TableRow className="border-b-2 border-border">
-                <TableHead className="w-10 border-r-2 border-border/60 bg-card">
-                  <Checkbox
-                    checked={selectedTasks.length === tasks.length && tasks.length > 0}
-                    onCheckedChange={toggleAll}
-                  />
+                <TableHead className="w-16 border-r-2 border-border/60 bg-card px-0">
+                  <div className="flex items-center justify-center w-full">
+                    <div className="flex items-center gap-2">
+                      <span className="w-5 flex-shrink-0" />
+                      <Checkbox
+                        checked={selectedTasks.length === tasks.length && tasks.length > 0}
+                        onCheckedChange={toggleAll}
+                      />
+                    </div>
+                  </div>
                 </TableHead>
                 {columns.filter(c => c.visible).map((column) => (
                   <TableHead
@@ -541,7 +589,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                               setEditingLabel('');
                             }
                           }}
-                          className="h-6 text-xs px-1 w-full"
+                          className="h-7 text-sm px-1 w-full"
                           autoFocus
                         />
                       ) : (
@@ -549,7 +597,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                           className="flex items-center gap-1 flex-1"
                           onClick={() => column.sortable && handleSort(column.id)}
                         >
-                          <span className="text-xs font-medium">{column.label}</span>
+                          <span className="text-sm font-semibold">{column.label}</span>
                           {sortField === column.id && (
                             sortDirection === 'asc'
                               ? <ChevronUp className="size-3" />
@@ -648,8 +696,15 @@ export function TaskListView({ projectId }: TaskListViewProps) {
               {/* Inline Create Row */}
               {inlineCreateOpen && !inlineSubtaskParent && (
                 <TableRow className="bg-primary/5 border-b-2 border-primary/20">
-                  <TableCell className="border-r-2 border-border/60">
-                    <Plus className="size-4 text-primary" />
+                  <TableCell className="border-r-2 border-border/60 px-0">
+                    <div className="flex items-center justify-center w-full">
+                      <div className="flex items-center gap-2">
+                        <div className="size-5 flex items-center justify-center flex-shrink-0">
+                          <Plus className="size-4 text-primary" />
+                        </div>
+                        <span className="w-4 flex-shrink-0" />
+                      </div>
+                    </div>
                   </TableCell>
                   {columns.filter(c => c.visible).map((column) => {
                     if (column.id === 'type') {
@@ -732,27 +787,29 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                         isSelected && 'bg-primary/5'
                       )}
                     >
-                      <TableCell className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center gap-1">
-                          {hasChildren ? (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-5 text-muted-foreground hover:text-primary"
-                              onClick={() => toggleExpand(task.id)}
-                            >
-                              <ChevronRight className={cn(
-                                'size-4 transition-transform',
-                                isExpanded && 'rotate-90'
-                              )} />
-                            </Button>
-                          ) : (
-                            <span className="w-5" />
-                          )}
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={() => toggleTask(task.id)}
-                          />
+                      <TableCell className="border-r-2 border-border/60 px-0" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-center w-full">
+                          <div className="flex items-center gap-2">
+                            {hasChildren ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-5 text-muted-foreground hover:text-primary flex-shrink-0"
+                                onClick={() => toggleExpand(task.id)}
+                              >
+                                <ChevronRight className={cn(
+                                  'size-4 transition-transform',
+                                  isExpanded && 'rotate-90'
+                                )} />
+                              </Button>
+                            ) : (
+                              <span className="w-5 flex-shrink-0" />
+                            )}
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => toggleTask(task.id)}
+                            />
+                          </div>
                         </div>
                       </TableCell>
 
@@ -951,7 +1008,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                           <span className="text-sm truncate font-medium">{task.assignee.name}</span>
                                         </div>
                                       ) : (
-                                        <span className="text-muted-foreground text-xs font-medium">Unassigned</span>
+                                        <span className="text-muted-foreground text-sm font-medium">Unassigned</span>
                                       )}
                                     </button>
                                   </DropdownMenuTrigger>
@@ -1086,6 +1143,303 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                 )}
                               </TableCell>
                             );
+                          case 'group':
+                            return (
+                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
+                                <Popover>
+                                  {task.group ? (
+                                    <PopoverTrigger asChild>
+                                      <button className="flex items-center gap-1.5 hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none text-left w-full">
+                                        <FolderKanban className="size-3.5 text-muted-foreground shrink-0" />
+                                        <Badge variant="outline" className="text-xs font-medium truncate max-w-[100px] md:max-w-none">
+                                          {getGroupName(task.projectId, task.group)}
+                                        </Badge>
+                                      </button>
+                                    </PopoverTrigger>
+                                  ) : (
+                                    <PopoverTrigger asChild>
+                                      <button className="flex items-center gap-1.5 hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none text-left w-full text-muted-foreground text-xs group/grp">
+                                        <FolderKanban className="size-3.5 text-muted-foreground shrink-0 opacity-20 group-hover/grp:opacity-100 transition-opacity" />
+                                        <span className="opacity-0 group-hover/grp:opacity-100 transition-opacity font-semibold text-xs text-primary">+ Group</span>
+                                        <span className="group-hover/grp:hidden pl-1">—</span>
+                                      </button>
+                                    </PopoverTrigger>
+                                  )}
+                                  <PopoverContent className="w-56 p-2" align="start">
+                                    <div className="space-y-2">
+                                      <p className="text-xs font-semibold text-muted-foreground px-2 py-1 border-b border-border/50">Task Group</p>
+                                      <div className="max-h-48 overflow-y-auto space-y-0.5">
+                                        {task.group && (
+                                          <button
+                                            onClick={() => {
+                                              updateTask(task.id, { group: undefined });
+                                            }}
+                                            className="w-full text-left px-2 py-1.5 text-xs text-destructive hover:bg-destructive/10 rounded transition-colors font-medium flex items-center gap-1.5"
+                                          >
+                                            <X className="size-3.5" />
+                                            Remove Group
+                                          </button>
+                                        )}
+                                        {getProjectGroups(task.projectId).map((g) => (
+                                          <button
+                                            key={g.id}
+                                            onClick={() => {
+                                              updateTask(task.id, { group: g.id });
+                                            }}
+                                            className={cn(
+                                              "w-full text-left px-2 py-1.5 text-xs rounded transition-colors flex items-center justify-between font-medium",
+                                              task.group === g.id ? "bg-primary/10 text-primary" : "hover:bg-muted"
+                                            )}
+                                          >
+                                            <span className="truncate">{g.name}</span>
+                                            {task.group === g.id && <Check className="size-3.5" />}
+                                          </button>
+                                        ))}
+                                        {getProjectGroups(task.projectId).length === 0 && (
+                                          <p className="text-xs text-muted-foreground px-2 py-1 italic">No groups created yet</p>
+                                        )}
+                                      </div>
+
+                                      <div className="border-t border-border pt-2 mt-1">
+                                        {showNewGroupInputTaskId === task.id ? (
+                                          <div className="space-y-1.5 p-1">
+                                            <Input
+                                              placeholder="Group name"
+                                              value={newGroupName}
+                                              onChange={(e) => setNewGroupName(e.target.value)}
+                                              className="h-7 text-xs px-2"
+                                              autoFocus
+                                              onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && newGroupName.trim()) {
+                                                  const newId = generateGroupId();
+                                                  const currentGroups = getProjectGroups(task.projectId);
+                                                  const updatedGroups = [...currentGroups, { id: newId, name: newGroupName.trim() }];
+                                                  localStorage.setItem(`pmtool:project:${task.projectId}:groups`, JSON.stringify(updatedGroups));
+                                                  updateTask(task.id, { group: newId });
+                                                  setNewGroupName('');
+                                                  setShowNewGroupInputTaskId(null);
+                                                } else if (e.key === 'Escape') {
+                                                  setShowNewGroupInputTaskId(null);
+                                                  setNewGroupName('');
+                                                }
+                                              }}
+                                            />
+                                            <div className="flex gap-1">
+                                              <Button
+                                                size="sm"
+                                                className="h-7 text-xs px-2 flex-1"
+                                                disabled={!newGroupName.trim()}
+                                                onClick={() => {
+                                                  if (newGroupName.trim()) {
+                                                    const newId = generateGroupId();
+                                                    const currentGroups = getProjectGroups(task.projectId);
+                                                    const updatedGroups = [...currentGroups, { id: newId, name: newGroupName.trim() }];
+                                                    localStorage.setItem(`pmtool:project:${task.projectId}:groups`, JSON.stringify(updatedGroups));
+                                                    updateTask(task.id, { group: newId });
+                                                    setNewGroupName('');
+                                                    setShowNewGroupInputTaskId(null);
+                                                  }
+                                                }}
+                                              >
+                                                Add
+                                              </Button>
+                                              <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                className="h-7 text-xs px-2"
+                                                onClick={() => {
+                                                  setShowNewGroupInputTaskId(null);
+                                                  setNewGroupName('');
+                                                }}
+                                              >
+                                                Cancel
+                                              </Button>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <button
+                                            onClick={() => {
+                                              setShowNewGroupInputTaskId(task.id);
+                                              setNewGroupName('');
+                                            }}
+                                            className="w-full text-left px-2 py-1.5 text-xs text-primary hover:bg-primary/5 rounded transition-colors font-semibold flex items-center gap-1"
+                                          >
+                                            <Plus className="size-3.5" />
+                                            Create New Group...
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </PopoverContent>
+                                </Popover>
+                              </TableCell>
+                            );
+                          case 'tags':
+                            return (
+                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
+                                <Popover>
+                                  {task.tags && task.tags.length > 0 ? (
+                                    <PopoverTrigger asChild>
+                                      <button className="flex items-center gap-1.5 hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none text-left w-full overflow-hidden">
+                                        <TagIcon className="size-3.5 text-muted-foreground shrink-0" />
+                                        <div className="flex items-center gap-1 flex-wrap truncate">
+                                          {task.tags.slice(0, 2).map(tag => (
+                                            <Badge
+                                              key={tag.id}
+                                              variant="outline"
+                                              className="text-xs px-1.5 py-0.5 h-5 leading-none shrink-0 font-medium truncate max-w-[80px]"
+                                              style={{ borderColor: tag.color, color: tag.color }}
+                                            >
+                                              {tag.name}
+                                            </Badge>
+                                          ))}
+                                          {task.tags.length > 2 && (
+                                            <span className="text-xs font-semibold text-muted-foreground shrink-0">
+                                              +{task.tags.length - 2}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </button>
+                                    </PopoverTrigger>
+                                  ) : (
+                                    <PopoverTrigger asChild>
+                                      <button className="flex items-center gap-1.5 hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none text-left w-full text-muted-foreground text-xs group/tag-btn">
+                                        <TagIcon className="size-3.5 text-muted-foreground shrink-0 opacity-20 group-hover/tag-btn:opacity-100 transition-opacity" />
+                                        <span className="opacity-0 group-hover/tag-btn:opacity-100 transition-opacity font-semibold text-xs text-primary">+ Tag</span>
+                                        <span className="group-hover/tag-btn:hidden pl-1">—</span>
+                                      </button>
+                                    </PopoverTrigger>
+                                  )}
+                                  <PopoverContent className="w-56 p-2" align="start">
+                                    <div className="space-y-2">
+                                      <p className="text-xs font-semibold text-muted-foreground px-2 py-1 border-b border-border/50">Task Tags</p>
+                                      <div className="max-h-48 overflow-y-auto space-y-0.5">
+                                        {getProjectTags(task.projectId).map((tag) => {
+                                          const isSelected = (task.tags || []).some(t => t.id === tag.id);
+                                          return (
+                                            <button
+                                              key={tag.id}
+                                              onClick={() => {
+                                                const updatedTags = isSelected
+                                                  ? (task.tags || []).filter(t => t.id !== tag.id)
+                                                  : [...(task.tags || []), tag];
+                                                updateTask(task.id, { tags: updatedTags });
+                                              }}
+                                              className={cn(
+                                                "w-full text-left px-2 py-1.5 text-xs rounded transition-colors flex items-center justify-between font-medium",
+                                                isSelected ? "bg-primary/10 text-primary font-semibold" : "hover:bg-muted"
+                                              )}
+                                            >
+                                              <div className="flex items-center gap-2">
+                                                <span className="size-2 rounded-full shrink-0" style={{ backgroundColor: tag.color }} />
+                                                <span className="truncate" style={{ color: tag.color }}>{tag.name}</span>
+                                              </div>
+                                              {isSelected && <Check className="size-3.5 text-primary shrink-0" />}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+
+                                      <div className="border-t border-border pt-2 mt-1">
+                                        {showNewTagInputTaskId === task.id ? (
+                                          <div className="space-y-1.5 p-1">
+                                            <Input
+                                              placeholder="Tag name"
+                                              value={newTagName}
+                                              onChange={(e) => setNewTagName(e.target.value)}
+                                              className="h-7 text-xs px-2"
+                                              autoFocus
+                                              onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && newTagName.trim()) {
+                                                  const newId = `tag-${Date.now().toString(36)}`;
+                                                  const customTagsRaw = localStorage.getItem(`pmtool:project:${task.projectId}:tags`);
+                                                  const customTags = customTagsRaw ? JSON.parse(customTagsRaw) : [];
+                                                  const updatedTagsList = [...customTags, { id: newId, name: newTagName.trim(), color: newTagColor }];
+                                                  localStorage.setItem(`pmtool:project:${task.projectId}:tags`, JSON.stringify(updatedTagsList));
+
+                                                  const updatedTaskTags = [...(task.tags || []), { id: newId, name: newTagName.trim(), color: newTagColor }];
+                                                  updateTask(task.id, { tags: updatedTaskTags });
+
+                                                  setNewTagName('');
+                                                  setShowNewTagInputTaskId(null);
+                                                } else if (e.key === 'Escape') {
+                                                  setShowNewTagInputTaskId(null);
+                                                  setNewTagName('');
+                                                }
+                                              }}
+                                            />
+                                            <div className="flex items-center justify-between px-1">
+                                              <span className="text-xs text-muted-foreground font-medium">Color:</span>
+                                              <div className="flex gap-1">
+                                                {tagPresetColors.map((color) => (
+                                                  <button
+                                                    key={color}
+                                                    type="button"
+                                                    onClick={() => setNewTagColor(color)}
+                                                    className={cn(
+                                                      "size-3 rounded-full border transition-transform shrink-0",
+                                                      newTagColor === color ? "scale-125 border-foreground" : "border-transparent hover:scale-110"
+                                                    )}
+                                                    style={{ backgroundColor: color }}
+                                                  />
+                                                ))}
+                                              </div>
+                                            </div>
+                                            <div className="flex gap-1 pt-0.5">
+                                              <Button
+                                                size="sm"
+                                                className="h-7 text-xs px-2 flex-1"
+                                                disabled={!newTagName.trim()}
+                                                onClick={() => {
+                                                  if (newTagName.trim()) {
+                                                    const newId = `tag-${Date.now().toString(36)}`;
+                                                    const customTagsRaw = localStorage.getItem(`pmtool:project:${task.projectId}:tags`);
+                                                    const customTags = customTagsRaw ? JSON.parse(customTagsRaw) : [];
+                                                    const updatedTagsList = [...customTags, { id: newId, name: newTagName.trim(), color: newTagColor }];
+                                                    localStorage.setItem(`pmtool:project:${task.projectId}:tags`, JSON.stringify(updatedTagsList));
+
+                                                    const updatedTaskTags = [...(task.tags || []), { id: newId, name: newTagName.trim(), color: newTagColor }];
+                                                    updateTask(task.id, { tags: updatedTaskTags });
+
+                                                    setNewTagName('');
+                                                    setShowNewTagInputTaskId(null);
+                                                  }
+                                                }}
+                                              >
+                                                Add
+                                              </Button>
+                                              <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                className="h-7 text-xs px-2"
+                                                onClick={() => {
+                                                  setShowNewTagInputTaskId(null);
+                                                  setNewTagName('');
+                                                }}
+                                              >
+                                                Cancel
+                                              </Button>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <button
+                                            onClick={() => {
+                                              setShowNewTagInputTaskId(task.id);
+                                              setNewTagName('');
+                                              setNewTagColor('#3B82F6');
+                                            }}
+                                            className="w-full text-left px-2 py-1.5 text-xs text-primary hover:bg-primary/5 rounded transition-colors font-semibold flex items-center gap-1"
+                                          >
+                                            <Plus className="size-3.5" />
+                                            Create New Tag...
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </PopoverContent>
+                                </Popover>
+                              </TableCell>
+                            );
                           default:
                             return null;
                         }
@@ -1139,12 +1493,15 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                             isSubtaskSelected && 'bg-primary/5'
                           )}
                         >
-                          <TableCell className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center gap-1 pl-6">
-                              <Checkbox
-                                checked={isSubtaskSelected}
-                                onCheckedChange={() => toggleTask(subtask.id)}
-                              />
+                          <TableCell className="border-r-2 border-border/60 px-0" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-center w-full">
+                              <div className="flex items-center gap-2">
+                                <span className="w-5 flex-shrink-0" />
+                                <Checkbox
+                                  checked={isSubtaskSelected}
+                                  onCheckedChange={() => toggleTask(subtask.id)}
+                                />
+                              </div>
                             </div>
                           </TableCell>
 
@@ -1314,7 +1671,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                               <span className="text-sm truncate font-medium">{subtask.assignee.name}</span>
                                             </div>
                                           ) : (
-                                            <span className="text-muted-foreground text-xs font-medium">Unassigned</span>
+                                            <span className="text-muted-foreground text-sm font-medium">Unassigned</span>
                                           )}
                                         </button>
                                       </DropdownMenuTrigger>
@@ -1449,6 +1806,303 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                     )}
                                   </TableCell>
                                 );
+                              case 'group':
+                                return (
+                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
+                                    <Popover>
+                                      {subtask.group ? (
+                                        <PopoverTrigger asChild>
+                                          <button className="flex items-center gap-1.5 hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none text-left w-full">
+                                            <FolderKanban className="size-3.5 text-muted-foreground shrink-0" />
+                                            <Badge variant="outline" className="text-xs font-medium truncate max-w-[100px] md:max-w-none">
+                                              {getGroupName(subtask.projectId, subtask.group)}
+                                            </Badge>
+                                          </button>
+                                        </PopoverTrigger>
+                                      ) : (
+                                        <PopoverTrigger asChild>
+                                          <button className="flex items-center gap-1.5 hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none text-left w-full text-muted-foreground text-xs group/grp">
+                                            <FolderKanban className="size-3.5 text-muted-foreground shrink-0 opacity-20 group-hover/grp:opacity-100 transition-opacity" />
+                                            <span className="opacity-0 group-hover/grp:opacity-100 transition-opacity font-semibold text-xs text-primary">+ Group</span>
+                                            <span className="group-hover/grp:hidden pl-1">—</span>
+                                          </button>
+                                        </PopoverTrigger>
+                                      )}
+                                      <PopoverContent className="w-56 p-2" align="start">
+                                        <div className="space-y-2">
+                                          <p className="text-xs font-semibold text-muted-foreground px-2 py-1 border-b border-border/50">Task Group</p>
+                                          <div className="max-h-48 overflow-y-auto space-y-0.5">
+                                            {subtask.group && (
+                                              <button
+                                                onClick={() => {
+                                                  updateTask(subtask.id, { group: undefined });
+                                                }}
+                                                className="w-full text-left px-2 py-1.5 text-xs text-destructive hover:bg-destructive/10 rounded transition-colors font-medium flex items-center gap-1.5"
+                                              >
+                                                <X className="size-3.5" />
+                                                Remove Group
+                                              </button>
+                                            )}
+                                            {getProjectGroups(subtask.projectId).map((g) => (
+                                              <button
+                                                key={g.id}
+                                                onClick={() => {
+                                                  updateTask(subtask.id, { group: g.id });
+                                                }}
+                                                className={cn(
+                                                  "w-full text-left px-2 py-1.5 text-xs rounded transition-colors flex items-center justify-between font-medium",
+                                                  subtask.group === g.id ? "bg-primary/10 text-primary" : "hover:bg-muted"
+                                                )}
+                                              >
+                                                <span className="truncate">{g.name}</span>
+                                                {subtask.group === g.id && <Check className="size-3.5" />}
+                                              </button>
+                                            ))}
+                                            {getProjectGroups(subtask.projectId).length === 0 && (
+                                              <p className="text-xs text-muted-foreground px-2 py-1 italic">No groups created yet</p>
+                                            )}
+                                          </div>
+
+                                          <div className="border-t border-border pt-2 mt-1">
+                                            {showNewGroupInputTaskId === subtask.id ? (
+                                              <div className="space-y-1.5 p-1">
+                                                <Input
+                                                  placeholder="Group name"
+                                                  value={newGroupName}
+                                                  onChange={(e) => setNewGroupName(e.target.value)}
+                                                  className="h-7 text-xs px-2"
+                                                  autoFocus
+                                                  onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' && newGroupName.trim()) {
+                                                      const newId = generateGroupId();
+                                                      const currentGroups = getProjectGroups(subtask.projectId);
+                                                      const updatedGroups = [...currentGroups, { id: newId, name: newGroupName.trim() }];
+                                                      localStorage.setItem(`pmtool:project:${subtask.projectId}:groups`, JSON.stringify(updatedGroups));
+                                                      updateTask(subtask.id, { group: newId });
+                                                      setNewGroupName('');
+                                                      setShowNewGroupInputTaskId(null);
+                                                    } else if (e.key === 'Escape') {
+                                                      setShowNewGroupInputTaskId(null);
+                                                      setNewGroupName('');
+                                                    }
+                                                  }}
+                                                />
+                                                <div className="flex gap-1">
+                                                  <Button
+                                                    size="sm"
+                                                    className="h-7 text-xs px-2 flex-1"
+                                                    disabled={!newGroupName.trim()}
+                                                    onClick={() => {
+                                                      if (newGroupName.trim()) {
+                                                        const newId = generateGroupId();
+                                                        const currentGroups = getProjectGroups(subtask.projectId);
+                                                        const updatedGroups = [...currentGroups, { id: newId, name: newGroupName.trim() }];
+                                                        localStorage.setItem(`pmtool:project:${subtask.projectId}:groups`, JSON.stringify(updatedGroups));
+                                                        updateTask(subtask.id, { group: newId });
+                                                        setNewGroupName('');
+                                                        setShowNewGroupInputTaskId(null);
+                                                      }
+                                                    }}
+                                                  >
+                                                    Add
+                                                  </Button>
+                                                  <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="h-7 text-xs px-2"
+                                                    onClick={() => {
+                                                      setShowNewGroupInputTaskId(null);
+                                                      setNewGroupName('');
+                                                    }}
+                                                  >
+                                                    Cancel
+                                                  </Button>
+                                                </div>
+                                              </div>
+                                            ) : (
+                                              <button
+                                                onClick={() => {
+                                                  setShowNewGroupInputTaskId(subtask.id);
+                                                  setNewGroupName('');
+                                                }}
+                                                className="w-full text-left px-2 py-1.5 text-xs text-primary hover:bg-primary/5 rounded transition-colors font-semibold flex items-center gap-1"
+                                              >
+                                                <Plus className="size-3.5" />
+                                                Create New Group...
+                                              </button>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </PopoverContent>
+                                    </Popover>
+                                  </TableCell>
+                                );
+                              case 'tags':
+                                return (
+                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
+                                    <Popover>
+                                      {subtask.tags && subtask.tags.length > 0 ? (
+                                        <PopoverTrigger asChild>
+                                          <button className="flex items-center gap-1.5 hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none text-left w-full overflow-hidden">
+                                            <TagIcon className="size-3.5 text-muted-foreground shrink-0" />
+                                            <div className="flex items-center gap-1 flex-wrap truncate">
+                                              {subtask.tags.slice(0, 2).map(tag => (
+                                                <Badge
+                                                  key={tag.id}
+                                                  variant="outline"
+                                                  className="text-xs px-1.5 py-0.5 h-5 leading-none shrink-0 font-medium truncate max-w-[80px]"
+                                                  style={{ borderColor: tag.color, color: tag.color }}
+                                                >
+                                                  {tag.name}
+                                                </Badge>
+                                              ))}
+                                              {subtask.tags.length > 2 && (
+                                                <span className="text-xs font-semibold text-muted-foreground shrink-0">
+                                                  +{subtask.tags.length - 2}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </button>
+                                        </PopoverTrigger>
+                                      ) : (
+                                        <PopoverTrigger asChild>
+                                          <button className="flex items-center gap-1.5 hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none text-left w-full text-muted-foreground text-xs group/tag-btn">
+                                            <TagIcon className="size-3.5 text-muted-foreground shrink-0 opacity-20 group-hover/tag-btn:opacity-100 transition-opacity" />
+                                            <span className="opacity-0 group-hover/tag-btn:opacity-100 transition-opacity font-semibold text-xs text-primary">+ Tag</span>
+                                            <span className="group-hover/tag-btn:hidden pl-1">—</span>
+                                          </button>
+                                        </PopoverTrigger>
+                                      )}
+                                      <PopoverContent className="w-56 p-2" align="start">
+                                        <div className="space-y-2">
+                                          <p className="text-xs font-semibold text-muted-foreground px-2 py-1 border-b border-border/50">Task Tags</p>
+                                          <div className="max-h-48 overflow-y-auto space-y-0.5">
+                                            {getProjectTags(subtask.projectId).map((tag) => {
+                                              const isSelected = (subtask.tags || []).some(t => t.id === tag.id);
+                                              return (
+                                                <button
+                                                  key={tag.id}
+                                                  onClick={() => {
+                                                    const updatedTags = isSelected
+                                                      ? (subtask.tags || []).filter(t => t.id !== tag.id)
+                                                      : [...(subtask.tags || []), tag];
+                                                    updateTask(subtask.id, { tags: updatedTags });
+                                                  }}
+                                                  className={cn(
+                                                    "w-full text-left px-2 py-1.5 text-xs rounded transition-colors flex items-center justify-between font-medium",
+                                                    isSelected ? "bg-primary/10 text-primary font-semibold" : "hover:bg-muted"
+                                                  )}
+                                                >
+                                                  <div className="flex items-center gap-2">
+                                                    <span className="size-2 rounded-full shrink-0" style={{ backgroundColor: tag.color }} />
+                                                    <span className="truncate" style={{ color: tag.color }}>{tag.name}</span>
+                                                  </div>
+                                                  {isSelected && <Check className="size-3.5 text-primary shrink-0" />}
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+
+                                          <div className="border-t border-border pt-2 mt-1">
+                                            {showNewTagInputTaskId === subtask.id ? (
+                                              <div className="space-y-1.5 p-1">
+                                                <Input
+                                                  placeholder="Tag name"
+                                                  value={newTagName}
+                                                  onChange={(e) => setNewTagName(e.target.value)}
+                                                  className="h-7 text-xs px-2"
+                                                  autoFocus
+                                                  onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' && newTagName.trim()) {
+                                                      const newId = `tag-${Date.now().toString(36)}`;
+                                                      const customTagsRaw = localStorage.getItem(`pmtool:project:${subtask.projectId}:tags`);
+                                                      const customTags = customTagsRaw ? JSON.parse(customTagsRaw) : [];
+                                                      const updatedTagsList = [...customTags, { id: newId, name: newTagName.trim(), color: newTagColor }];
+                                                      localStorage.setItem(`pmtool:project:${subtask.projectId}:tags`, JSON.stringify(updatedTagsList));
+
+                                                      const updatedTaskTags = [...(subtask.tags || []), { id: newId, name: newTagName.trim(), color: newTagColor }];
+                                                      updateTask(subtask.id, { tags: updatedTaskTags });
+
+                                                      setNewTagName('');
+                                                      setShowNewTagInputTaskId(null);
+                                                    } else if (e.key === 'Escape') {
+                                                      setShowNewTagInputTaskId(null);
+                                                      setNewTagName('');
+                                                    }
+                                                  }}
+                                                />
+                                                <div className="flex items-center justify-between px-1">
+                                                  <span className="text-xs text-muted-foreground font-medium">Color:</span>
+                                                  <div className="flex gap-1">
+                                                    {tagPresetColors.map((color) => (
+                                                      <button
+                                                        key={color}
+                                                        type="button"
+                                                        onClick={() => setNewTagColor(color)}
+                                                        className={cn(
+                                                          "size-3 rounded-full border transition-transform shrink-0",
+                                                          newTagColor === color ? "scale-125 border-foreground" : "border-transparent hover:scale-110"
+                                                        )}
+                                                        style={{ backgroundColor: color }}
+                                                      />
+                                                    ))}
+                                                  </div>
+                                                </div>
+                                                <div className="flex gap-1 pt-0.5">
+                                                  <Button
+                                                    size="sm"
+                                                    className="h-7 text-xs px-2 flex-1"
+                                                    disabled={!newTagName.trim()}
+                                                    onClick={() => {
+                                                      if (newTagName.trim()) {
+                                                        const newId = `tag-${Date.now().toString(36)}`;
+                                                        const customTagsRaw = localStorage.getItem(`pmtool:project:${subtask.projectId}:tags`);
+                                                        const customTags = customTagsRaw ? JSON.parse(customTagsRaw) : [];
+                                                        const updatedTagsList = [...customTags, { id: newId, name: newTagName.trim(), color: newTagColor }];
+                                                        localStorage.setItem(`pmtool:project:${subtask.projectId}:tags`, JSON.stringify(updatedTagsList));
+
+                                                        const updatedTaskTags = [...(subtask.tags || []), { id: newId, name: newTagName.trim(), color: newTagColor }];
+                                                        updateTask(subtask.id, { tags: updatedTaskTags });
+
+                                                        setNewTagName('');
+                                                        setShowNewTagInputTaskId(null);
+                                                      }
+                                                    }}
+                                                  >
+                                                    Add
+                                                  </Button>
+                                                  <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="h-7 text-xs px-2"
+                                                    onClick={() => {
+                                                      setShowNewTagInputTaskId(null);
+                                                      setNewTagName('');
+                                                    }}
+                                                  >
+                                                    Cancel
+                                                  </Button>
+                                                </div>
+                                              </div>
+                                            ) : (
+                                              <button
+                                                onClick={() => {
+                                                  setShowNewTagInputTaskId(subtask.id);
+                                                  setNewTagName('');
+                                                  setNewTagColor('#3B82F6');
+                                                }}
+                                                className="w-full text-left px-2 py-1.5 text-xs text-primary hover:bg-primary/5 rounded transition-colors font-semibold flex items-center gap-1"
+                                              >
+                                                <Plus className="size-3.5" />
+                                                Create New Tag...
+                                              </button>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </PopoverContent>
+                                    </Popover>
+                                  </TableCell>
+                                );
                               default:
                                 return null;
                             }
@@ -1484,9 +2138,14 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                     {/* Inline Subtask Create Row */}
                     {isCreatingSubtask && (
                       <TableRow className="bg-accent/5 border-b border-accent/20">
-                        <TableCell className="border-r-2 border-border/60">
-                          <div className="pl-6">
-                            <CornerDownRight className="size-4 text-accent" />
+                        <TableCell className="border-r-2 border-border/60 px-0">
+                          <div className="flex items-center justify-center w-full">
+                            <div className="flex items-center gap-2">
+                              <div className="size-5 flex items-center justify-center flex-shrink-0">
+                                <CornerDownRight className="size-4 text-accent" />
+                              </div>
+                              <span className="w-4 flex-shrink-0" />
+                            </div>
                           </div>
                         </TableCell>
                         {columns.filter(c => c.visible).map((column) => {

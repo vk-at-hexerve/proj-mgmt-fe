@@ -141,15 +141,7 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Help */}
-        <Button variant="ghost" size="icon">
-          <HelpCircle className="size-5" />
-        </Button>
 
-        {/* Feedback */}
-        <Button variant="ghost" size="icon">
-          <MessageSquare className="size-5" />
-        </Button>
 
         {/* Quick Add */}
         <DropdownMenu>

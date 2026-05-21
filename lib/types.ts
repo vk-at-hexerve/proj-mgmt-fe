@@ -335,6 +335,13 @@ export interface BackendProject {
   updated_at?: string;
 }
 
+export interface BackendLabel {
+  id: number | string;
+  name: string;
+  color?: string;
+  project_id?: string;
+}
+
 export interface BackendTask {
   id: number | string;
   task_code?: string;
@@ -347,6 +354,8 @@ export interface BackendTask {
   project_id: number | string;
   assignee?: BackendUser;
   reporter?: BackendUser;
+  labels?: BackendLabel[];
+  group_id?: string;
   start_date?: string;
   due_date?: string;
   sprint_id?: string;
