@@ -5,7 +5,7 @@ import React from "react";
 import { useState, useEffect } from "react";
 import { useApp } from "@/lib/app-context";
 import { cn } from "@/lib/utils";
-import Link from 'next/link';
+import Link from "next/link";
 import {
   Dialog,
   DialogContent,
@@ -37,13 +37,13 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from "@/components/ui/select";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from '@/components/ui/accordion';
+} from "@/components/ui/accordion";
 import {
   Command,
   CommandEmpty,
@@ -57,7 +57,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { users as contextUsers, projects as contextProjects, portfolios as contextPortfolios, tags as availableTags, projectTemplates, clients } from '@/lib/mock-data';
+import {
+  users as contextUsers,
+  projects as contextProjects,
+  portfolios as contextPortfolios,
+  tags as availableTags,
+  projectTemplates,
+  clients,
+} from "@/lib/mock-data";
 import {
   TaskPriority,
   TaskComment,
@@ -81,6 +88,7 @@ import {
   WorkflowGroupKey,
   WorkflowStatus,
 } from "@/lib/types";
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -138,8 +146,12 @@ import {
   Save,
   Download,
 } from "lucide-react";
-import { getStatusName, getStatusGroup, getStatusColor, getProjectStatuses } from "@/lib/status-utils";
-
+import {
+  getStatusName,
+  getStatusGroup,
+  getStatusColor,
+  getProjectStatuses,
+} from "@/lib/status-utils";
 
 const getTodayDateInputValue = () => {
   const today = new Date();
@@ -433,6 +445,68 @@ function CreateTaskModal({
   const [dueDate, setDueDate] = useState<string>("");
   const [startDateError, setStartDateError] = useState<string>("");
   const [dueDateError, setDueDateError] = useState<string>("");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState<string | undefined>(
+    undefined,
+  );
+  const [projectGroups, setProjectGroups] = useState<{id:string;name:string;}[]>([]);
+  const [projectLabels, setProjectLabels] = useState<{id:string;name:string;color:string;}[]>([]);
+  const [tagInput, setTagInput] = useState("");
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+
+  // Helpers to persist project-level groups/labels in localStorage as a fallback
+  const groupsKey = (projId: string) => `pmtool:project:${projId}:groups`;
+  const labelsKey = (projId: string) => `pmtool:project:${projId}:labels`;
+
+  const generateId = (prefix = '') => `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2,8)}`;
+
+  useEffect(() => {
+    if (!project) return;
+    try {
+      const groupsRaw = localStorage.getItem(groupsKey(project));
+      const labelsRaw = localStorage.getItem(labelsKey(project));
+      setProjectGroups(groupsRaw ? JSON.parse(groupsRaw) : []);
+      setProjectLabels(labelsRaw ? JSON.parse(labelsRaw).map((l: any) => ({ id: l.id, name: l.name, color: l.color || '#CBD5E1' })) : []);
+      setSelectedTags([]);
+      setSelectedGroup(undefined);
+    } catch (e) {
+      setProjectGroups([]);
+      setProjectLabels([]);
+    }
+  }, [project]);
+
+  const persistGroups = (groups: {id:string;name:string}[]) => {
+    setProjectGroups(groups);
+    try { localStorage.setItem(groupsKey(project), JSON.stringify(groups)); } catch {}
+  };
+
+  const persistLabels = (labels: {id:string;name:string;color:string}[]) => {
+    setProjectLabels(labels);
+    try { localStorage.setItem(labelsKey(project), JSON.stringify(labels)); } catch {}
+  };
+
+  const createGroup = (name: string) => {
+    const g = { id: generateId('g-'), name };
+    const next = [...projectGroups, g];
+    persistGroups(next);
+    setSelectedGroup(g.id);
+    setShowCreateGroup(false);
+  };
+
+  const addLabelByName = (name: string) => {
+    const existing = projectLabels.find((l) => l.name.toLowerCase() === name.toLowerCase());
+    let label = existing;
+    if (!existing) {
+      label = { id: generateId('l-'), name, color: '#CBD5E1' };
+      persistLabels([...projectLabels, label]);
+    }
+    // ensure label is defined
+    if (!label) return;
+    if (!selectedTags.includes(label.id)) {
+      setSelectedTags((s) => [...s, label.id]);
+    }
+    setTagInput("");
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -454,14 +528,22 @@ function CreateTaskModal({
     }
 
     const selectedUser = users.find((u) => u.id === assignee);
+    const selectedTagObjects = projectLabels.filter((t) =>
+      selectedTags.includes(t.id),
+    );
 
     onSubmit({
       title: title.trim(),
       description: description.trim(),
       type,
       priority,
-      statusId: workflowStatuses.find(s => (s.projectId === project || s.isDefault) && s.groupKey === 'OPEN')?.id ||
-        workflowStatuses.find(s => s.projectId === project || s.isDefault)?.id ||
+      statusId:
+        workflowStatuses.find(
+          (s) =>
+            (s.projectId === project || s.isDefault) && s.groupKey === "OPEN",
+        )?.id ||
+        workflowStatuses.find((s) => s.projectId === project || s.isDefault)
+          ?.id ||
         "open",
       projectId: project,
       assignee: selectedUser,
@@ -470,218 +552,336 @@ function CreateTaskModal({
       startDate: startDate || undefined,
       dueDate: dueDate || undefined,
       sprintId: sprint === "no-sprint" ? undefined : sprint,
-      tags: [],
+      tags: selectedTagObjects,
+      group: selectedGroup,
     });
     onClose();
   };
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[92vh] p-0 overflow-hidden flex flex-col">
+        <DialogHeader className="p-6 pb-2 shrink-0 bg-slate-50/50">
           <DialogTitle>Create New Task</DialogTitle>
           <DialogDescription>Add a new task to your project</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="title">Title *</Label>
-            <Input
-              id="title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Enter task title"
-              autoFocus
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Add more details..."
-              rows={3}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-5 custom-scrollbar">
             <div className="space-y-2">
-              <Label>Type</Label>
-              <Select
-                value={type}
-                onValueChange={(v) => setType(v as typeof type)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="task">Task</SelectItem>
-                  <SelectItem value="bug">Bug</SelectItem>
-                  <SelectItem value="story">Story</SelectItem>
-                  <SelectItem value="epic">Epic</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label htmlFor="title">Title *</Label>
+              <Input
+                id="title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Enter task title"
+                autoFocus
+              />
             </div>
 
             <div className="space-y-2">
-              <Label>Priority</Label>
-              <Select
-                value={priority}
-                onValueChange={(v) => setPriority(v as TaskPriority)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="critical">Critical</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="low">Low</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Project</Label>
-              <Select value={project} onValueChange={setProject}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((p: Project) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      <span className="flex items-center gap-2">
-                        <Badge variant="outline" className="font-mono text-xs">
-                          {p.key}
-                        </Badge>
-                        {p.name}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Add more details..."
+                rows={3}
+              />
             </div>
 
-            <div className="space-y-2">
-              <Label>Sprint</Label>
-              <Select value={sprint} onValueChange={setSprint}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Backlog / No Sprint" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="no-sprint">Backlog / No Sprint</SelectItem>
-                  {sprints
-                    .filter((s: Sprint) => s.status === "active" && (!s.projectId || s.projectId === project))
-                    .map((s: Sprint) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.name}
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Project</Label>
+                <Select value={project} onValueChange={setProject}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {projects.map((p: Project) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        <span className="flex items-center gap-2">
+                          <Badge
+                            variant="outline"
+                            className="font-mono text-xs"
+                          >
+                            {p.key}
+                          </Badge>
+                          {p.name}
+                        </span>
                       </SelectItem>
                     ))}
-                </SelectContent>
-              </Select>
-            </div>
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <div className="space-y-2">
-              <Label>Story Points</Label>
-              <Input
-                type="number"
-                min="1"
-                max="21"
-                value={storyPoints}
-                onChange={(e) => setStoryPoints(e.target.value)}
-                placeholder="Points"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Assignee</Label>
-              <Select value={assignee} onValueChange={setAssignee}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Unassigned" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="unassigned">Unassigned</SelectItem>
-                  {users.map((user: User) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      <span className="flex items-center gap-2">
-                        <UserAvatar user={user} size="xs" />
-                        {user.name}
-                      </span>
+              <div className="space-y-2">
+                <Label>Sprint</Label>
+                <Select value={sprint} onValueChange={setSprint}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Backlog / No Sprint" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="no-sprint">
+                      Backlog / No Sprint
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    {sprints
+                      .filter(
+                        (s: Sprint) =>
+                          s.status === "active" &&
+                          (!s.projectId || s.projectId === project),
+                      )
+                      .map((s: Sprint) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Type</Label>
+                <Select
+                  value={type}
+                  onValueChange={(v) => setType(v as typeof type)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="task">Task</SelectItem>
+                    <SelectItem value="bug">Bug</SelectItem>
+                    <SelectItem value="story">Story</SelectItem>
+                    <SelectItem value="epic">Epic</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Priority</Label>
+                <Select
+                  value={priority}
+                  onValueChange={(v) => setPriority(v as TaskPriority)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="critical">Critical</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Assignee</Label>
+                <Select value={assignee} onValueChange={setAssignee}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Unassigned" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    {users.map((user: User) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        <span className="flex items-center gap-2">
+                          <UserAvatar user={user} size="xs" />
+                          {user.name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Story Points</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="21"
+                  value={storyPoints}
+                  onChange={(e) => setStoryPoints(e.target.value)}
+                  placeholder="Points"
+                />
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Start Date</Label>
-              <Input
-                type="date"
-                value={startDate}
-                min={getTodayDateInputValue()}
-                onChange={(e) => {
-                  const nextValue = e.target.value;
-                  setStartDate(nextValue);
-                  setStartDateError(
-                    isPastDate(nextValue)
-                      ? "Please select today's date or a future start date."
-                      : "",
-                  );
-                  if (dueDate && new Date(nextValue) > new Date(dueDate)) {
-                    setDueDateError(
-                      "Due date cannot be before the start date.",
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Start Date</Label>
+                <Input
+                  type="date"
+                  value={startDate}
+                  min={getTodayDateInputValue()}
+                  onChange={(e) => {
+                    const nextValue = e.target.value;
+                    setStartDate(nextValue);
+                    setStartDateError(
+                      isPastDate(nextValue)
+                        ? "Please select today's date or a future start date."
+                        : "",
                     );
-                  } else if (
-                    dueDateError === "Due date cannot be before the start date."
-                  ) {
-                    setDueDateError("");
-                  }
-                }}
-                aria-invalid={!!startDateError}
-              />
-              {startDateError && (
-                <p className="text-sm text-destructive">{startDateError}</p>
-              )}
+                    if (dueDate && new Date(nextValue) > new Date(dueDate)) {
+                      setDueDateError(
+                        "Due date cannot be before the start date.",
+                      );
+                    } else if (
+                      dueDateError ===
+                      "Due date cannot be before the start date."
+                    ) {
+                      setDueDateError("");
+                    }
+                  }}
+                  aria-invalid={!!startDateError}
+                />
+                {startDateError && (
+                  <p className="text-sm text-destructive">{startDateError}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label>Due Date</Label>
+                <Input
+                  type="date"
+                  value={dueDate}
+                  min={startDate || getTodayDateInputValue()}
+                  onChange={(e) => {
+                    const nextValue = e.target.value;
+                    setDueDate(nextValue);
+                    if (isPastDate(nextValue)) {
+                      setDueDateError(
+                        "Please select today's date or a future due date.",
+                      );
+                    } else if (
+                      startDate &&
+                      new Date(nextValue) < new Date(startDate)
+                    ) {
+                      setDueDateError(
+                        "Due date cannot be before the start date.",
+                      );
+                    } else {
+                      setDueDateError("");
+                    }
+                  }}
+                  aria-invalid={!!dueDateError}
+                />
+                {dueDateError && (
+                  <p className="text-sm text-destructive">{dueDateError}</p>
+                )}
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Due Date</Label>
-              <Input
-                type="date"
-                value={dueDate}
-                min={startDate || getTodayDateInputValue()}
-                onChange={(e) => {
-                  const nextValue = e.target.value;
-                  setDueDate(nextValue);
-                  if (isPastDate(nextValue)) {
-                    setDueDateError(
-                      "Please select today's date or a future due date.",
-                    );
-                  } else if (
-                    startDate &&
-                    new Date(nextValue) < new Date(startDate)
-                  ) {
-                    setDueDateError(
-                      "Due date cannot be before the start date.",
-                    );
-                  } else {
-                    setDueDateError("");
-                  }
-                }}
-                aria-invalid={!!dueDateError}
-              />
-              {dueDateError && (
-                <p className="text-sm text-destructive">{dueDateError}</p>
-              )}
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                  <Label>Group</Label>
+                  <Select
+                    value={selectedGroup || "none"}
+                    onValueChange={(v) => {
+                      if (v === "__create_new__") {
+                        setShowCreateGroup(true);
+                        return;
+                      }
+                      setSelectedGroup(v === "none" ? undefined : v);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="No group" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No group</SelectItem>
+                      {projectGroups.map((g) => (
+                        <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                      ))}
+                      <SelectItem value="__create_new__">Create New Group...</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {showCreateGroup && (
+                    <div className="mt-2">
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="New group name"
+                          value={tagInput}
+                          onChange={(e) => setTagInput(e.target.value)}
+                        />
+                        <Button
+                          onClick={() => {
+                            if (tagInput.trim()) {
+                              createGroup(tagInput.trim());
+                              setTagInput("");
+                            }
+                          }}
+                        >Create</Button>
+                        <Button variant="ghost" onClick={() => { setShowCreateGroup(false); setTagInput(""); }}>Cancel</Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+              <div className="space-y-2">
+                <Label>Tags</Label>
+                <div className="rounded-lg border bg-muted/20 p-3 max-h-40 overflow-y-auto">
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {selectedTags.map((id) => {
+                      const t = projectLabels.find((l) => l.id === id);
+                      return (
+                        <Badge key={id} className="flex items-center gap-2">
+                          <span>{t?.name || id}</span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedTags((s) => s.filter((x) => x !== id))}
+                            className="ml-1"
+                          >
+                            ×
+                          </button>
+                        </Badge>
+                      );
+                    })}
+                  </div>
+
+                  <div className="relative">
+                    <Input
+                      placeholder="Add a tag and press Enter"
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ',') {
+                          e.preventDefault();
+                          const v = tagInput.trim();
+                          if (v) addLabelByName(v);
+                        }
+                      }}
+                    />
+
+                    {tagInput && (
+                      <div className="absolute z-20 left-0 right-0 bg-white shadow rounded mt-1 max-h-40 overflow-auto">
+                        {projectLabels
+                          .filter((l) => l.name.toLowerCase().includes(tagInput.toLowerCase()))
+                          .map((l) => (
+                            <div
+                              key={l.id}
+                              className="px-3 py-2 hover:bg-slate-50 cursor-pointer"
+                              onClick={() => addLabelByName(l.name)}
+                            >
+                              {l.name}
+                            </div>
+                          ))}
+                        {!projectLabels.some((l) => l.name.toLowerCase() === tagInput.toLowerCase()) && (
+                          <div className="px-3 py-2 hover:bg-slate-50 cursor-pointer" onClick={() => addLabelByName(tagInput.trim())}>
+                            Create "{tagInput}"
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
@@ -708,8 +908,19 @@ function EditTaskModal({
   onClose: () => void;
   onSubmit: (updates: Partial<NonNullable<typeof task>>) => void;
 }) {
-  const { tasks, users, currentUser, getTaskActivities, openModal, addTimeEntry, showToast, projects, workflowStatuses, getStatusGroup } = useApp();
-  const project = projects.find(p => p.id === task?.projectId);
+  const {
+    tasks,
+    users,
+    currentUser,
+    getTaskActivities,
+    openModal,
+    addTimeEntry,
+    showToast,
+    projects,
+    workflowStatuses,
+    getStatusGroup,
+  } = useApp();
+  const project = projects.find((p) => p.id === task?.projectId);
   const [title, setTitle] = useState(task?.title || "");
   const [description, setDescription] = useState(task?.description || "");
   const [type, setType] = useState<
@@ -780,14 +991,16 @@ function EditTaskModal({
     }
   }, [task?.id, activitiesLoaded, getTaskActivities]);
 
-
   if (!task) return null;
 
   const isSubtask = !!task.parentId;
 
   const formatTime = (isoString?: string | null) => {
     if (!isoString) return "";
-    return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return new Date(isoString).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   const calculateDuration = (start?: string | null, end?: string | null) => {
@@ -806,16 +1019,21 @@ function EditTaskModal({
   };
 
   const handleAddActivity = async () => {
-    if (!activityDescription.trim() || !startTime || !endTime || !task?.id) return;
+    if (!activityDescription.trim() || !startTime || !endTime || !task?.id)
+      return;
 
     if (startTime >= endTime) {
-      showToast({ title: "Invalid time range", description: "End time must be after start time", type: "error" });
+      showToast({
+        title: "Invalid time range",
+        description: "End time must be after start time",
+        type: "error",
+      });
       return;
     }
 
     setIsSavingActivity(true);
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = new Date().toISOString().split("T")[0];
       const startAt = new Date(`${today}T${startTime}:00`).toISOString();
       const endAt = new Date(`${today}T${endTime}:00`).toISOString();
 
@@ -1022,8 +1240,12 @@ function EditTaskModal({
         <DialogHeader className="p-6 pb-2 shrink-0">
           <div className="flex items-center justify-between w-full pr-8">
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="font-mono">{task.key}</Badge>
-              <Badge variant="secondary" className="capitalize">{task.type}</Badge>
+              <Badge variant="outline" className="font-mono">
+                {task.key}
+              </Badge>
+              <Badge variant="secondary" className="capitalize">
+                {task.type}
+              </Badge>
             </div>
             <Link
               href={`/tasks/${task.id}`}
@@ -1117,12 +1339,20 @@ function EditTaskModal({
                     </SelectTrigger>
                     <SelectContent>
                       {workflowStatuses
-                        .filter(s => !task?.projectId || s.projectId === task.projectId || s.isDefault)
+                        .filter(
+                          (s) =>
+                            !task?.projectId ||
+                            s.projectId === task.projectId ||
+                            s.isDefault,
+                        )
                         .sort((a, b) => a.position - b.position)
                         .map((s) => (
                           <SelectItem key={s.id} value={s.id}>
                             <div className="flex items-center gap-2">
-                              <div className="size-2 rounded-full" style={{ backgroundColor: s.color }} />
+                              <div
+                                className="size-2 rounded-full"
+                                style={{ backgroundColor: s.color }}
+                              />
                               {s.name}
                             </div>
                           </SelectItem>
@@ -1225,10 +1455,11 @@ function EditTaskModal({
                       key={tag.id}
                       type="button"
                       onClick={() => toggleTag(tag.id)}
-                      className={`px-3 py-1 rounded-full text-sm transition-all ${selectedTags.includes(tag.id)
-                        ? "ring-2 ring-offset-1"
-                        : "opacity-60 hover:opacity-100"
-                        }`}
+                      className={`px-3 py-1 rounded-full text-sm transition-all ${
+                        selectedTags.includes(tag.id)
+                          ? "ring-2 ring-offset-1"
+                          : "opacity-60 hover:opacity-100"
+                      }`}
                       style={{
                         backgroundColor: `${tag.color}20`,
                         color: tag.color,
@@ -1251,12 +1482,19 @@ function EditTaskModal({
               <div className="rounded-xl border bg-card p-4 space-y-4 shadow-sm">
                 <div className="flex items-center gap-2">
                   <Clock className="size-4 text-primary" />
-                  <span className="font-semibold text-sm">Log New Activity</span>
+                  <span className="font-semibold text-sm">
+                    Log New Activity
+                  </span>
                 </div>
 
                 <div className="space-y-3">
                   <div className="space-y-1.5">
-                    <Label htmlFor="activity-desc" className="text-xs text-muted-foreground">What did you do today?</Label>
+                    <Label
+                      htmlFor="activity-desc"
+                      className="text-xs text-muted-foreground"
+                    >
+                      What did you do today?
+                    </Label>
                     <Textarea
                       id="activity-desc"
                       value={activityDescription}
@@ -1269,7 +1507,12 @@ function EditTaskModal({
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <Label htmlFor="start-time" className="text-xs text-muted-foreground">Start Time</Label>
+                      <Label
+                        htmlFor="start-time"
+                        className="text-xs text-muted-foreground"
+                      >
+                        Start Time
+                      </Label>
                       <Input
                         id="start-time"
                         type="time"
@@ -1279,7 +1522,12 @@ function EditTaskModal({
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="end-time" className="text-xs text-muted-foreground">End Time</Label>
+                      <Label
+                        htmlFor="end-time"
+                        className="text-xs text-muted-foreground"
+                      >
+                        End Time
+                      </Label>
                       <Input
                         id="end-time"
                         type="time"
@@ -1292,7 +1540,12 @@ function EditTaskModal({
 
                   <Button
                     onClick={handleAddActivity}
-                    disabled={!activityDescription.trim() || !startTime || !endTime || isSavingActivity}
+                    disabled={
+                      !activityDescription.trim() ||
+                      !startTime ||
+                      !endTime ||
+                      isSavingActivity
+                    }
                     className="w-full gap-2 mt-2"
                   >
                     {isSavingActivity ? (
@@ -1316,22 +1569,48 @@ function EditTaskModal({
                   <>
                     {/* Activity Logs */}
                     {taskActivities.map((entry: AppTimeEntry) => {
-                      const user = users.find((u: User) => u.id === entry.userId);
+                      const user = users.find(
+                        (u: User) => u.id === entry.userId,
+                      );
                       return (
-                        <div key={entry.id} className="flex items-start gap-3 p-4 rounded-xl border bg-card/50 hover:bg-muted/30 transition-all duration-200 shadow-sm">
-                          <UserAvatar user={user} size="md" className="border shadow-sm shrink-0" />
+                        <div
+                          key={entry.id}
+                          className="flex items-start gap-3 p-4 rounded-xl border bg-card/50 hover:bg-muted/30 transition-all duration-200 shadow-sm"
+                        >
+                          <UserAvatar
+                            user={user}
+                            size="md"
+                            className="border shadow-sm shrink-0"
+                          />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                              <span className="font-bold text-sm text-foreground">{user?.name || 'Unknown'}</span>
-                              <span className="text-muted-foreground text-sm">—</span>
-                              <span className="text-sm text-foreground leading-relaxed">{entry.description}</span>
+                              <span className="font-bold text-sm text-foreground">
+                                {user?.name || "Unknown"}
+                              </span>
+                              <span className="text-muted-foreground text-sm">
+                                —
+                              </span>
+                              <span className="text-sm text-foreground leading-relaxed">
+                                {entry.description}
+                              </span>
                             </div>
                             <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
                               <Clock className="size-3" />
-                              <span>{formatTime(entry.startAt)} → {formatTime(entry.endAt)}</span>
-                              <span className="text-primary/70 font-bold">({calculateDuration(entry.startAt, entry.endAt)})</span>
+                              <span>
+                                {formatTime(entry.startAt)} →{" "}
+                                {formatTime(entry.endAt)}
+                              </span>
+                              <span className="text-primary/70 font-bold">
+                                ({calculateDuration(entry.startAt, entry.endAt)}
+                                )
+                              </span>
                               <span className="mx-1 opacity-40">•</span>
-                              <span>{new Date(entry.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+                              <span>
+                                {new Date(entry.date).toLocaleDateString(
+                                  undefined,
+                                  { month: "short", day: "numeric" },
+                                )}
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -1340,70 +1619,129 @@ function EditTaskModal({
 
                     {/* Comments */}
                     {comments.map((comment: TaskComment) => {
-                      const user = users.find((u: User) => u.id === comment.userId);
+                      const user = users.find(
+                        (u: User) => u.id === comment.userId,
+                      );
                       const isEditing = editingCommentId === comment.id;
-                      const hasHistory = comment.editHistory && comment.editHistory.length > 0;
+                      const hasHistory =
+                        comment.editHistory && comment.editHistory.length > 0;
 
                       return (
                         <div key={comment.id} className="flex gap-3">
-                          <UserAvatar user={user} size="md" className="shrink-0" />
+                          <UserAvatar
+                            user={user}
+                            size="md"
+                            className="shrink-0"
+                          />
                           <div className="flex-1 space-y-1">
                             <div className="flex items-center gap-2">
-                              <span className="font-medium text-sm">{user?.name || "Unknown"}</span>
+                              <span className="font-medium text-sm">
+                                {user?.name || "Unknown"}
+                              </span>
                               <span className="text-xs text-muted-foreground">
                                 {new Date(comment.createdAt).toLocaleString()}
                               </span>
                               {comment.updatedAt && (
-                                <span className="text-xs text-muted-foreground">(edited)</span>
+                                <span className="text-xs text-muted-foreground">
+                                  (edited)
+                                </span>
                               )}
                             </div>
                             {isEditing ? (
                               <div className="space-y-2">
                                 <Textarea
                                   value={editingCommentContent}
-                                  onChange={(e) => setEditingCommentContent(e.target.value)}
+                                  onChange={(e) =>
+                                    setEditingCommentContent(e.target.value)
+                                  }
                                   rows={2}
                                 />
                                 <div className="flex gap-2">
-                                  <Button size="sm" onClick={() => handleSaveCommentEdit(comment.id)}>Save</Button>
-                                  <Button size="sm" variant="ghost" onClick={() => setEditingCommentId(null)}>Cancel</Button>
+                                  <Button
+                                    size="sm"
+                                    onClick={() =>
+                                      handleSaveCommentEdit(comment.id)
+                                    }
+                                  >
+                                    Save
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => setEditingCommentId(null)}
+                                  >
+                                    Cancel
+                                  </Button>
                                 </div>
                               </div>
                             ) : (
                               <p className="text-sm">{comment.content}</p>
                             )}
                             <div className="flex gap-2">
-                              {comment.userId === currentUserId && !isEditing && (
-                                <>
-                                  <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => handleEditComment(comment.id)}>Edit</Button>
-                                  <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-destructive" onClick={() => handleDeleteComment(comment.id)}>Delete</Button>
-                                </>
-                              )}
+                              {comment.userId === currentUserId &&
+                                !isEditing && (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-6 px-2 text-xs"
+                                      onClick={() =>
+                                        handleEditComment(comment.id)
+                                      }
+                                    >
+                                      Edit
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-6 px-2 text-xs text-destructive"
+                                      onClick={() =>
+                                        handleDeleteComment(comment.id)
+                                      }
+                                    >
+                                      Delete
+                                    </Button>
+                                  </>
+                                )}
                               {hasHistory && (
                                 <Button
                                   size="sm"
                                   variant="ghost"
                                   className="h-6 px-2 text-xs gap-1"
-                                  onClick={() => setShowCommentHistory(showCommentHistory === comment.id ? null : comment.id)}
+                                  onClick={() =>
+                                    setShowCommentHistory(
+                                      showCommentHistory === comment.id
+                                        ? null
+                                        : comment.id,
+                                    )
+                                  }
                                 >
                                   <History className="size-3" />
                                   History
                                 </Button>
                               )}
                             </div>
-                            {showCommentHistory === comment.id && hasHistory && (
-                              <div className="mt-2 p-3 rounded-lg bg-muted/50 space-y-2">
-                                <p className="text-xs font-medium text-muted-foreground">Edit History</p>
-                                {comment.editHistory?.map((edit, idx) => (
-                                  <div key={idx} className="text-sm">
-                                    <span className="text-xs text-muted-foreground">
-                                      {new Date(edit.editedAt).toLocaleString()}:
-                                    </span>
-                                    <p className="text-muted-foreground line-through">{edit.content}</p>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
+                            {showCommentHistory === comment.id &&
+                              hasHistory && (
+                                <div className="mt-2 p-3 rounded-lg bg-muted/50 space-y-2">
+                                  <p className="text-xs font-medium text-muted-foreground">
+                                    Edit History
+                                  </p>
+                                  {comment.editHistory?.map((edit, idx) => (
+                                    <div key={idx} className="text-sm">
+                                      <span className="text-xs text-muted-foreground">
+                                        {new Date(
+                                          edit.editedAt,
+                                        ).toLocaleString()}
+                                        :
+                                      </span>
+                                      <p className="text-muted-foreground line-through">
+                                        {edit.content}
+                                      </p>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                           </div>
                         </div>
                       );
@@ -1414,7 +1752,10 @@ function EditTaskModal({
             </TabsContent>
 
             {/* Attachments Tab */}
-            <TabsContent value="attachments" className="space-y-4 pr-4 py-4 m-0">
+            <TabsContent
+              value="attachments"
+              className="space-y-4 pr-4 py-4 m-0"
+            >
               {/* Upload Area */}
               <div className="border-2 border-dashed rounded-lg p-6 text-center">
                 <input
@@ -1624,8 +1965,8 @@ function EditTaskModal({
             Save Changes
           </Button>
         </DialogFooter>
-      </DialogContent >
-    </Dialog >
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1637,7 +1978,8 @@ function TaskDetailModal({
   task: NonNullable<ReturnType<ReturnType<typeof useApp>["getTask"]>>;
   onClose: () => void;
 }) {
-  const { openModal, projects, workflowStatuses, getStatusGroup, sprints } = useApp();
+  const { openModal, projects, workflowStatuses, getStatusGroup, sprints } =
+    useApp();
   const project = projects.find((p) => p.id === task.projectId);
   const sprint = sprints?.find((s) => s.id === task.sprintId);
 
@@ -1647,8 +1989,12 @@ function TaskDetailModal({
         <DialogHeader>
           <div className="flex items-center justify-between w-full pr-8">
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="font-mono">{task.key}</Badge>
-              <Badge variant="secondary" className="capitalize">{task.type}</Badge>
+              <Badge variant="outline" className="font-mono">
+                {task.key}
+              </Badge>
+              <Badge variant="secondary" className="capitalize">
+                {task.type}
+              </Badge>
             </div>
             <Link
               href={`/tasks/${task.id}`}
@@ -1676,10 +2022,23 @@ function TaskDetailModal({
               <Badge
                 variant="secondary"
                 className="mt-1"
-                style={{ backgroundColor: (workflowStatuses.find(s => s.id === task.statusId)?.color || '#94a3b8') + '20', color: workflowStatuses.find(s => s.id === task.statusId)?.color }}
+                style={{
+                  backgroundColor:
+                    (workflowStatuses.find((s) => s.id === task.statusId)
+                      ?.color || "#94a3b8") + "20",
+                  color: workflowStatuses.find((s) => s.id === task.statusId)
+                    ?.color,
+                }}
               >
                 <div className="flex items-center gap-1.5">
-                  <div className="size-1.5 rounded-full" style={{ backgroundColor: workflowStatuses.find(s => s.id === task.statusId)?.color || '#94a3b8' }} />
+                  <div
+                    className="size-1.5 rounded-full"
+                    style={{
+                      backgroundColor:
+                        workflowStatuses.find((s) => s.id === task.statusId)
+                          ?.color || "#94a3b8",
+                    }}
+                  />
                   {getStatusName(workflowStatuses, task.statusId)}
                 </div>
               </Badge>
@@ -1694,7 +2053,9 @@ function TaskDetailModal({
             </div>
             <div>
               <Label className="text-muted-foreground">Sprint</Label>
-              <p className="mt-1">{sprint ? sprint.name : "Backlog / No Sprint"}</p>
+              <p className="mt-1">
+                {sprint ? sprint.name : "Backlog / No Sprint"}
+              </p>
             </div>
             <div>
               <Label className="text-muted-foreground">Story Points</Label>
@@ -1721,26 +2082,36 @@ function TaskDetailModal({
             <div>
               <Label className="text-muted-foreground">Start Date</Label>
               <p className="mt-1">
-                {task.startDate ? new Date(task.startDate).toLocaleDateString() : "—"}
+                {task.startDate
+                  ? new Date(task.startDate).toLocaleDateString()
+                  : "—"}
               </p>
             </div>
             <div>
               <Label className="text-muted-foreground">Due Date</Label>
               <p className="mt-1">
-                {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : "—"}
+                {task.dueDate
+                  ? new Date(task.dueDate).toLocaleDateString()
+                  : "—"}
               </p>
             </div>
             <div>
               <Label className="text-muted-foreground">Created At</Label>
               <p className="mt-1 text-muted-foreground">
-                {new Date(task.createdAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
+                {new Date(task.createdAt).toLocaleString(undefined, {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                })}
               </p>
             </div>
             {task.updatedAt && (
               <div>
                 <Label className="text-muted-foreground">Updated At</Label>
                 <p className="mt-1 text-muted-foreground">
-                  {new Date(task.updatedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
+                  {new Date(task.updatedAt).toLocaleString(undefined, {
+                    dateStyle: "short",
+                    timeStyle: "short",
+                  })}
                 </p>
               </div>
             )}
@@ -1786,8 +2157,8 @@ function TaskDetailModal({
             Edit Task
           </Button>
         </DialogFooter>
-      </DialogContent >
-    </Dialog >
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1820,10 +2191,11 @@ function AssignTaskModal({
               key={user.id}
               type="button"
               onClick={() => setSelectedUser(user.id)}
-              className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${selectedUser === user.id
-                ? "border-primary bg-primary/5"
-                : "border-border hover:bg-muted"
-                }`}
+              className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                selectedUser === user.id
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:bg-muted"
+              }`}
             >
               <UserAvatar user={user} size="md" />
               <div className="text-left">
@@ -1863,7 +2235,9 @@ function ChangeStatusModal({
   onChangeStatus: (statusId: string) => void;
 }) {
   const { tasks, projects, workflowStatuses } = useApp();
-  const project = projects.find(p => p.id === tasks.find(t => taskIds.includes(t.id))?.projectId);
+  const project = projects.find(
+    (p) => p.id === tasks.find((t) => taskIds.includes(t.id))?.projectId,
+  );
   const projectStatuses = workflowStatuses
     .filter((s) => !project || s.projectId === project.id || s.isDefault)
     .sort((a, b) => a.position - b.position);
@@ -1884,7 +2258,10 @@ function ChangeStatusModal({
               onClick={() => onChangeStatus(status.id)}
               className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted transition-colors text-left"
             >
-              <div className="size-2 rounded-full" style={{ backgroundColor: status.color }} />
+              <div
+                className="size-2 rounded-full"
+                style={{ backgroundColor: status.color }}
+              />
               <span className="text-sm">{status.name}</span>
             </button>
           ))}
@@ -1898,18 +2275,20 @@ function ChangeStatusModal({
 function LinkTaskModal({
   task,
   onClose,
-  onLink
+  onLink,
 }: {
   task: Task;
   onClose: () => void;
   onLink: (link: TaskLink) => void;
 }) {
   const { tasks } = useApp();
-  const [linkType, setLinkType] = useState<TaskLink['linkType']>('relates-to');
-  const [selectedTaskId, setSelectedTaskId] = useState<string>('');
+  const [linkType, setLinkType] = useState<TaskLink["linkType"]>("relates-to");
+  const [selectedTaskId, setSelectedTaskId] = useState<string>("");
 
-  const availableTasks = tasks.filter((t: Task) =>
-    t.id !== task.id && !task.linkedTasks?.some((l: TaskLink) => l.targetTaskId === t.id)
+  const availableTasks = tasks.filter(
+    (t: Task) =>
+      t.id !== task.id &&
+      !task.linkedTasks?.some((l: TaskLink) => l.targetTaskId === t.id),
   );
 
   return (
@@ -1917,13 +2296,18 @@ function LinkTaskModal({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Link Task</DialogTitle>
-          <DialogDescription>Create a relationship between tasks</DialogDescription>
+          <DialogDescription>
+            Create a relationship between tasks
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label>This task...</Label>
-            <Select value={linkType} onValueChange={(v) => setLinkType(v as TaskLink['linkType'])}>
+            <Select
+              value={linkType}
+              onValueChange={(v) => setLinkType(v as TaskLink["linkType"])}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -1932,7 +2316,9 @@ function LinkTaskModal({
                 <SelectItem value="blocked-by">Is blocked by</SelectItem>
                 <SelectItem value="relates-to">Relates to</SelectItem>
                 <SelectItem value="duplicates">Duplicates</SelectItem>
-                <SelectItem value="is-duplicated-by">Is duplicated by</SelectItem>
+                <SelectItem value="is-duplicated-by">
+                  Is duplicated by
+                </SelectItem>
                 <SelectItem value="parent-of">Is parent of</SelectItem>
                 <SelectItem value="child-of">Is child of</SelectItem>
               </SelectContent>
@@ -1950,7 +2336,12 @@ function LinkTaskModal({
                   {availableTasks.map((t) => (
                     <SelectItem key={t.id} value={t.id}>
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="font-mono text-[10px]">{t.key}</Badge>
+                        <Badge
+                          variant="outline"
+                          className="font-mono text-[10px]"
+                        >
+                          {t.key}
+                        </Badge>
                         <span className="truncate">{t.title}</span>
                       </div>
                     </SelectItem>
@@ -1962,7 +2353,9 @@ function LinkTaskModal({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
           <Button
             onClick={() => {
               onLink({
@@ -2005,7 +2398,8 @@ function CreateProjectModal({
     project: Parameters<ReturnType<typeof useApp>["addProject"]>[0],
   ) => void;
 }) {
-  const { users, clients, teams, programs, addClient, addTeam, addProgram } = useApp();
+  const { users, clients, teams, programs, addClient, addTeam, addProgram } =
+    useApp();
   const [step, setStep] = useState<"template" | "details">("template");
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -2049,7 +2443,9 @@ function CreateProjectModal({
         if (name.trim()) queryParams.append("name", name.trim());
         if (key.trim()) queryParams.append("project_key", key.trim());
 
-        const result = await fetchAPI(`/projects/validate?${queryParams.toString()}`);
+        const result = await fetchAPI(
+          `/projects/validate?${queryParams.toString()}`,
+        );
         if (result) {
           setNameError(result.nameExists ? "Project name already exists" : "");
           setKeyError(result.keyExists ? "Project key already exists" : "");
@@ -2250,7 +2646,11 @@ function CreateProjectModal({
                   placeholder="My Project"
                   autoFocus
                   aria-invalid={!!nameError}
-                  className={nameError ? "border-destructive focus-visible:ring-destructive" : ""}
+                  className={
+                    nameError
+                      ? "border-destructive focus-visible:ring-destructive"
+                      : ""
+                  }
                 />
                 {nameError && (
                   <p className="text-sm text-destructive">{nameError}</p>
@@ -2268,7 +2668,11 @@ function CreateProjectModal({
                   placeholder="PRJ"
                   maxLength={5}
                   aria-invalid={!!keyError}
-                  className={keyError ? "border-destructive focus-visible:ring-destructive" : ""}
+                  className={
+                    keyError
+                      ? "border-destructive focus-visible:ring-destructive"
+                      : ""
+                  }
                 />
                 {keyError && (
                   <p className="text-sm text-destructive">{keyError}</p>
@@ -2362,8 +2766,6 @@ function CreateProjectModal({
                       </SelectContent>
                     </Select>
 
-
-
                     {selectedClient && clientId !== "none" && (
                       <div className="mt-3 p-3 rounded-lg bg-muted/40 border border-border/50 animate-in fade-in slide-in-from-top-2 duration-300">
                         <div className="flex items-center gap-3">
@@ -2417,7 +2819,9 @@ function CreateProjectModal({
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">
-                              <span className="text-muted-foreground">No team assigned</span>
+                              <span className="text-muted-foreground">
+                                No team assigned
+                              </span>
                             </SelectItem>
                             <SelectItem
                               value="create-new"
@@ -2447,12 +2851,23 @@ function CreateProjectModal({
 
                         {selectedTeamData && teamId !== "none" && (
                           <div className="mt-2 p-2 rounded-md bg-primary/5 border border-primary/10 flex items-center gap-2 animate-in fade-in duration-300">
-                            <UserAvatar user={selectedTeamData.projectManager} size="sm" className="border border-border" />
+                            <UserAvatar
+                              user={selectedTeamData.projectManager}
+                              size="sm"
+                              className="border border-border"
+                            />
                             <div className="flex-1 min-w-0">
-                              <p className="text-[10px] text-muted-foreground leading-none mb-0.5">Assigned Lead</p>
-                              <p className="text-xs font-medium truncate">{selectedTeamData.projectManager.name}</p>
+                              <p className="text-[10px] text-muted-foreground leading-none mb-0.5">
+                                Assigned Lead
+                              </p>
+                              <p className="text-xs font-medium truncate">
+                                {selectedTeamData.projectManager.name}
+                              </p>
                             </div>
-                            <Badge variant="secondary" className="h-5 px-1.5 text-[9px]">
+                            <Badge
+                              variant="secondary"
+                              className="h-5 px-1.5 text-[9px]"
+                            >
                               {selectedTeamData.members.length} Members
                             </Badge>
                           </div>
@@ -2507,8 +2922,6 @@ function CreateProjectModal({
                       </SelectContent>
                     </Select>
 
-
-
                     {selectedTeamData && teamId !== "none" && (
                       <div className="mt-3 p-3 rounded-lg bg-muted/40 border border-border/50 animate-in fade-in slide-in-from-top-2 duration-300">
                         <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-2">
@@ -2520,7 +2933,11 @@ function CreateProjectModal({
                               Project Manager
                             </p>
                             <div className="flex items-center gap-1.5">
-                              <UserAvatar user={selectedTeamData.projectManager} size="xs" className="border border-border" />
+                              <UserAvatar
+                                user={selectedTeamData.projectManager}
+                                size="xs"
+                                className="border border-border"
+                              />
                               <span className="text-xs font-medium truncate">
                                 {selectedTeamData.projectManager.name}
                               </span>
@@ -2532,7 +2949,11 @@ function CreateProjectModal({
                             </p>
                             {selectedTeamData.lead ? (
                               <div className="flex items-center gap-1.5">
-                                <UserAvatar user={selectedTeamData.lead} size="xs" className="border border-border" />
+                                <UserAvatar
+                                  user={selectedTeamData.lead}
+                                  size="xs"
+                                  className="border border-border"
+                                />
                                 <span className="text-xs font-medium truncate">
                                   {selectedTeamData.lead.name}
                                 </span>
@@ -2549,7 +2970,11 @@ function CreateProjectModal({
                             </p>
                             {selectedTeamData.productManager ? (
                               <div className="flex items-center gap-1.5">
-                                <UserAvatar user={selectedTeamData.productManager} size="xs" className="border border-border" />
+                                <UserAvatar
+                                  user={selectedTeamData.productManager}
+                                  size="xs"
+                                  className="border border-border"
+                                />
                                 <span className="text-xs font-medium truncate">
                                   {selectedTeamData.productManager.name}
                                 </span>
@@ -2588,7 +3013,9 @@ function CreateProjectModal({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">
-                    <span className="text-muted-foreground">No program (Independent)</span>
+                    <span className="text-muted-foreground">
+                      No program (Independent)
+                    </span>
                   </SelectItem>
                   <SelectItem
                     value="create-new"
@@ -2609,8 +3036,11 @@ function CreateProjectModal({
                         <div className="flex items-center gap-2">
                           <Target className="size-3.5 text-accent" />
                           <span>{prog.name}</span>
-                          <Badge variant="outline" className="ml-2 text-[10px] scale-90 origin-left">
-                            {prog.status || 'Active'}
+                          <Badge
+                            variant="outline"
+                            className="ml-2 text-[10px] scale-90 origin-left"
+                          >
+                            {prog.status || "Active"}
                           </Badge>
                         </div>
                       </SelectItem>
@@ -2828,11 +3258,17 @@ function EditProjectModal({
   const [description, setDescription] = useState(project.description || "");
   const [status, setStatus] = useState<string>(project.status || "active");
   const [type, setType] = useState<string>(project.type || "agile-kanban");
-  const [startDate, setStartDate] = useState(toDateInputValue(project.startDate));
+  const [startDate, setStartDate] = useState(
+    toDateInputValue(project.startDate),
+  );
   const [endDate, setEndDate] = useState(toDateInputValue(project.endDate));
   const [budget, setBudget] = useState(String(project.budget || ""));
-  const [clientId, setClientId] = useState<string>((project as any).clientId || "none");
-  const [teamId, setTeamId] = useState<string>((project as any).teamId || "none");
+  const [clientId, setClientId] = useState<string>(
+    (project as any).clientId || "none",
+  );
+  const [teamId, setTeamId] = useState<string>(
+    (project as any).teamId || "none",
+  );
   const [startDateError, setStartDateError] = useState("");
   const [dueDateError, setDueDateError] = useState("");
 
@@ -2859,7 +3295,6 @@ function EditProjectModal({
     onClose();
   };
 
-
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-2xl max-h-[95vh] p-0 overflow-hidden flex flex-col">
@@ -2877,35 +3312,60 @@ function EditProjectModal({
           </div>
         </DialogHeader>
 
-        <Tabs defaultValue="general" className="flex-1 overflow-hidden flex flex-col px-6">
+        <Tabs
+          defaultValue="general"
+          className="flex-1 overflow-hidden flex flex-col px-6"
+        >
           <TabsList className="grid w-full grid-cols-2 shrink-0 mb-2">
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="resources">Resources</TabsTrigger>
           </TabsList>
 
           <div className="flex-1 overflow-y-auto p-0 custom-scrollbar bg-slate-50/30 min-h-0">
-            <TabsContent value="general" className="mt-0 space-y-6 outline-none p-6">
-              <form id="edit-project-form" onSubmit={handleSubmit} className="space-y-6">
+            <TabsContent
+              value="general"
+              className="mt-0 space-y-6 outline-none p-6"
+            >
+              <form
+                id="edit-project-form"
+                onSubmit={handleSubmit}
+                className="space-y-6"
+              >
                 {/* Locked Fields – Project Name & Key */}
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Shield className="size-4 text-amber-600 shrink-0" />
-                    <p className="text-xs font-bold uppercase tracking-wider text-amber-800">Identity Fields (Read Only)</p>
+                    <p className="text-xs font-bold uppercase tracking-wider text-amber-800">
+                      Identity Fields (Read Only)
+                    </p>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
-                      <Label className="text-[10px] text-amber-700 font-bold uppercase">Project Name</Label>
-                      <div className="text-sm font-medium text-slate-600 bg-white/50 px-2 py-1 rounded border border-amber-100">{project.name}</div>
+                      <Label className="text-[10px] text-amber-700 font-bold uppercase">
+                        Project Name
+                      </Label>
+                      <div className="text-sm font-medium text-slate-600 bg-white/50 px-2 py-1 rounded border border-amber-100">
+                        {project.name}
+                      </div>
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[10px] text-amber-700 font-bold uppercase">Project Key</Label>
-                      <div className="text-sm font-mono font-medium text-slate-600 bg-white/50 px-2 py-1 rounded border border-amber-100">{project.key}</div>
+                      <Label className="text-[10px] text-amber-700 font-bold uppercase">
+                        Project Key
+                      </Label>
+                      <div className="text-sm font-mono font-medium text-slate-600 bg-white/50 px-2 py-1 rounded border border-amber-100">
+                        {project.key}
+                      </div>
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="edit-proj-desc" className="text-xs font-bold uppercase tracking-wider text-slate-500">Description</Label>
+                  <Label
+                    htmlFor="edit-proj-desc"
+                    className="text-xs font-bold uppercase tracking-wider text-slate-500"
+                  >
+                    Description
+                  </Label>
                   <Textarea
                     id="edit-proj-desc"
                     value={description}
@@ -2917,7 +3377,9 @@ function EditProjectModal({
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Status</Label>
+                    <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Status
+                    </Label>
                     <Select value={status} onValueChange={setStatus}>
                       <SelectTrigger>
                         <SelectValue />
@@ -2931,14 +3393,20 @@ function EditProjectModal({
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Methodology</Label>
+                    <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Methodology
+                    </Label>
                     <Select value={type} onValueChange={setType}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="agile-scrum">Agile — Scrum</SelectItem>
-                        <SelectItem value="agile-kanban">Agile — Kanban</SelectItem>
+                        <SelectItem value="agile-scrum">
+                          Agile — Scrum
+                        </SelectItem>
+                        <SelectItem value="agile-kanban">
+                          Agile — Kanban
+                        </SelectItem>
                         <SelectItem value="waterfall">Waterfall</SelectItem>
                         <SelectItem value="hybrid">Hybrid</SelectItem>
                       </SelectContent>
@@ -2948,10 +3416,15 @@ function EditProjectModal({
               </form>
             </TabsContent>
 
-            <TabsContent value="resources" className="mt-0 space-y-6 outline-none p-6">
+            <TabsContent
+              value="resources"
+              className="mt-0 space-y-6 outline-none p-6"
+            >
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Client</Label>
+                  <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Client
+                  </Label>
                   <Select value={clientId} onValueChange={setClientId}>
                     <SelectTrigger>
                       <SelectValue />
@@ -2959,13 +3432,17 @@ function EditProjectModal({
                     <SelectContent>
                       <SelectItem value="none">No Client</SelectItem>
                       {clients.map((c: any) => (
-                        <SelectItem key={c.id} value={c.id}>{c.company || c.name}</SelectItem>
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.company || c.name}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Assigned Team</Label>
+                  <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Assigned Team
+                  </Label>
                   <Select value={teamId} onValueChange={setTeamId}>
                     <SelectTrigger>
                       <SelectValue />
@@ -2973,7 +3450,9 @@ function EditProjectModal({
                     <SelectContent>
                       <SelectItem value="none">No Team</SelectItem>
                       {teams.map((t: any) => (
-                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -2984,17 +3463,36 @@ function EditProjectModal({
                 <h4 className="text-sm font-semibold">Project Timeline</h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Planned Start</Label>
-                    <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Planned Start
+                    </Label>
+                    <Input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                    />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Target End</Label>
-                    <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Target End
+                    </Label>
+                    <Input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                    />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Budget Allocation ($)</Label>
-                  <Input type="number" value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="0.00" />
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    Budget Allocation ($)
+                  </Label>
+                  <Input
+                    type="number"
+                    value={budget}
+                    onChange={(e) => setBudget(e.target.value)}
+                    placeholder="0.00"
+                  />
                 </div>
               </div>
             </TabsContent>
@@ -3021,7 +3519,6 @@ function EditProjectModal({
 
 // Create Client Modal Component
 function CreateClientModal({
-
   onClose,
   onSubmit,
 }: {
@@ -3062,7 +3559,10 @@ function CreateClientModal({
             Add a new external client or internal stakeholder
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <form
+          onSubmit={handleSubmit}
+          className="flex-1 flex flex-col min-h-0 overflow-hidden"
+        >
           <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-6 custom-scrollbar">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2 col-span-2">
@@ -3224,14 +3724,16 @@ function CreateTeamModal({
     );
   };
 
-  const filteredUsers = users.filter(u =>
-    u.name.toLowerCase().includes(memberSearch.toLowerCase()) &&
-    !selectedMembers.includes(u.id)
+  const filteredUsers = users.filter(
+    (u) =>
+      u.name.toLowerCase().includes(memberSearch.toLowerCase()) &&
+      !selectedMembers.includes(u.id),
   );
 
-  const filteredProjects = projects.filter(p =>
-    p.name.toLowerCase().includes(projectSearch.toLowerCase()) &&
-    !selectedProjects.includes(p.id)
+  const filteredProjects = projects.filter(
+    (p) =>
+      p.name.toLowerCase().includes(projectSearch.toLowerCase()) &&
+      !selectedProjects.includes(p.id),
   );
 
   return (
@@ -3243,7 +3745,10 @@ function CreateTeamModal({
             Set up a new team with roles, members, and projects
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <form
+          onSubmit={handleSubmit}
+          className="flex-1 flex flex-col min-h-0 overflow-hidden"
+        >
           <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-6 custom-scrollbar">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -3280,7 +3785,9 @@ function CreateTeamModal({
 
             {/* Members Selection */}
             <div className="space-y-3">
-              <Label className="text-base font-semibold">Team Members & Roles</Label>
+              <Label className="text-base font-semibold">
+                Team Members & Roles
+              </Label>
               <div className="relative">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="relative flex-1">
@@ -3296,7 +3803,7 @@ function CreateTeamModal({
 
                 {memberSearch && filteredUsers.length > 0 && (
                   <div className="absolute z-10 w-full mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto p-1">
-                    {filteredUsers.map(user => (
+                    {filteredUsers.map((user) => (
                       <button
                         key={user.id}
                         type="button"
@@ -3308,8 +3815,12 @@ function CreateTeamModal({
                       >
                         <UserAvatar user={user} size="sm" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{user.name}</p>
-                          <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>
+                          <p className="text-sm font-medium truncate">
+                            {user.name}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground truncate">
+                            {user.email}
+                          </p>
                         </div>
                         <PlusCircle className="size-4 text-primary" />
                       </button>
@@ -3325,40 +3836,67 @@ function CreateTeamModal({
                     <p className="text-sm">No members added yet</p>
                   </div>
                 ) : (
-                  selectedMembers.map(userId => {
-                    const user = users.find(u => u.id === userId);
+                  selectedMembers.map((userId) => {
+                    const user = users.find((u) => u.id === userId);
                     if (!user) return null;
                     return (
-                      <div key={userId} className="flex items-center gap-4 p-3 rounded-lg border bg-card animate-in fade-in slide-in-from-top-1 duration-200">
-                        <UserAvatar user={user} size="lg" className="border border-border" />
+                      <div
+                        key={userId}
+                        className="flex items-center gap-4 p-3 rounded-lg border bg-card animate-in fade-in slide-in-from-top-1 duration-200"
+                      >
+                        <UserAvatar
+                          user={user}
+                          size="lg"
+                          className="border border-border"
+                        />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold truncate">{user.name}</p>
-                          <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                          <p className="text-sm font-semibold truncate">
+                            {user.name}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {user.email}
+                          </p>
                         </div>
 
                         <div className="flex items-center gap-4 border-l pl-4">
                           <RoleToggle
                             label="PM"
                             active={projectManagerId === userId}
-                            onToggle={() => setProjectManagerId(prev => prev === userId ? "" : userId)}
+                            onToggle={() =>
+                              setProjectManagerId((prev) =>
+                                prev === userId ? "" : userId,
+                              )
+                            }
                             color="text-blue-500"
                           />
                           <RoleToggle
                             label="Prod M"
                             active={productManagerId === userId}
-                            onToggle={() => setProductManagerId(prev => prev === userId ? "" : userId)}
+                            onToggle={() =>
+                              setProductManagerId((prev) =>
+                                prev === userId ? "" : userId,
+                              )
+                            }
                             color="text-green-500"
                           />
                           <RoleToggle
                             label="TL"
                             active={leadId === userId}
-                            onToggle={() => setLeadId(prev => prev === userId ? "" : userId)}
+                            onToggle={() =>
+                              setLeadId((prev) =>
+                                prev === userId ? "" : userId,
+                              )
+                            }
                             color="text-purple-500"
                           />
                           <RoleToggle
                             label="SM"
                             active={scrumMasterId === userId}
-                            onToggle={() => setScrumMasterId(prev => prev === userId ? "" : userId)}
+                            onToggle={() =>
+                              setScrumMasterId((prev) =>
+                                prev === userId ? "" : userId,
+                              )
+                            }
                             color="text-orange-500"
                           />
                           <Button
@@ -3367,10 +3905,13 @@ function CreateTeamModal({
                             className="size-8 text-destructive hover:text-destructive hover:bg-destructive/10"
                             onClick={() => {
                               toggleMember(userId);
-                              if (projectManagerId === userId) setProjectManagerId("");
+                              if (projectManagerId === userId)
+                                setProjectManagerId("");
                               if (leadId === userId) setLeadId("");
-                              if (productManagerId === userId) setProductManagerId("");
-                              if (scrumMasterId === userId) setScrumMasterId("");
+                              if (productManagerId === userId)
+                                setProductManagerId("");
+                              if (scrumMasterId === userId)
+                                setScrumMasterId("");
                             }}
                           >
                             <Trash2 className="size-4" />
@@ -3385,7 +3926,9 @@ function CreateTeamModal({
 
             {/* Projects Selection */}
             <div className="space-y-3">
-              <Label className="text-base font-semibold">Assigned Projects</Label>
+              <Label className="text-base font-semibold">
+                Assigned Projects
+              </Label>
               <div className="relative">
                 <div className="relative">
                   <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
@@ -3399,7 +3942,7 @@ function CreateTeamModal({
 
                 {projectSearch && filteredProjects.length > 0 && (
                   <div className="absolute z-10 w-full mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto p-1">
-                    {filteredProjects.map(project => (
+                    {filteredProjects.map((project) => (
                       <button
                         key={project.id}
                         type="button"
@@ -3413,8 +3956,12 @@ function CreateTeamModal({
                           <FolderPlus className="size-3.5 text-primary" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{project.name}</p>
-                          <p className="text-[10px] text-muted-foreground truncate">{project.key}</p>
+                          <p className="text-sm font-medium truncate">
+                            {project.name}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground truncate">
+                            {project.key}
+                          </p>
                         </div>
                         <PlusCircle className="size-4 text-primary" />
                       </button>
@@ -3430,15 +3977,21 @@ function CreateTeamModal({
                     <p className="text-sm">No projects assigned</p>
                   </div>
                 ) : (
-                  selectedProjects.map(id => {
-                    const project = projects.find(p => p.id === id);
+                  selectedProjects.map((id) => {
+                    const project = projects.find((p) => p.id === id);
                     if (!project) return null;
                     return (
-                      <Badge key={id} variant="secondary" className="pl-1.5 py-1 gap-1 h-8">
+                      <Badge
+                        key={id}
+                        variant="secondary"
+                        className="pl-1.5 py-1 gap-1 h-8"
+                      >
                         <div className="size-5 rounded-sm bg-primary/20 flex items-center justify-center font-mono text-[10px] font-bold text-primary">
                           {project.key.substring(0, 2)}
                         </div>
-                        <span className="max-w-[150px] truncate">{project.name}</span>
+                        <span className="max-w-[150px] truncate">
+                          {project.name}
+                        </span>
                         <button
                           type="button"
                           onClick={() => toggleProject(id)}
@@ -3452,7 +4005,6 @@ function CreateTeamModal({
                 )}
               </div>
             </div>
-
           </div>
 
           <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
@@ -3469,7 +4021,17 @@ function CreateTeamModal({
   );
 }
 
-function RoleToggle({ label, active, onToggle, color }: { label: string, active: boolean, onToggle: () => void, color: string }) {
+function RoleToggle({
+  label,
+  active,
+  onToggle,
+  color,
+}: {
+  label: string;
+  active: boolean;
+  onToggle: () => void;
+  color: string;
+}) {
   return (
     <div className="flex flex-col items-center gap-1">
       <p className="text-[9px] font-bold text-muted-foreground">{label}</p>
@@ -3478,7 +4040,7 @@ function RoleToggle({ label, active, onToggle, color }: { label: string, active:
         onCheckedChange={onToggle}
         className={cn(
           "size-4 transition-all duration-200",
-          active && cn("border-transparent", color.replace('text', 'bg'))
+          active && cn("border-transparent", color.replace("text", "bg")),
         )}
       />
     </div>
@@ -3556,7 +4118,7 @@ function EditTeamModal({
     setSelectedMembers((prev) =>
       prev.includes(userId)
         ? prev.filter((id) => id !== userId)
-        : [...prev, userId]
+        : [...prev, userId],
     );
   };
 
@@ -3564,18 +4126,20 @@ function EditTeamModal({
     setSelectedProjects((prev) =>
       prev.includes(projectId)
         ? prev.filter((id) => id !== projectId)
-        : [...prev, projectId]
+        : [...prev, projectId],
     );
   };
 
-  const filteredUsers = users.filter(u =>
-    u.name.toLowerCase().includes(memberSearch.toLowerCase()) &&
-    !selectedMembers.includes(u.id)
+  const filteredUsers = users.filter(
+    (u) =>
+      u.name.toLowerCase().includes(memberSearch.toLowerCase()) &&
+      !selectedMembers.includes(u.id),
   );
 
-  const filteredProjects = projects.filter(p =>
-    p.name.toLowerCase().includes(projectSearch.toLowerCase()) &&
-    !selectedProjects.includes(p.id)
+  const filteredProjects = projects.filter(
+    (p) =>
+      p.name.toLowerCase().includes(projectSearch.toLowerCase()) &&
+      !selectedProjects.includes(p.id),
   );
 
   return (
@@ -3587,7 +4151,10 @@ function EditTeamModal({
             Update team roles, members, and project assignments
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <form
+          onSubmit={handleSubmit}
+          className="flex-1 flex flex-col min-h-0 overflow-hidden"
+        >
           <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-6 custom-scrollbar">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -3623,7 +4190,9 @@ function EditTeamModal({
 
             {/* Members Selection */}
             <div className="space-y-3">
-              <Label className="text-base font-semibold">Team Members & Roles</Label>
+              <Label className="text-base font-semibold">
+                Team Members & Roles
+              </Label>
               <div className="relative">
                 <div className="relative">
                   <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
@@ -3637,7 +4206,7 @@ function EditTeamModal({
 
                 {memberSearch && filteredUsers.length > 0 && (
                   <div className="absolute z-10 w-full mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto p-1">
-                    {filteredUsers.map(user => (
+                    {filteredUsers.map((user) => (
                       <button
                         key={user.id}
                         type="button"
@@ -3649,8 +4218,12 @@ function EditTeamModal({
                       >
                         <UserAvatar user={user} size="sm" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{user.name}</p>
-                          <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>
+                          <p className="text-sm font-medium truncate">
+                            {user.name}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground truncate">
+                            {user.email}
+                          </p>
                         </div>
                         <PlusCircle className="size-4 text-primary" />
                       </button>
@@ -3666,40 +4239,67 @@ function EditTeamModal({
                     <p className="text-sm">No members added yet</p>
                   </div>
                 ) : (
-                  selectedMembers.map(userId => {
-                    const user = users.find(u => u.id === userId);
+                  selectedMembers.map((userId) => {
+                    const user = users.find((u) => u.id === userId);
                     if (!user) return null;
                     return (
-                      <div key={userId} className="flex items-center gap-4 p-3 rounded-lg border bg-card animate-in fade-in slide-in-from-top-1 duration-200">
-                        <UserAvatar user={user} size="lg" className="border border-border" />
+                      <div
+                        key={userId}
+                        className="flex items-center gap-4 p-3 rounded-lg border bg-card animate-in fade-in slide-in-from-top-1 duration-200"
+                      >
+                        <UserAvatar
+                          user={user}
+                          size="lg"
+                          className="border border-border"
+                        />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold truncate">{user.name}</p>
-                          <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                          <p className="text-sm font-semibold truncate">
+                            {user.name}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {user.email}
+                          </p>
                         </div>
 
                         <div className="flex items-center gap-4 border-l pl-4">
                           <RoleToggle
                             label="PM"
                             active={projectManagerId === userId}
-                            onToggle={() => setProjectManagerId(prev => prev === userId ? "" : userId)}
+                            onToggle={() =>
+                              setProjectManagerId((prev) =>
+                                prev === userId ? "" : userId,
+                              )
+                            }
                             color="text-blue-500"
                           />
                           <RoleToggle
                             label="Prod M"
                             active={productManagerId === userId}
-                            onToggle={() => setProductManagerId(prev => prev === userId ? "" : userId)}
+                            onToggle={() =>
+                              setProductManagerId((prev) =>
+                                prev === userId ? "" : userId,
+                              )
+                            }
                             color="text-green-500"
                           />
                           <RoleToggle
                             label="TL"
                             active={leadId === userId}
-                            onToggle={() => setLeadId(prev => prev === userId ? "" : userId)}
+                            onToggle={() =>
+                              setLeadId((prev) =>
+                                prev === userId ? "" : userId,
+                              )
+                            }
                             color="text-purple-500"
                           />
                           <RoleToggle
                             label="SM"
                             active={scrumMasterId === userId}
-                            onToggle={() => setScrumMasterId(prev => prev === userId ? "" : userId)}
+                            onToggle={() =>
+                              setScrumMasterId((prev) =>
+                                prev === userId ? "" : userId,
+                              )
+                            }
                             color="text-orange-500"
                           />
                           <Button
@@ -3708,10 +4308,13 @@ function EditTeamModal({
                             className="size-8 text-destructive hover:text-destructive hover:bg-destructive/10"
                             onClick={() => {
                               toggleMember(userId);
-                              if (projectManagerId === userId) setProjectManagerId("");
+                              if (projectManagerId === userId)
+                                setProjectManagerId("");
                               if (leadId === userId) setLeadId("");
-                              if (productManagerId === userId) setProductManagerId("");
-                              if (scrumMasterId === userId) setScrumMasterId("");
+                              if (productManagerId === userId)
+                                setProductManagerId("");
+                              if (scrumMasterId === userId)
+                                setScrumMasterId("");
                             }}
                           >
                             <Trash2 className="size-4" />
@@ -3726,7 +4329,9 @@ function EditTeamModal({
 
             {/* Projects Selection */}
             <div className="space-y-3">
-              <Label className="text-base font-semibold">Assigned Projects</Label>
+              <Label className="text-base font-semibold">
+                Assigned Projects
+              </Label>
               <div className="relative">
                 <div className="relative">
                   <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
@@ -3740,7 +4345,7 @@ function EditTeamModal({
 
                 {projectSearch && filteredProjects.length > 0 && (
                   <div className="absolute z-10 w-full mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto p-1">
-                    {filteredProjects.map(project => (
+                    {filteredProjects.map((project) => (
                       <button
                         key={project.id}
                         type="button"
@@ -3754,8 +4359,12 @@ function EditTeamModal({
                           <FolderPlus className="size-3.5 text-primary" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{project.name}</p>
-                          <p className="text-[10px] text-muted-foreground truncate">{project.key}</p>
+                          <p className="text-sm font-medium truncate">
+                            {project.name}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground truncate">
+                            {project.key}
+                          </p>
                         </div>
                         <PlusCircle className="size-4 text-primary" />
                       </button>
@@ -3771,15 +4380,21 @@ function EditTeamModal({
                     <p className="text-sm">No projects assigned</p>
                   </div>
                 ) : (
-                  selectedProjects.map(id => {
-                    const project = projects.find(p => p.id === id);
+                  selectedProjects.map((id) => {
+                    const project = projects.find((p) => p.id === id);
                     if (!project) return null;
                     return (
-                      <Badge key={id} variant="secondary" className="pl-1.5 py-1 gap-1 h-8">
+                      <Badge
+                        key={id}
+                        variant="secondary"
+                        className="pl-1.5 py-1 gap-1 h-8"
+                      >
                         <div className="size-5 rounded-sm bg-primary/20 flex items-center justify-center font-mono text-[10px] font-bold text-primary">
                           {project.key.substring(0, 2)}
                         </div>
-                        <span className="max-w-[150px] truncate">{project.name}</span>
+                        <span className="max-w-[150px] truncate">
+                          {project.name}
+                        </span>
                         <button
                           type="button"
                           onClick={() => toggleProject(id)}
@@ -3793,7 +4408,6 @@ function EditTeamModal({
                 )}
               </div>
             </div>
-
           </div>
 
           <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
@@ -3872,7 +4486,9 @@ function CreateProgramModal({
       !selectedProjects.includes(p.id),
   );
 
-  const handleNewPortfolio = async (portfolio: Parameters<typeof addPortfolio>[0]) => {
+  const handleNewPortfolio = async (
+    portfolio: Parameters<typeof addPortfolio>[0],
+  ) => {
     try {
       const newPortfolio = await addPortfolio(portfolio);
       setPortfolioId(newPortfolio.id);
@@ -3941,7 +4557,9 @@ function CreateProgramModal({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">
-                        <span className="text-muted-foreground">No portfolio (Independent)</span>
+                        <span className="text-muted-foreground">
+                          No portfolio (Independent)
+                        </span>
                       </SelectItem>
                       <SelectItem
                         value="create-new"
@@ -3962,7 +4580,10 @@ function CreateProgramModal({
                             <div className="flex items-center gap-2">
                               <Building className="size-3.5 text-accent" />
                               <span>{portfolio.name}</span>
-                              <Badge variant="outline" className="ml-2 text-[10px] scale-90 origin-left">
+                              <Badge
+                                variant="outline"
+                                className="ml-2 text-[10px] scale-90 origin-left"
+                              >
                                 Active
                               </Badge>
                             </div>
@@ -4020,7 +4641,9 @@ function CreateProgramModal({
 
               {/* Projects Selection */}
               <div className="space-y-3">
-                <Label className="text-sm font-semibold">Associated Projects</Label>
+                <Label className="text-sm font-semibold">
+                  Associated Projects
+                </Label>
                 <div className="relative">
                   <div className="relative">
                     <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
@@ -4132,10 +4755,10 @@ function CreatePortfolioModal({
   ) => void;
 }) {
   const { users, programs, addProgram } = useApp();
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [ownerId, setOwnerId] = useState(users[0]?.id || '');
-  const [budget, setBudget] = useState('');
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [ownerId, setOwnerId] = useState(users[0]?.id || "");
+  const [budget, setBudget] = useState("");
   const [selectedProgramIds, setSelectedProgramIds] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
   const [showCreateProgramModal, setShowCreateProgramModal] = useState(false);
@@ -4145,7 +4768,9 @@ function CreatePortfolioModal({
     if (!name.trim()) return;
 
     const owner = users.find((u: User) => u.id === ownerId) || users[0];
-    const selectedPrograms = programs.filter((p: Program) => selectedProgramIds.includes(p.id));
+    const selectedPrograms = programs.filter((p: Program) =>
+      selectedProgramIds.includes(p.id),
+    );
 
     onSubmit({
       name: name.trim(),
@@ -4168,7 +4793,7 @@ function CreatePortfolioModal({
     setSelectedProgramIds((prev: string[]) =>
       prev.includes(programId)
         ? prev.filter((id: string) => id !== programId)
-        : [...prev, programId]
+        : [...prev, programId],
     );
   };
 
@@ -4182,7 +4807,10 @@ function CreatePortfolioModal({
               Set up a new portfolio to organize programs
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <form
+            onSubmit={handleSubmit}
+            className="flex-1 flex flex-col min-h-0 overflow-hidden"
+          >
             <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-6 custom-scrollbar">
               <div className="space-y-2">
                 <Label htmlFor="portfolio-name">Portfolio Name *</Label>
@@ -4241,7 +4869,11 @@ function CreatePortfolioModal({
                     const program = programs.find((p: Program) => p.id === id);
                     if (!program) return null;
                     return (
-                      <Badge key={id} variant="secondary" className="pl-2 pr-1 py-1 flex items-center gap-1 group animate-in fade-in zoom-in duration-200">
+                      <Badge
+                        key={id}
+                        variant="secondary"
+                        className="pl-2 pr-1 py-1 flex items-center gap-1 group animate-in fade-in zoom-in duration-200"
+                      >
                         {program.name}
                         <button
                           type="button"
@@ -4264,10 +4896,15 @@ function CreatePortfolioModal({
                         className="flex-1 flex items-center gap-2 px-2 h-8 text-sm text-muted-foreground outline-none text-left"
                       >
                         <Search className="size-4 shrink-0" />
-                        {selectedProgramIds.length === 0 && <span>Search and select programs...</span>}
+                        {selectedProgramIds.length === 0 && (
+                          <span>Search and select programs...</span>
+                        )}
                       </button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] min-w-[300px] p-0" align="start">
+                    <PopoverContent
+                      className="w-[var(--radix-popover-trigger-width)] min-w-[300px] p-0"
+                      align="start"
+                    >
                       <Command>
                         <CommandInput placeholder="Search programs..." />
                         <CommandList className="max-h-[300px]">
@@ -4283,13 +4920,18 @@ function CreatePortfolioModal({
                                 className="cursor-pointer"
                               >
                                 <div className="flex items-center gap-2 w-full">
-                                  <div className={`flex size-4 items-center justify-center rounded-sm border border-primary transition-colors ${selectedProgramIds.includes(program.id)
-                                    ? "bg-primary text-primary-foreground"
-                                    : "opacity-50 [&_svg]:invisible"
-                                    }`}>
+                                  <div
+                                    className={`flex size-4 items-center justify-center rounded-sm border border-primary transition-colors ${
+                                      selectedProgramIds.includes(program.id)
+                                        ? "bg-primary text-primary-foreground"
+                                        : "opacity-50 [&_svg]:invisible"
+                                    }`}
+                                  >
                                     <Check className="size-3" />
                                   </div>
-                                  <span className="flex-1 truncate">{program.name}</span>
+                                  <span className="flex-1 truncate">
+                                    {program.name}
+                                  </span>
                                 </div>
                               </CommandItem>
                             ))}
@@ -4333,10 +4975,13 @@ function CreatePortfolioModal({
             try {
               const newProgram = await addProgram(programData);
               if (newProgram) {
-                setSelectedProgramIds(prev => [...prev, newProgram.id]);
+                setSelectedProgramIds((prev) => [...prev, newProgram.id]);
               }
             } catch (error) {
-              console.error("Failed to create program from portfolio modal:", error);
+              console.error(
+                "Failed to create program from portfolio modal:",
+                error,
+              );
             }
           }}
         />
@@ -4388,7 +5033,10 @@ function LogTimeModal({
               : "Log time entry"}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <form
+          onSubmit={handleSubmit}
+          className="flex-1 flex flex-col min-h-0 overflow-hidden"
+        >
           <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-6 custom-scrollbar">
             <div className="space-y-2">
               <Label htmlFor="hours">Hours *</Label>
@@ -4425,7 +5073,6 @@ function LogTimeModal({
                 rows={2}
               />
             </div>
-
           </div>
 
           <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
@@ -4449,7 +5096,12 @@ function CreateUserModal({
   onUserCreated,
 }: {
   onClose: () => void;
-  onSubmit: (user: { name: string; email: string; password: string; role?: string }) => Promise<User>;
+  onSubmit: (user: {
+    name: string;
+    email: string;
+    password: string;
+    role?: string;
+  }) => Promise<User>;
   onUserCreated?: (user: User) => void;
 }) {
   const [name, setName] = useState("");
@@ -4464,9 +5116,11 @@ function CreateUserModal({
     const newErrors: Record<string, string> = {};
     if (!name.trim()) newErrors.name = "Name is required";
     if (!email.trim()) newErrors.email = "Email is required";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = "Invalid email format";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+      newErrors.email = "Invalid email format";
     if (!password) newErrors.password = "Password is required";
-    else if (password.length < 6) newErrors.password = "Password must be at least 6 characters";
+    else if (password.length < 6)
+      newErrors.password = "Password must be at least 6 characters";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -4501,10 +5155,14 @@ function CreateUserModal({
             Create New User
           </DialogTitle>
           <DialogDescription>
-            Create a new user account. The user will be available for team assignment.
+            Create a new user account. The user will be available for team
+            assignment.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <form
+          onSubmit={handleSubmit}
+          className="flex-1 flex flex-col min-h-0 overflow-hidden"
+        >
           <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-6 custom-scrollbar">
             <div className="space-y-1.5">
               <Label htmlFor="user-name">Full Name *</Label>
@@ -4512,11 +5170,16 @@ function CreateUserModal({
                 id="user-name"
                 placeholder="e.g., John Doe"
                 value={name}
-                onChange={(e) => { setName(e.target.value); setErrors((p) => ({ ...p, name: "" })); }}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setErrors((p) => ({ ...p, name: "" }));
+                }}
                 autoFocus
                 aria-invalid={!!errors.name}
               />
-              {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
+              {errors.name && (
+                <p className="text-sm text-destructive">{errors.name}</p>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -4528,12 +5191,17 @@ function CreateUserModal({
                   type="email"
                   placeholder="user@example.com"
                   value={email}
-                  onChange={(e) => { setEmail(e.target.value); setErrors((p) => ({ ...p, email: "" })); }}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setErrors((p) => ({ ...p, email: "" }));
+                  }}
                   className="pl-9"
                   aria-invalid={!!errors.email}
                 />
               </div>
-              {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
+              {errors.email && (
+                <p className="text-sm text-destructive">{errors.email}</p>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -4544,7 +5212,10 @@ function CreateUserModal({
                   type={showPassword ? "text" : "password"}
                   placeholder="Minimum 6 characters"
                   value={password}
-                  onChange={(e) => { setPassword(e.target.value); setErrors((p) => ({ ...p, password: "" })); }}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setErrors((p) => ({ ...p, password: "" }));
+                  }}
                   aria-invalid={!!errors.password}
                 />
                 <Button
@@ -4554,10 +5225,16 @@ function CreateUserModal({
                   className="absolute right-1 top-1/2 -translate-y-1/2 size-8"
                   onClick={() => setShowPassword(!showPassword)}
                 >
-                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  {showPassword ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
                 </Button>
               </div>
-              {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+              {errors.password && (
+                <p className="text-sm text-destructive">{errors.password}</p>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -4578,11 +5255,15 @@ function CreateUserModal({
                 </SelectContent>
               </Select>
             </div>
-
           </div>
 
           <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
-            <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={isSubmitting}
+            >
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting} className="gap-2">
@@ -4670,7 +5351,6 @@ function AddMemberModal({
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-6 custom-scrollbar">
-
           {availableUsers.length > 3 && (
             <div className="relative">
               <Input
@@ -4691,17 +5371,25 @@ function AddMemberModal({
                     key={user.id}
                     type="button"
                     onClick={() => setSelectedUser(user.id)}
-                    className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${selectedUser === user.id
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:bg-muted"
-                      }`}
+                    className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                      selectedUser === user.id
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:bg-muted"
+                    }`}
                   >
                     <UserAvatar user={user} size="md" />
                     <div className="text-left flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{user.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                      <p className="font-medium text-sm truncate">
+                        {user.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {user.email}
+                      </p>
                     </div>
-                    <Badge variant="outline" className="text-[10px] capitalize shrink-0">
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] capitalize shrink-0"
+                    >
                       {user.role?.replace("-", " ") || "Contributor"}
                     </Badge>
                   </button>
@@ -4810,7 +5498,10 @@ function CreateSprintModal({
             Define the sprint details and select tasks from the backlog.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <form
+          onSubmit={handleSubmit}
+          className="flex-1 flex flex-col min-h-0 overflow-hidden"
+        >
           <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-6 custom-scrollbar">
             <div className="space-y-2">
               <Label htmlFor="sprint-name">Sprint Name *</Label>
@@ -4876,7 +5567,9 @@ function CreateSprintModal({
               </div>
             </div>
 
-            {dateError && <p className="text-sm text-destructive">{dateError}</p>}
+            {dateError && (
+              <p className="text-sm text-destructive">{dateError}</p>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="sprint-goal">Sprint Goal</Label>
@@ -4916,7 +5609,7 @@ function CreateSprintModal({
                         className={cn(
                           "flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-muted/50 transition-colors",
                           selectedBacklogTasks.includes(task.id) &&
-                          "bg-primary/5",
+                            "bg-primary/5",
                         )}
                       >
                         <Checkbox
@@ -4959,7 +5652,6 @@ function CreateSprintModal({
                 )}
               </ScrollArea>
             </div>
-
           </div>
 
           <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
@@ -5010,7 +5702,11 @@ function ClientDetailModal({
       <DialogContent className="max-w-2xl max-h-[95vh] p-0 overflow-hidden flex flex-col">
         <DialogHeader className="p-6 pb-4 border-b bg-muted/30">
           <div className="flex items-center gap-4">
-            <UserAvatar user={{ id: client.id, name: client.name }} size="xl" className="size-16 border-2 border-background shadow-sm" />
+            <UserAvatar
+              user={{ id: client.id, name: client.name }}
+              size="xl"
+              className="size-16 border-2 border-background shadow-sm"
+            />
             <div className="flex-1 min-w-0">
               <DialogTitle className="text-xl font-bold truncate">
                 {client.name}
@@ -5158,7 +5854,12 @@ function ClientDetailModal({
         </div>
 
         <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
-          <Button variant="outline" size="sm" onClick={onClose} className="h-8 px-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onClose}
+            className="h-8 px-4"
+          >
             Close
           </Button>
         </DialogFooter>
@@ -5170,27 +5871,46 @@ function ClientDetailModal({
 // ─── Status Settings Modal ──────────────────────────────────────────────────
 
 const COLOR_PRESETS = [
-  '#64748b', // slate
-  '#ef4444', // red
-  '#f97316', // orange
-  '#f59e0b', // amber
-  '#eab308', // yellow
-  '#84cc16', // lime
-  '#22c55e', // green
-  '#10b981', // emerald
-  '#06b6d4', // cyan
-  '#3b82f6', // blue
-  '#6366f1', // indigo
-  '#8b5cf6', // violet
-  '#d946ef', // fuchsia
-  '#ec4899', // pink
+  "#64748b", // slate
+  "#ef4444", // red
+  "#f97316", // orange
+  "#f59e0b", // amber
+  "#eab308", // yellow
+  "#84cc16", // lime
+  "#22c55e", // green
+  "#10b981", // emerald
+  "#06b6d4", // cyan
+  "#3b82f6", // blue
+  "#6366f1", // indigo
+  "#8b5cf6", // violet
+  "#d946ef", // fuchsia
+  "#ec4899", // pink
 ];
 
-const WORKFLOW_GROUP_CONFIG: Record<WorkflowGroupKey, { label: string; color: string; description: string }> = {
-  OPEN: { label: 'Open', color: 'bg-slate-500', description: 'Starting points for new work' },
-  IN_PROGRESS: { label: 'In Progress', color: 'bg-blue-500', description: 'Work actively being done' },
-  ON_HOLD: { label: 'On Hold', color: 'bg-amber-500', description: 'Paused or blocked items' },
-  CLOSED: { label: 'Closed', color: 'bg-green-500', description: 'Completed or cancelled work' },
+const WORKFLOW_GROUP_CONFIG: Record<
+  WorkflowGroupKey,
+  { label: string; color: string; description: string }
+> = {
+  OPEN: {
+    label: "Open",
+    color: "bg-slate-500",
+    description: "Starting points for new work",
+  },
+  IN_PROGRESS: {
+    label: "In Progress",
+    color: "bg-blue-500",
+    description: "Work actively being done",
+  },
+  ON_HOLD: {
+    label: "On Hold",
+    color: "bg-amber-500",
+    description: "Paused or blocked items",
+  },
+  CLOSED: {
+    label: "Closed",
+    color: "bg-green-500",
+    description: "Completed or cancelled work",
+  },
 };
 
 interface StatusSettingsModalProps {
@@ -5199,7 +5919,11 @@ interface StatusSettingsModalProps {
   projectId: string;
 }
 
-export function StatusSettingsModal({ isOpen, onClose, projectId }: StatusSettingsModalProps) {
+export function StatusSettingsModal({
+  isOpen,
+  onClose,
+  projectId,
+}: StatusSettingsModalProps) {
   const {
     workflowStatuses,
     tasks,
@@ -5207,26 +5931,33 @@ export function StatusSettingsModal({ isOpen, onClose, projectId }: StatusSettin
     updateWorkflowStatus,
     deleteWorkflowStatus,
     reorderStatuses,
-    showToast
+    showToast,
   } = useApp();
 
   const projectStatuses = React.useMemo(
-    () => workflowStatuses
-      .filter(s => s.projectId === projectId)
-      .sort((a, b) => a.position - b.position),
-    [workflowStatuses, projectId]
+    () =>
+      workflowStatuses
+        .filter((s) => s.projectId === projectId)
+        .sort((a, b) => a.position - b.position),
+    [workflowStatuses, projectId],
   );
 
   const [editingStatusId, setEditingStatusId] = useState<string | null>(null);
-  const [deletingStatus, setDeletingStatus] = useState<WorkflowStatus | null>(null);
-  const [moveToStatusId, setMoveToStatusId] = useState<string>('');
+  const [deletingStatus, setDeletingStatus] = useState<WorkflowStatus | null>(
+    null,
+  );
+  const [moveToStatusId, setMoveToStatusId] = useState<string>("");
   const [draggedStatusId, setDraggedStatusId] = useState<string | null>(null);
-  const [dragEnabledStatusId, setDragEnabledStatusId] = useState<string | null>(null);
-  const [statusNameDrafts, setStatusNameDrafts] = useState<Record<string, string>>({});
+  const [dragEnabledStatusId, setDragEnabledStatusId] = useState<string | null>(
+    null,
+  );
+  const [statusNameDrafts, setStatusNameDrafts] = useState<
+    Record<string, string>
+  >({});
   const lastSavedStatusNameRef = React.useRef<Record<string, string>>({});
 
   const statusesByGroup = (group: WorkflowGroupKey) =>
-    projectStatuses.filter(s => s.groupKey === group);
+    projectStatuses.filter((s) => s.groupKey === group);
 
   React.useEffect(() => {
     if (!isOpen) {
@@ -5246,8 +5977,15 @@ export function StatusSettingsModal({ isOpen, onClose, projectId }: StatusSettin
     });
   }, [isOpen, projectStatuses]);
 
-  const commitStatusName = async (status: WorkflowStatus, nextName?: string) => {
-    const draftName = (nextName ?? statusNameDrafts[status.id] ?? status.name).trim();
+  const commitStatusName = async (
+    status: WorkflowStatus,
+    nextName?: string,
+  ) => {
+    const draftName = (
+      nextName ??
+      statusNameDrafts[status.id] ??
+      status.name
+    ).trim();
 
     if (!draftName || draftName === status.name) {
       setStatusNameDrafts((prev) => ({ ...prev, [status.id]: status.name }));
@@ -5274,12 +6012,13 @@ export function StatusSettingsModal({ isOpen, onClose, projectId }: StatusSettin
 
   const handleAddStatus = (group: WorkflowGroupKey) => {
     const groupStatuses = statusesByGroup(group);
-    const maxPos = groupStatuses.length > 0
-      ? Math.max(...groupStatuses.map(s => s.position))
-      : 0;
+    const maxPos =
+      groupStatuses.length > 0
+        ? Math.max(...groupStatuses.map((s) => s.position))
+        : 0;
 
     addWorkflowStatus(projectId, {
-      name: 'New Status',
+      name: "New Status",
       groupKey: group,
       color: COLOR_PRESETS[0],
       position: maxPos + 1,
@@ -5288,13 +6027,17 @@ export function StatusSettingsModal({ isOpen, onClose, projectId }: StatusSettin
   };
 
   const handleToggleDefault = (status: WorkflowStatus) => {
-    if (status.groupKey !== 'OPEN') {
-      showToast({ title: "Invalid action", description: "Default status must be in the OPEN group", type: "error" });
+    if (status.groupKey !== "OPEN") {
+      showToast({
+        title: "Invalid action",
+        description: "Default status must be in the OPEN group",
+        type: "error",
+      });
       return;
     }
 
     // Find current default and unset it
-    const currentDefault = projectStatuses.find(s => s.isDefault);
+    const currentDefault = projectStatuses.find((s) => s.isDefault);
     if (currentDefault) {
       updateWorkflowStatus(currentDefault.id, { isDefault: false });
     }
@@ -5305,52 +6048,65 @@ export function StatusSettingsModal({ isOpen, onClose, projectId }: StatusSettin
   const confirmDelete = () => {
     if (!deletingStatus) return;
 
-    const affectedTasks = tasks.filter(t => t.statusId === deletingStatus.id);
+    const affectedTasks = tasks.filter((t) => t.statusId === deletingStatus.id);
     if (affectedTasks.length > 0 && !moveToStatusId) {
-      showToast({ title: "Error", description: "Please select a target status for existing tasks", type: "error" });
+      showToast({
+        title: "Error",
+        description: "Please select a target status for existing tasks",
+        type: "error",
+      });
       return;
     }
 
-    deleteWorkflowStatus(deletingStatus.id, moveToStatusId || projectStatuses.find(s => s.id !== deletingStatus.id)?.id || '');
+    deleteWorkflowStatus(
+      deletingStatus.id,
+      moveToStatusId ||
+        projectStatuses.find((s) => s.id !== deletingStatus.id)?.id ||
+        "",
+    );
     setDeletingStatus(null);
-    setMoveToStatusId('');
+    setMoveToStatusId("");
   };
 
   // ─── Drag & Drop ───────────────────────────────────────────────────────────
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
     setDraggedStatusId(id);
-    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.effectAllowed = "move";
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+    e.dataTransfer.dropEffect = "move";
   };
 
-  const handleDrop = (e: React.DragEvent, targetId: string, targetGroup: WorkflowGroupKey) => {
+  const handleDrop = (
+    e: React.DragEvent,
+    targetId: string,
+    targetGroup: WorkflowGroupKey,
+  ) => {
     e.preventDefault();
     if (!draggedStatusId || draggedStatusId === targetId) return;
 
-    const sourceStatus = projectStatuses.find(s => s.id === draggedStatusId);
-    const targetStatus = projectStatuses.find(s => s.id === targetId);
+    const sourceStatus = projectStatuses.find((s) => s.id === draggedStatusId);
+    const targetStatus = projectStatuses.find((s) => s.id === targetId);
     if (!sourceStatus || !targetStatus) return;
 
     // Filter statuses in the target group
     const targetGroupStatuses = statusesByGroup(targetGroup);
 
     const newItems = [...projectStatuses];
-    const sourceIdx = newItems.findIndex(i => i.id === draggedStatusId);
+    const sourceIdx = newItems.findIndex((i) => i.id === draggedStatusId);
     const [movedItem] = newItems.splice(sourceIdx, 1);
 
-    const targetIdx = newItems.findIndex(i => i.id === targetId);
+    const targetIdx = newItems.findIndex((i) => i.id === targetId);
     newItems.splice(targetIdx, 0, movedItem);
 
     // Update positions
     const reorderPayload = newItems.map((s, idx) => ({
       id: s.id,
       position: idx,
-      groupKey: s.id === draggedStatusId ? targetGroup : s.groupKey
+      groupKey: s.id === draggedStatusId ? targetGroup : s.groupKey,
     }));
 
     reorderStatuses(projectId, reorderPayload);
@@ -5364,9 +6120,12 @@ export function StatusSettingsModal({ isOpen, onClose, projectId }: StatusSettin
           <DialogHeader className="p-6 pb-2">
             <div className="flex items-center justify-between">
               <div>
-                <DialogTitle className="text-2xl font-bold">Workflow Settings</DialogTitle>
+                <DialogTitle className="text-2xl font-bold">
+                  Workflow Settings
+                </DialogTitle>
                 <DialogDescription>
-                  Configure and customize your project's task statuses and lifecycle.
+                  Configure and customize your project's task statuses and
+                  lifecycle.
                 </DialogDescription>
               </div>
               <Layout className="size-8 text-primary/20" />
@@ -5374,156 +6133,216 @@ export function StatusSettingsModal({ isOpen, onClose, projectId }: StatusSettin
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto px-6 py-2">
-            <Accordion type="multiple" defaultValue={['OPEN', 'IN_PROGRESS']} className="space-y-4">
-              {(Object.keys(WORKFLOW_GROUP_CONFIG) as WorkflowGroupKey[]).map((groupKey) => {
-                const config = WORKFLOW_GROUP_CONFIG[groupKey];
-                const groupStatuses = statusesByGroup(groupKey);
+            <Accordion
+              type="multiple"
+              defaultValue={["OPEN", "IN_PROGRESS"]}
+              className="space-y-4"
+            >
+              {(Object.keys(WORKFLOW_GROUP_CONFIG) as WorkflowGroupKey[]).map(
+                (groupKey) => {
+                  const config = WORKFLOW_GROUP_CONFIG[groupKey];
+                  const groupStatuses = statusesByGroup(groupKey);
 
-                return (
-                  <AccordionItem key={groupKey} value={groupKey} className="border rounded-xl overflow-hidden bg-card shadow-sm">
-                    <AccordionTrigger className="hover:no-underline px-4 py-3 bg-muted/30">
-                      <div className="flex items-center gap-3 text-left">
-                        <div className={cn("size-3 rounded-full", config.color)} />
-                        <div>
-                          <p className="font-bold text-sm uppercase tracking-wider">{config.label}</p>
-                          <p className="text-xs text-muted-foreground font-normal">{config.description}</p>
-                        </div>
-                        <Badge variant="outline" className="ml-2 text-[10px] h-5">
-                          {groupStatuses.length} Statuses
-                        </Badge>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="p-0">
-                      <div className="divide-y border-t">
-                        {groupStatuses.map((status) => (
+                  return (
+                    <AccordionItem
+                      key={groupKey}
+                      value={groupKey}
+                      className="border rounded-xl overflow-hidden bg-card shadow-sm"
+                    >
+                      <AccordionTrigger className="hover:no-underline px-4 py-3 bg-muted/30">
+                        <div className="flex items-center gap-3 text-left">
                           <div
-                            key={status.id}
-                            draggable={dragEnabledStatusId === status.id || draggedStatusId === status.id}
-                            onDragStart={(e) => handleDragStart(e, status.id)}
-                            onDragEnd={() => {
-                              setDraggedStatusId(null);
-                              setDragEnabledStatusId(null);
-                            }}
-                            onDragOver={handleDragOver}
-                            onDrop={(e) => handleDrop(e, status.id, groupKey)}
-                            className={cn(
-                              "flex items-center gap-3 p-3 group hover:bg-muted/50 transition-colors",
-                              draggedStatusId === status.id && "opacity-50"
-                            )}
+                            className={cn("size-3 rounded-full", config.color)}
+                          />
+                          <div>
+                            <p className="font-bold text-sm uppercase tracking-wider">
+                              {config.label}
+                            </p>
+                            <p className="text-xs text-muted-foreground font-normal">
+                              {config.description}
+                            </p>
+                          </div>
+                          <Badge
+                            variant="outline"
+                            className="ml-2 text-[10px] h-5"
                           >
+                            {groupStatuses.length} Statuses
+                          </Badge>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="p-0">
+                        <div className="divide-y border-t">
+                          {groupStatuses.map((status) => (
                             <div
-                              onMouseEnter={() => setDragEnabledStatusId(status.id)}
-                              onMouseLeave={() => setDragEnabledStatusId(null)}
-                              className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded text-muted-foreground/40 group-hover:text-muted-foreground transition-colors"
+                              key={status.id}
+                              draggable={
+                                dragEnabledStatusId === status.id ||
+                                draggedStatusId === status.id
+                              }
+                              onDragStart={(e) => handleDragStart(e, status.id)}
+                              onDragEnd={() => {
+                                setDraggedStatusId(null);
+                                setDragEnabledStatusId(null);
+                              }}
+                              onDragOver={handleDragOver}
+                              onDrop={(e) => handleDrop(e, status.id, groupKey)}
+                              className={cn(
+                                "flex items-center gap-3 p-3 group hover:bg-muted/50 transition-colors",
+                                draggedStatusId === status.id && "opacity-50",
+                              )}
                             >
-                              <GripVertical className="size-4" />
-                            </div>
-
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <button
-                                  className="size-5 rounded-full border shadow-sm shrink-0 transition-transform hover:scale-110"
-                                  style={{ backgroundColor: status.color }}
-                                />
-                              </PopoverTrigger>
-                              <PopoverContent className="w-48 p-2" align="start">
-                                <div className="grid grid-cols-5 gap-1.5">
-                                  {COLOR_PRESETS.map((color) => (
-                                    <button
-                                      key={color}
-                                      className={cn(
-                                        "size-6 rounded-md border transition-all hover:scale-110",
-                                        status.color === color && "ring-2 ring-primary ring-offset-1"
-                                      )}
-                                      style={{ backgroundColor: color }}
-                                      onClick={() => updateWorkflowStatus(status.id, { color })}
-                                    />
-                                  ))}
-                                </div>
-                              </PopoverContent>
-                            </Popover>
-
-                            <div className="flex-1 min-w-0" onDragStart={(e) => e.stopPropagation()}>
-                              <Input
-                                value={statusNameDrafts[status.id] ?? status.name}
-                                onChange={(e) =>
-                                  setStatusNameDrafts((prev) => ({
-                                    ...prev,
-                                    [status.id]: e.target.value,
-                                  }))
+                              <div
+                                onMouseEnter={() =>
+                                  setDragEnabledStatusId(status.id)
                                 }
-                                onBlur={() => {
-                                  void commitStatusName(status);
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    void commitStatusName(status);
-                                  }
-                                }}
-                                className="h-8 text-sm font-medium bg-transparent border-transparent hover:border-input focus:bg-background transition-all px-2 -ml-2"
-                              />
-                            </div>
+                                onMouseLeave={() =>
+                                  setDragEnabledStatusId(null)
+                                }
+                                className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded text-muted-foreground/40 group-hover:text-muted-foreground transition-colors"
+                              >
+                                <GripVertical className="size-4" />
+                              </div>
 
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              {groupKey === 'OPEN' && (
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <button
+                                    className="size-5 rounded-full border shadow-sm shrink-0 transition-transform hover:scale-110"
+                                    style={{ backgroundColor: status.color }}
+                                  />
+                                </PopoverTrigger>
+                                <PopoverContent
+                                  className="w-48 p-2"
+                                  align="start"
+                                >
+                                  <div className="grid grid-cols-5 gap-1.5">
+                                    {COLOR_PRESETS.map((color) => (
+                                      <button
+                                        key={color}
+                                        className={cn(
+                                          "size-6 rounded-md border transition-all hover:scale-110",
+                                          status.color === color &&
+                                            "ring-2 ring-primary ring-offset-1",
+                                        )}
+                                        style={{ backgroundColor: color }}
+                                        onClick={() =>
+                                          updateWorkflowStatus(status.id, {
+                                            color,
+                                          })
+                                        }
+                                      />
+                                    ))}
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+
+                              <div
+                                className="flex-1 min-w-0"
+                                onDragStart={(e) => e.stopPropagation()}
+                              >
+                                <Input
+                                  value={
+                                    statusNameDrafts[status.id] ?? status.name
+                                  }
+                                  onChange={(e) =>
+                                    setStatusNameDrafts((prev) => ({
+                                      ...prev,
+                                      [status.id]: e.target.value,
+                                    }))
+                                  }
+                                  onBlur={() => {
+                                    void commitStatusName(status);
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      void commitStatusName(status);
+                                    }
+                                  }}
+                                  className="h-8 text-sm font-medium bg-transparent border-transparent hover:border-input focus:bg-background transition-all px-2 -ml-2"
+                                />
+                              </div>
+
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                {groupKey === "OPEN" && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className={cn(
+                                      "size-8 rounded-full",
+                                      status.isDefault
+                                        ? "text-yellow-500 hover:text-yellow-600 bg-yellow-500/10"
+                                        : "text-muted-foreground hover:text-yellow-500",
+                                    )}
+                                    onClick={() => handleToggleDefault(status)}
+                                    title={
+                                      status.isDefault
+                                        ? "Default status"
+                                        : "Set as default"
+                                    }
+                                  >
+                                    <Star
+                                      className={cn(
+                                        "size-4",
+                                        status.isDefault && "fill-current",
+                                      )}
+                                    />
+                                  </Button>
+                                )}
+
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className={cn(
-                                    "size-8 rounded-full",
-                                    status.isDefault ? "text-yellow-500 hover:text-yellow-600 bg-yellow-500/10" : "text-muted-foreground hover:text-yellow-500"
-                                  )}
-                                  onClick={() => handleToggleDefault(status)}
-                                  title={status.isDefault ? "Default status" : "Set as default"}
+                                  className="size-8 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                  onClick={() => {
+                                    const affectedTasks = tasks.filter(
+                                      (t) => t.statusId === status.id,
+                                    );
+                                    if (affectedTasks.length > 0) {
+                                      setDeletingStatus(status);
+                                    } else {
+                                      setDeletingStatus(status); // Still show confirm for empty status
+                                    }
+                                  }}
                                 >
-                                  <Star className={cn("size-4", status.isDefault && "fill-current")} />
+                                  <Trash2 className="size-4" />
                                 </Button>
-                              )}
-
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="size-8 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                onClick={() => {
-                                  const affectedTasks = tasks.filter(t => t.statusId === status.id);
-                                  if (affectedTasks.length > 0) {
-                                    setDeletingStatus(status);
-                                  } else {
-                                    setDeletingStatus(status); // Still show confirm for empty status
-                                  }
-                                }}
-                              >
-                                <Trash2 className="size-4" />
-                              </Button>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
 
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="w-full h-10 rounded-none text-muted-foreground hover:text-primary hover:bg-primary/5 gap-2"
-                          onClick={() => handleAddStatus(groupKey)}
-                        >
-                          <Plus className="size-4" />
-                          Add Status to {config.label}
-                        </Button>
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                );
-              })}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full h-10 rounded-none text-muted-foreground hover:text-primary hover:bg-primary/5 gap-2"
+                            onClick={() => handleAddStatus(groupKey)}
+                          >
+                            <Plus className="size-4" />
+                            Add Status to {config.label}
+                          </Button>
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  );
+                },
+              )}
             </Accordion>
           </div>
 
           <DialogFooter className="p-6 bg-muted/30 border-t flex items-center justify-between gap-4">
             <div className="flex items-center gap-2 mr-auto">
-              <Button variant="outline" size="sm" className="gap-2 h-9 border-dashed">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 h-9 border-dashed"
+              >
                 <Download className="size-4" />
                 Apply Template
               </Button>
-              <Button variant="outline" size="sm" className="gap-2 h-9 border-dashed">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 h-9 border-dashed"
+              >
                 <Save className="size-4" />
                 Save as Template
               </Button>
@@ -5542,7 +6361,10 @@ export function StatusSettingsModal({ isOpen, onClose, projectId }: StatusSettin
       </Dialog>
 
       {/* Delete Confirmation Modal */}
-      <Dialog open={!!deletingStatus} onOpenChange={() => setDeletingStatus(null)}>
+      <Dialog
+        open={!!deletingStatus}
+        onOpenChange={() => setDeletingStatus(null)}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
@@ -5550,27 +6372,43 @@ export function StatusSettingsModal({ isOpen, onClose, projectId }: StatusSettin
               Delete Status?
             </DialogTitle>
             <DialogDescription>
-              Are you sure you want to remove the "<span className="font-bold">{deletingStatus?.name}</span>" status?
-              {tasks.filter(t => t.statusId === deletingStatus?.id).length > 0 && (
+              Are you sure you want to remove the "
+              <span className="font-bold">{deletingStatus?.name}</span>" status?
+              {tasks.filter((t) => t.statusId === deletingStatus?.id).length >
+                0 && (
                 <div className="mt-4 p-4 rounded-lg bg-destructive/5 border border-destructive/10">
                   <p className="text-foreground font-semibold mb-2">
-                    Warning: {tasks.filter(t => t.statusId === deletingStatus?.id).length} tasks are currently in this status.
+                    Warning:{" "}
+                    {
+                      tasks.filter((t) => t.statusId === deletingStatus?.id)
+                        .length
+                    }{" "}
+                    tasks are currently in this status.
                   </p>
-                  <p className="mb-4">You must choose a new status for these tasks before deleting.</p>
+                  <p className="mb-4">
+                    You must choose a new status for these tasks before
+                    deleting.
+                  </p>
 
                   <div className="space-y-2">
                     <Label>Move tasks to:</Label>
-                    <Select value={moveToStatusId} onValueChange={setMoveToStatusId}>
+                    <Select
+                      value={moveToStatusId}
+                      onValueChange={setMoveToStatusId}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Select target status..." />
                       </SelectTrigger>
                       <SelectContent>
                         {projectStatuses
-                          .filter(s => s.id !== deletingStatus?.id)
-                          .map(s => (
+                          .filter((s) => s.id !== deletingStatus?.id)
+                          .map((s) => (
                             <SelectItem key={s.id} value={s.id}>
                               <div className="flex items-center gap-2">
-                                <div className="size-2 rounded-full" style={{ backgroundColor: s.color }} />
+                                <div
+                                  className="size-2 rounded-full"
+                                  style={{ backgroundColor: s.color }}
+                                />
                                 {s.name}
                               </div>
                             </SelectItem>
@@ -5583,11 +6421,16 @@ export function StatusSettingsModal({ isOpen, onClose, projectId }: StatusSettin
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="mt-6">
-            <Button variant="outline" onClick={() => setDeletingStatus(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDeletingStatus(null)}>
+              Cancel
+            </Button>
             <Button
               variant="destructive"
               onClick={confirmDelete}
-              disabled={tasks.filter(t => t.statusId === deletingStatus?.id).length > 0 && !moveToStatusId}
+              disabled={
+                tasks.filter((t) => t.statusId === deletingStatus?.id).length >
+                  0 && !moveToStatusId
+              }
             >
               Confirm Delete
             </Button>

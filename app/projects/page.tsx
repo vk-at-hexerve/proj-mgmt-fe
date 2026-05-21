@@ -66,6 +66,8 @@ import {
   PlusCircle,
   Settings,
   MoveRight,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { getStatusName } from '@/lib/status-utils';
 // import { sprints as initialSprints, generateCalendarEvents, users } from '@/lib/mock-data';
@@ -93,6 +95,7 @@ const viewOptions: { id: ViewType; label: string; icon: React.ReactNode }[] = [
 export default function ProjectsPage() {
   const { projects, tasks: allTasks, showToast, teams, currentProject: currentProjectId, sprints: contextSprints, users, addSprint, updateSprint, openModal, workflowStatuses, updateTask } = useApp();
   const [currentView, setCurrentView] = useState<ViewType>('kanban');
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [filters, setFilters] = useState<FilterState>({ assignees: [], priorities: [], types: [] });
   const [filterOpen, setFilterOpen] = useState(false);
   const [teamOpen, setTeamOpen] = useState(false);
@@ -212,243 +215,277 @@ export default function ProjectsPage() {
         <div className="flex-1 flex flex-col overflow-hidden">
 
           {/* Toolbar */}
-          <div className="px-6 py-3 border-b border-border bg-card flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-3 flex-wrap">
+          {/* Row 1: Navigation & Filtering Controls */}
+          <div className="px-6 py-2.5 bg-card flex items-center gap-3 overflow-x-auto shrink-0 border-b border-border/10">
 
-              {/* View Toggle — icon + label */}
-              <div className="flex items-center rounded-lg border border-border bg-muted/50 p-1 gap-0.5">
-                {viewOptions.map(v => (
-                  <Button
-                    key={v.id}
-                    variant={currentView === v.id ? 'default' : 'ghost'}
-                    size="sm"
-                    className="h-7 px-2.5 gap-1.5 text-xs"
-                    onClick={() => setCurrentView(v.id)}
-                  >
-                    {v.icon}
-                    <span>{v.label}</span>
-                  </Button>
-                ))}
-              </div>
-
-              {/* Sprint Selector + Create Sprint */}
-              <div className="flex items-center gap-1">
-                <Select defaultValue={activeSprint?.id}>
-                  <SelectTrigger className="w-[170px] h-8">
-                    <SelectValue placeholder="Select sprint" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sprints.map((sprint) => (
-                      <SelectItem key={sprint.id} value={sprint.id}>
-                        <div className="flex items-center gap-2">
-                          {sprint.name}
-                          {sprint.status === 'active' && (
-                            <Badge variant="default" className="text-xs">Active</Badge>
-                          )}
-                          {sprint.status === 'planning' && (
-                            <Badge variant="outline" className="text-xs">Planning</Badge>
-                          )}
-                          {sprint.status === 'completed' && (
-                            <Badge variant="secondary" className="text-xs">Done</Badge>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))}
-                    <SelectItem value="backlog">
-                      <div className="flex items-center gap-2">
-                        <Archive className="size-3.5" />
-                        Backlog
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+            {/* View Toggle — icon + label */}
+            <div className="flex items-center rounded-md border border-border bg-muted/50 p-0.5 gap-0.5 shrink-0 h-8">
+              {viewOptions.map(v => (
                 <Button
-                  variant="outline"
+                  key={v.id}
+                  variant={currentView === v.id ? 'default' : 'ghost'}
                   size="sm"
-                  className="h-8 gap-1.5 bg-transparent"
-                  onClick={() => setSprintDialogOpen(true)}
+                  className="h-7 px-3 gap-1.5 text-sm font-medium rounded-sm"
+                  disabled={v.id === 'grid'}
+                  onClick={() => setCurrentView(v.id)}
                 >
-                  <Plus className="size-3.5" />
-                  New Sprint
+                  {v.icon}
+                  <span>{v.label}</span>
                 </Button>
-              </div>
+              ))}
+            </div>
 
-              {/* Filter */}
-              <Popover open={filterOpen} onOpenChange={setFilterOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className={cn('h-8 gap-2 bg-transparent', activeFiltersCount > 0 && 'border-primary')}>
-                    <Filter className="size-4" />
-                    Filter
-                    {activeFiltersCount > 0 && (
-                      <Badge variant="secondary" className="ml-1 text-xs">{activeFiltersCount}</Badge>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-72 p-4" align="start">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-medium text-sm">Filter Tasks</h4>
-                    {activeFiltersCount > 0 && (
-                      <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={clearFilters}>
-                        <X className="size-3 mr-1" /> Clear
-                      </Button>
-                    )}
-                  </div>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Priority</Label>
-                      <div className="space-y-1.5">
-                        {['critical', 'high', 'medium', 'low'].map((priority) => (
-                          <label key={priority} className="flex items-center gap-2 cursor-pointer">
-                            <Checkbox
-                              checked={filters.priorities.includes(priority)}
-                              onCheckedChange={() => toggleFilter('priorities', priority)}
-                            />
-                            <span className="text-sm capitalize">{priority}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Type</Label>
-                      <div className="space-y-1.5">
-                        {['task', 'bug', 'story', 'epic'].map((type) => (
-                          <label key={type} className="flex items-center gap-2 cursor-pointer">
-                            <Checkbox
-                              checked={filters.types.includes(type)}
-                              onCheckedChange={() => toggleFilter('types', type)}
-                            />
-                            <span className="text-sm capitalize">{type}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <Button className="w-full mt-4" size="sm" onClick={() => {
-                    setFilterOpen(false);
-                    showToast({ title: 'Filters applied', description: `${activeFiltersCount} filter(s) active`, type: 'success' });
-                  }}>
-                    Apply Filters
-                  </Button>
-                </PopoverContent>
-              </Popover>
-
-              {/* Group By */}
-              <Select defaultValue="status">
-                <SelectTrigger className="w-[140px] h-8">
-                  <SelectValue placeholder="Group by" />
+            {/* Sprint Selector + Create Sprint */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Select defaultValue={activeSprint?.id}>
+                <SelectTrigger size="sm" className="w-[150px] text-sm font-medium rounded-md">
+                  <SelectValue placeholder="Select sprint" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="status">Status</SelectItem>
-                  <SelectItem value="assignee">Assignee</SelectItem>
-                  <SelectItem value="priority">Priority</SelectItem>
-                  <SelectItem value="epic">Epic</SelectItem>
+                  {sprints.map((sprint) => (
+                    <SelectItem key={sprint.id} value={sprint.id}>
+                      <div className="flex items-center gap-2">
+                        {sprint.name}
+                        {sprint.status === 'active' && (
+                          <Badge variant="default" className="text-xs">Active</Badge>
+                        )}
+                        {sprint.status === 'planning' && (
+                          <Badge variant="outline" className="text-xs">Planning</Badge>
+                        )}
+                        {sprint.status === 'completed' && (
+                          <Badge variant="secondary" className="text-xs">Done</Badge>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="backlog">
+                    <div className="flex items-center gap-2">
+                      <Archive className="size-3.5" />
+                      Backlog
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="flex items-center gap-3">
-              {/* AI Suggestions */}
-              <Button variant="outline" size="sm" className="h-8 gap-2 text-primary border-primary/30 hover:bg-primary/10 bg-transparent">
-                <Sparkles className="size-4" />
-                AI Suggestions
-                <Badge variant="secondary" className="ml-1 text-xs">0</Badge>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 px-3 gap-1.5 bg-transparent text-sm font-medium rounded-md border-border"
+                onClick={() => setSprintDialogOpen(true)}
+              >
+                <Plus className="size-3.5" />
+                New Sprint
               </Button>
-
-              {/* Team */}
-              <Popover open={teamOpen} onOpenChange={setTeamOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-8 gap-2 bg-transparent">
-                    <Users className="size-4" />
-                    Team
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-64 p-4" align="end">
-                  <h4 className="font-medium text-sm mb-3">Project Team</h4>
-                  {projectTeam ? (
-                    <div className="space-y-4">
-                      {/* Project Manager (Mandatory) */}
-                      <div className="flex items-center gap-2 p-2 rounded-lg bg-primary/5 border border-primary/10">
-                        <UserAvatar user={projectTeam.projectManager} size="md" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{projectTeam.projectManager.name}</p>
-                          <p className="text-[10px] uppercase tracking-wider font-semibold text-primary/70">Project Manager</p>
-                        </div>
-                      </div>
-
-                      {/* Team Lead (Optional) */}
-                      {projectTeam.lead && (
-                        <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border/50">
-                          <UserAvatar user={projectTeam.lead} size="md" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{projectTeam.lead.name}</p>
-                            <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Team Lead</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Product Manager (Optional) */}
-                      {projectTeam.productManager && (
-                        <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border/50">
-                          <UserAvatar user={projectTeam.productManager} size="md" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{projectTeam.productManager.name}</p>
-                            <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Product Manager</p>
-                          </div>
-                        </div>
-                      )}
-                      <div className="space-y-2">
-                        <p className="text-xs text-muted-foreground">Members ({projectTeam.members.length})</p>
-                        <div className="flex flex-wrap gap-1">
-                          {projectTeam.members.slice(0, 6).map((member: any) => (
-                            <UserAvatar key={member.id} user={member} size="sm" className="ring-1 ring-background" />
-                          ))}
-                          {projectTeam.members.length > 6 && (
-                            <div className="size-7 rounded-full bg-muted flex items-center justify-center text-xs">
-                              +{projectTeam.members.length - 6}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <Button variant="outline" size="sm" className="w-full bg-transparent" onClick={() => {
-                        setTeamOpen(false);
-                        showToast({ title: 'View Team', description: 'Opening team management...', type: 'info' });
-                      }}>
-                        Manage Team
-                      </Button>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No team assigned</p>
-                  )}
-                </PopoverContent>
-              </Popover>
-
-              {/* Project Settings */}
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 gap-2 bg-transparent"
-                  onClick={() => openModal('status-settings', { projectId: currentProject.id })}
-                >
-                  <Workflow className="size-4" />
-                  Workflow
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 gap-2 bg-transparent"
-                  onClick={() => openModal('edit-project', { projectId: currentProject.id })}
-                >
-                  <Settings className="size-4" />
-                  Settings
-                </Button>
-              </div>
             </div>
+
+            {/* Filter */}
+            <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    'h-8 px-3 gap-1.5 bg-transparent shrink-0 text-sm font-medium rounded-md border-border',
+                    activeFiltersCount > 0 && 'border-primary'
+                  )}
+                >
+                  <Filter className="size-4" />
+                  Filter
+                  {activeFiltersCount > 0 && (
+                    <Badge variant="secondary" className="ml-1 text-xs">{activeFiltersCount}</Badge>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72 p-4" align="start">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-medium text-sm">Filter Tasks</h4>
+                  {activeFiltersCount > 0 && (
+                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={clearFilters}>
+                      <X className="size-3 mr-1" /> Clear
+                    </Button>
+                  )}
+                </div>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Priority</Label>
+                    <div className="space-y-1.5">
+                      {['critical', 'high', 'medium', 'low'].map((priority) => (
+                        <label key={priority} className="flex items-center gap-2 cursor-pointer">
+                          <Checkbox
+                            checked={filters.priorities.includes(priority)}
+                            onCheckedChange={() => toggleFilter('priorities', priority)}
+                          />
+                          <span className="text-sm capitalize">{priority}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Type</Label>
+                    <div className="space-y-1.5">
+                      {['task', 'bug', 'story', 'epic'].map((type) => (
+                        <label key={type} className="flex items-center gap-2 cursor-pointer">
+                          <Checkbox
+                            checked={filters.types.includes(type)}
+                            onCheckedChange={() => toggleFilter('types', type)}
+                          />
+                          <span className="text-sm capitalize">{type}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <Button className="w-full mt-4" size="sm" onClick={() => {
+                  setFilterOpen(false);
+                  showToast({ title: 'Filters applied', description: `${activeFiltersCount} filter(s) active`, type: 'success' });
+                }}>
+                  Apply Filters
+                </Button>
+              </PopoverContent>
+            </Popover>
+
+            {/* Group By (Status) */}
+            <Select defaultValue="status">
+              <SelectTrigger size="sm" className="w-[120px] text-sm font-medium rounded-md shrink-0 border-border">
+                <SelectValue placeholder="Group by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="status">Status</SelectItem>
+                <SelectItem value="assignee">Assignee</SelectItem>
+                <SelectItem value="priority">Priority</SelectItem>
+                <SelectItem value="epic">Epic</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Row 2: Secondary Action Controls */}
+          <div className="px-6 py-2.5 bg-card flex items-center gap-3 overflow-x-auto shrink-0 border-b border-border">
+            {/* AI Suggestions */}
+            <Button variant="outline" size="sm" className="h-8 px-3 gap-1.5 text-primary border-primary/30 hover:bg-primary/10 bg-transparent text-sm font-medium rounded-md">
+              <Sparkles className="size-4" />
+              AI Suggestions
+              <span className="ml-1 px-1 h-4 min-w-[16px] flex items-center justify-center text-[10px] font-semibold rounded-full bg-secondary text-secondary-foreground">0</span>
+            </Button>
+
+            {/* Team */}
+            <Popover open={teamOpen} onOpenChange={setTeamOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 px-3 gap-1.5 bg-transparent text-sm font-medium rounded-md border-border">
+                  <Users className="size-4" />
+                  Team
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-4" align="end">
+                <h4 className="font-medium text-sm mb-3">Project Team</h4>
+                {projectTeam ? (
+                  <div className="space-y-4">
+                    {/* Project Manager (Mandatory) */}
+                    <div className="flex items-center gap-2 p-2 rounded-lg bg-primary/5 border border-primary/10">
+                      <UserAvatar user={projectTeam.projectManager} size="md" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{projectTeam.projectManager.name}</p>
+                        <p className="text-[10px] uppercase tracking-wider font-semibold text-primary/70">Project Manager</p>
+                      </div>
+                    </div>
+
+                    {/* Team Lead (Optional) */}
+                    {projectTeam.lead && (
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border/50">
+                        <UserAvatar user={projectTeam.lead} size="md" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{projectTeam.lead.name}</p>
+                          <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Team Lead</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Product Manager (Optional) */}
+                    {projectTeam.productManager && (
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border/50">
+                        <UserAvatar user={projectTeam.productManager} size="md" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{projectTeam.productManager.name}</p>
+                          <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Product Manager</p>
+                        </div>
+                      </div>
+                    )}
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground">Members ({projectTeam.members.length})</p>
+                      <div className="flex flex-wrap gap-1">
+                        {projectTeam.members.slice(0, 6).map((member: any) => (
+                          <UserAvatar key={member.id} user={member} size="sm" className="ring-1 ring-background" />
+                        ))}
+                        {projectTeam.members.length > 6 && (
+                          <div className="size-7 rounded-full bg-muted flex items-center justify-center text-xs">
+                            +{projectTeam.members.length - 6}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <Button variant="outline" size="sm" className="w-full bg-transparent" onClick={() => {
+                      setTeamOpen(false);
+                      showToast({ title: 'View Team', description: 'Opening team management...', type: 'info' });
+                    }}>
+                      Manage Team
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No team assigned</p>
+                )}
+              </PopoverContent>
+            </Popover>
+
+            {/* Project Settings */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-3 gap-1.5 bg-transparent text-sm font-medium rounded-md border-border"
+              onClick={() => openModal('status-settings', { projectId: currentProject.id })}
+            >
+              <Workflow className="size-4" />
+              Workflow
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-3 gap-1.5 bg-transparent text-sm font-medium rounded-md border-border"
+              onClick={() => openModal('edit-project', { projectId: currentProject.id })}
+            >
+              <Settings className="size-4" />
+              Settings
+            </Button>
+
+            {/* Board Specific Controls: Full Screen */}
+            {currentView === 'kanban' && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 px-3 gap-1.5 bg-transparent text-sm font-medium rounded-md border-border animate-in fade-in zoom-in duration-200"
+                onClick={() => setIsFullscreen((f) => !f)}
+              >
+                {isFullscreen ? (
+                  <>
+                    <Minimize2 className="size-4" />
+                    Exit Fullscreen
+                  </>
+                ) : (
+                  <>
+                    <Maximize2 className="size-4" />
+                    Fullscreen
+                  </>
+                )}
+              </Button>
+            )}
           </div>
 
           {/* Content */}
           <div className="flex-1 overflow-hidden p-6">
-            {currentView === 'kanban' && <KanbanBoard projectId={currentProject.id} />}
+            {currentView === 'kanban' && (
+              <KanbanBoard
+                projectId={currentProject.id}
+                isFullscreen={isFullscreen}
+                setIsFullscreen={setIsFullscreen}
+              />
+            )}
             {currentView === 'list' && <TaskListView projectId={currentProject.id} />}
             {currentView === 'grid' && <ProjectGridView projectId={currentProject.id} projectKey={currentProject.key} />}
             {currentView === 'gantt' && (

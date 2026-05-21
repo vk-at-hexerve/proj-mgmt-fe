@@ -477,6 +477,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           status_id: task.statusId || null,
           priority: task.priority === 'critical' ? 'URGENT' : task.priority.toUpperCase(),
           assignee_id: task.assignee?.id || null,
+          label_ids: task.tags ? task.tags.map(t => t.id) : undefined,
+          group_id: (task as any).group || null,
         }),
       });
 
@@ -503,6 +505,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (updates.dueDate !== undefined) backendPayload.due_date = updates.dueDate;
       if (updates.assignee !== undefined) backendPayload.assignee_id = updates.assignee?.id || null;
       if (updates.sprintId !== undefined) backendPayload.sprint_id = updates.sprintId || null;
+      if ((updates as any).tags !== undefined) backendPayload.label_ids = (updates as any).tags.map((t: any) => t.id);
+      if ((updates as any).group !== undefined) backendPayload.group_id = (updates as any).group || null;
 
       await fetchAPI(`/tasks/${id}`, {
         method: "PATCH",

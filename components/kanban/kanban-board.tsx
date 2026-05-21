@@ -79,6 +79,20 @@ const GROUP_BACKGROUND_STYLES: Record<WorkflowGroupKey, string> = {
   CLOSED: 'bg-emerald-100/85 border-emerald-200/70',
 };
 
+const GROUP_LABELS: Record<WorkflowGroupKey, string> = {
+  OPEN: 'Open',
+  IN_PROGRESS: 'In Progress',
+  ON_HOLD: 'On Hold',
+  CLOSED: 'Closed',
+};
+
+const GROUP_TEXT_COLOR: Record<WorkflowGroupKey, string> = {
+  OPEN: 'text-slate-500/90 dark:text-slate-400',
+  IN_PROGRESS: 'text-indigo-600/90 dark:text-indigo-400',
+  ON_HOLD: 'text-amber-600/90 dark:text-amber-400',
+  CLOSED: 'text-emerald-600/90 dark:text-emerald-400',
+};
+
 const COLOR_PRESETS = [
   '#94a3b8', // slate
   '#3b82f6', // blue
@@ -105,11 +119,11 @@ const priorityDots: Record<TaskPriority, string> = {
 };
 
 const typeIcons: Record<Task['type'], React.ReactNode> = {
-  epic: <Zap className="size-3 text-primary" />,
-  story: <BookOpen className="size-3 text-accent" />,
-  task: <ListTodo className="size-3 text-muted-foreground" />,
-  subtask: <ListTodo className="size-3 text-muted-foreground" />,
-  bug: <Bug className="size-3 text-destructive" />,
+  epic: <Zap className="size-4 text-primary" />,
+  story: <BookOpen className="size-4 text-accent" />,
+  task: <ListTodo className="size-4 text-muted-foreground" />,
+  subtask: <ListTodo className="size-4 text-muted-foreground" />,
+  bug: <Bug className="size-4 text-destructive" />,
 };
 
 // ─── Components ─────────────────────────────────────────────────────────────
@@ -139,21 +153,21 @@ function KanbanCard({ task, onDragStart, onEdit, onAssign, onDelete, onViewDetai
       onDragStart={(e) => onDragStart(e, task.id)}
       onClick={onViewDetail}
     >
-      <CardContent className="p-1.5 pt-1.5 space-y-1">
+      <CardContent className="p-3 pt-3 space-y-2.5">
         {/* Top row: type icon + key + menu */}
-        <div className="flex items-start justify-between gap-1">
-          <div className="flex items-center gap-1 min-w-0 flex-1 pt-0.5">
+        <div className="flex items-center justify-between gap-1.5">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
             {typeIcons[task.type]}
-            <span className="text-[9px] font-mono leading-none text-muted-foreground">{task.key}</span>
+            <span className="text-xs font-mono leading-none text-muted-foreground">{task.key}</span>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-4 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 -mr-0.5 -mt-0.5"
+                className="size-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 -mr-1 -mt-1"
               >
-                <MoreHorizontal className="size-3" />
+                <MoreHorizontal className="size-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -166,42 +180,42 @@ function KanbanCard({ task, onDragStart, onEdit, onAssign, onDelete, onViewDetai
         </div>
 
         {/* Title */}
-        <p className="text-[11px] font-medium leading-tight line-clamp-2">{task.title}</p>
+        <p className="text-sm font-medium leading-snug line-clamp-2">{task.title}</p>
 
         {/* Footer row: tags + priority dot + due date + assignee */}
-        <div className="flex items-center justify-between gap-1 pt-0.5">
-          <div className="flex items-center gap-1 min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-1.5 pt-0.5">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
             {task.tags.slice(0, 1).map((tag) => (
               <Badge
                 key={tag.id}
                 variant="secondary"
-                className="text-[8px] px-1 py-0 h-4 leading-none shrink-0"
+                className="text-xs px-2 py-0.5 h-5 leading-none shrink-0 font-medium"
                 style={{ backgroundColor: `${tag.color}20`, color: tag.color }}
               >
                 {tag.name}
               </Badge>
             ))}
             {task.tags.length > 1 && (
-              <span className="text-[8px] text-muted-foreground">+{task.tags.length - 1}</span>
+              <span className="text-xs text-muted-foreground font-medium">+{task.tags.length - 1}</span>
             )}
             {task.dueDate && (
-              <span className="flex items-center gap-0.5 text-[8px] text-muted-foreground ml-auto shrink-0 leading-none">
-                <Calendar className="size-2" />
+              <span className="flex items-center gap-1 text-xs text-muted-foreground ml-auto shrink-0 leading-none font-medium">
+                <Calendar className="size-3.5" />
                 {new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
               </span>
             )}
           </div>
 
-          <div className="flex items-center gap-1 shrink-0">
-            <div className={cn('size-1.5 rounded-full', priorityDots[task.priority])} />
+          <div className="flex items-center gap-1.5 shrink-0">
+            <div className={cn('size-2 rounded-full', priorityDots[task.priority])} />
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   {task.assignee ? (
-                    <UserAvatar user={task.assignee} size="xs" />
+                    <UserAvatar user={task.assignee} size="sm" />
                   ) : (
-                    <div className="size-4 rounded-full border border-dashed border-muted-foreground/40 flex items-center justify-center">
-                      <Users className="size-2 text-muted-foreground/40" />
+                    <div className="size-6 rounded-full border border-dashed border-muted-foreground/40 flex items-center justify-center">
+                      <Users className="size-3 text-muted-foreground/40" />
                     </div>
                   )}
                 </TooltipTrigger>
@@ -215,7 +229,7 @@ function KanbanCard({ task, onDragStart, onEdit, onAssign, onDelete, onViewDetai
 
         {/* Slim progress bar */}
         {progressPct > 0 && (
-          <div className="mt-0.5 h-0.5 bg-muted rounded-full overflow-hidden">
+          <div className="mt-1.5 h-1 bg-muted rounded-full overflow-hidden">
             <div
               className={cn('h-full rounded-full', isDone ? 'bg-success' : 'bg-primary')}
               style={{ width: `${progressPct}%` }}
@@ -260,43 +274,43 @@ function KanbanColumn({
     <div
       className={cn(
         'flex flex-col bg-background/70 rounded-lg group/column shrink-0 border border-border/40 backdrop-blur-[1px]',
-        isFullscreen ? 'min-w-[280px] max-w-[280px]' : 'min-w-[260px] max-w-[260px]'
+        isFullscreen ? 'min-w-[310px] max-w-[310px]' : 'min-w-[290px] max-w-[290px]'
       )}
       onDragOver={onDragOver}
       onDrop={(e) => onDrop(e, status.id)}
     >
-      <CardHeader className="p-2.5 pb-1.5">
+      <CardHeader className="p-3.5 pb-2">
         <div className="flex items-center justify-between gap-1">
           <div className="flex items-center gap-1.5 min-w-0 flex-1">
-            <div className="size-2 rounded-full shrink-0" style={{ backgroundColor: status.color }} />
-            <div className="flex items-center gap-1 min-w-0 flex-1 group/header">
-              <h3 className="font-medium text-xs truncate">{status.name}</h3>
+            <div className="size-2.5 rounded-full shrink-0" style={{ backgroundColor: status.color }} />
+            <div className="flex items-center gap-1.5 min-w-0 flex-1 group/header">
+              <h3 className="font-semibold text-sm truncate">{status.name}</h3>
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-4 opacity-0 group-hover/header:opacity-100 transition-opacity"
+                className="size-6 opacity-0 group-hover/header:opacity-100 transition-opacity shrink-0"
                 onClick={onEditStatus}
               >
-                <Pencil className="size-2.5 text-muted-foreground" />
+                <Pencil className="size-3.5 text-muted-foreground" />
               </Button>
             </div>
           </div>
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
             <Badge
               variant="secondary"
-              className="text-[10px] px-1.5 py-0 h-4 shrink-0"
+              className="text-xs px-2 py-0.5 h-5 shrink-0 font-medium"
             >
               {tasks.length}
             </Badge>
-            <Button variant="ghost" size="icon" className="size-6" onClick={onAddTask}>
-              <Plus className="size-3.5" />
+            <Button variant="ghost" size="icon" className="size-7" onClick={onAddTask}>
+              <Plus className="size-4" />
             </Button>
           </div>
         </div>
       </CardHeader>
       <div
         className={cn(
-          'flex-1 p-2 pt-1 space-y-1.5 overflow-y-auto custom-scrollbar',
+          'flex-1 p-3 pt-1.5 space-y-2.5 overflow-y-auto custom-scrollbar',
           isFullscreen ? 'max-h-[calc(100vh-120px)]' : 'max-h-[calc(100vh-220px)]'
         )}
       >
@@ -312,8 +326,8 @@ function KanbanColumn({
           />
         ))}
         {tasks.length === 0 && (
-          <div className="flex items-center justify-center h-16 border-2 border-dashed border-muted-foreground/20 rounded-lg">
-            <p className="text-[10px] text-muted-foreground">Drop tasks here</p>
+          <div className="flex items-center justify-center h-20 border-2 border-dashed border-muted-foreground/20 rounded-lg">
+            <p className="text-sm text-muted-foreground">Drop tasks here</p>
           </div>
         )}
       </div>
@@ -435,9 +449,15 @@ function WorkflowStatusModal({ isOpen, onClose, status, projectId, onSave }: Wor
 
 interface KanbanBoardProps {
   projectId?: string;
+  isFullscreen?: boolean;
+  setIsFullscreen?: (value: boolean | ((prev: boolean) => boolean)) => void;
 }
 
-export function KanbanBoard({ projectId }: KanbanBoardProps) {
+export function KanbanBoard({
+  projectId,
+  isFullscreen: propIsFullscreen,
+  setIsFullscreen: propSetIsFullscreen,
+}: KanbanBoardProps) {
   const {
     tasks,
     updateTaskStatus,
@@ -447,7 +467,21 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
     updateWorkflowStatus,
   } = useApp();
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  // Local fallback if props are not passed
+  const [localIsFullscreen, setLocalIsFullscreen] = useState(false);
+  const isFullscreen = propIsFullscreen !== undefined ? propIsFullscreen : localIsFullscreen;
+  const setIsFullscreen = propSetIsFullscreen !== undefined ? propSetIsFullscreen : setLocalIsFullscreen;
+
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen, setIsFullscreen]);
 
   // Unified modal-based status editing state
   const [statusModalOpen, setStatusModalOpen] = useState(false);
@@ -540,52 +574,40 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
         isFullscreen && 'fixed inset-0 z-50 bg-background p-4'
       )}
     >
-      <div className="flex items-center justify-end mb-4 shrink-0">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 gap-1.5 text-xs text-muted-foreground mr-2"
-          onClick={() => openModal('status-settings', { projectId })}
-        >
-          <Settings className="size-3.5" />
-          Workflow Settings
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 gap-1.5 text-xs text-muted-foreground"
-          onClick={() => setIsFullscreen((f) => !f)}
-        >
-          {isFullscreen ? (
-            <>
-              <Minimize2 className="size-3.5" />
-              Exit Fullscreen
-            </>
-          ) : (
-            <>
-              <Maximize2 className="size-3.5" />
-              Fullscreen
-            </>
-          )}
-        </Button>
-      </div>
+      {isFullscreen && (
+        <div className="flex items-center justify-between mb-4 shrink-0 px-2">
+          <h2 className="text-base font-semibold text-muted-foreground tracking-wide uppercase">Project Board (Fullscreen)</h2>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 text-sm bg-transparent"
+            onClick={() => setIsFullscreen(false)}
+          >
+            <Minimize2 className="size-4" />
+            Exit Fullscreen
+          </Button>
+        </div>
+      )}
 
       <div className="flex-1 flex gap-4 overflow-x-auto pb-4 custom-scrollbar min-h-0 w-full">
         {groupedColumns.map((group) => (
           <div
             key={group.groupKey}
             className={cn(
-              'flex shrink-0 rounded-2xl border p-2 gap-2 shadow-sm',
+              'flex flex-col shrink-0 rounded-lg border p-3 gap-3 shadow-sm',
               GROUP_BACKGROUND_STYLES[group.groupKey]
             )}
           >
-            <div className="flex items-center justify-center min-w-[24px] px-0.5">
-              <span className="[writing-mode:vertical-lr] rotate-180 text-[9px] font-bold tracking-[0.2em] text-muted-foreground/50 uppercase whitespace-nowrap">
-                {group.groupKey.replace('_', ' ')}
+            <div className="flex items-center justify-between px-1.5 py-0.5 select-none">
+              <span className={cn(
+                'text-xs font-bold tracking-wider uppercase',
+                GROUP_TEXT_COLOR[group.groupKey]
+              )}>
+                {GROUP_LABELS[group.groupKey]}
               </span>
             </div>
 
-            <div className="flex gap-4 shrink-0">
+            <div className="flex gap-4 shrink-0 flex-1">
               {group.statuses.map((status) => (
                 <KanbanColumn
                   key={status.id}
@@ -614,7 +636,10 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
         <div className="flex items-start pt-0 shrink-0">
           <Button
             variant="outline"
-            className="h-10 min-w-[260px] max-w-[260px] border-dashed border-2 hover:bg-primary/5 hover:border-primary/50 group transition-all"
+            className={cn(
+              "h-12 border-dashed border-2 hover:bg-primary/5 hover:border-primary/50 group transition-all",
+              isFullscreen ? 'min-w-[310px] max-w-[310px]' : 'min-w-[290px] max-w-[290px]'
+            )}
             onClick={handleOpenAddStatus}
           >
             <div className="flex items-center gap-2 text-muted-foreground group-hover:text-primary">

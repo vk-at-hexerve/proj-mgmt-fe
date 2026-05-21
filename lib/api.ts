@@ -102,12 +102,14 @@ export function mapBackendTask(backendTask: BackendTask): Task {
       email: backendTask.reporter.email,
       role: (backendTask.reporter.role || 'contributor') as UserRole
     } : { id: 'u1', name: 'System Admin', email: 'admin@hexerve.com', role: 'super-admin' as UserRole },
-    tags: [],
+    tags: (backendTask.labels || []).map((l: any) => ({ id: String(l.id), name: l.name, color: l.color || '#CBD5E1' })),
     startDate: backendTask.start_date,
     dueDate: backendTask.due_date,
     sprintId: backendTask.sprint_id ? String(backendTask.sprint_id) : undefined,
     createdAt: backendTask.created_at || new Date().toISOString(),
     updatedAt: backendTask.updated_at || new Date().toISOString()
+    ,
+    group: backendTask.group_id ? String(backendTask.group_id) : undefined,
   };
 }
 
