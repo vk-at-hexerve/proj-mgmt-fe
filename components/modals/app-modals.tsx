@@ -449,8 +449,8 @@ function CreateTaskModal({
   const [selectedGroup, setSelectedGroup] = useState<string | undefined>(
     undefined,
   );
-  const [projectGroups, setProjectGroups] = useState<{id:string;name:string;}[]>([]);
-  const [projectLabels, setProjectLabels] = useState<{id:string;name:string;color:string;}[]>([]);
+  const [projectGroups, setProjectGroups] = useState<{ id: string; name: string; }[]>([]);
+  const [projectLabels, setProjectLabels] = useState<{ id: string; name: string; color: string; }[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [showCreateGroup, setShowCreateGroup] = useState(false);
 
@@ -458,7 +458,7 @@ function CreateTaskModal({
   const groupsKey = (projId: string) => `pmtool:project:${projId}:groups`;
   const labelsKey = (projId: string) => `pmtool:project:${projId}:labels`;
 
-  const generateId = (prefix = '') => `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2,8)}`;
+  const generateId = (prefix = '') => `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
   useEffect(() => {
     if (!project) return;
@@ -475,14 +475,14 @@ function CreateTaskModal({
     }
   }, [project]);
 
-  const persistGroups = (groups: {id:string;name:string}[]) => {
+  const persistGroups = (groups: { id: string; name: string }[]) => {
     setProjectGroups(groups);
-    try { localStorage.setItem(groupsKey(project), JSON.stringify(groups)); } catch {}
+    try { localStorage.setItem(groupsKey(project), JSON.stringify(groups)); } catch { }
   };
 
-  const persistLabels = (labels: {id:string;name:string;color:string}[]) => {
+  const persistLabels = (labels: { id: string; name: string; color: string }[]) => {
     setProjectLabels(labels);
-    try { localStorage.setItem(labelsKey(project), JSON.stringify(labels)); } catch {}
+    try { localStorage.setItem(labelsKey(project), JSON.stringify(labels)); } catch { }
   };
 
   const createGroup = (name: string) => {
@@ -775,50 +775,50 @@ function CreateTaskModal({
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                  <Label>Group</Label>
-                  <Select
-                    value={selectedGroup || "none"}
-                    onValueChange={(v) => {
-                      if (v === "__create_new__") {
-                        setShowCreateGroup(true);
-                        return;
-                      }
-                      setSelectedGroup(v === "none" ? undefined : v);
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="No group" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No group</SelectItem>
-                      {projectGroups.map((g) => (
-                        <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
-                      ))}
-                      <SelectItem value="__create_new__">Create New Group...</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <Label>Group</Label>
+                <Select
+                  value={selectedGroup || "none"}
+                  onValueChange={(v) => {
+                    if (v === "__create_new__") {
+                      setShowCreateGroup(true);
+                      return;
+                    }
+                    setSelectedGroup(v === "none" ? undefined : v);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="No group" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No group</SelectItem>
+                    {projectGroups.map((g) => (
+                      <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                    ))}
+                    <SelectItem value="__create_new__">Create New Group...</SelectItem>
+                  </SelectContent>
+                </Select>
 
-                  {showCreateGroup && (
-                    <div className="mt-2">
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="New group name"
-                          value={tagInput}
-                          onChange={(e) => setTagInput(e.target.value)}
-                        />
-                        <Button
-                          onClick={() => {
-                            if (tagInput.trim()) {
-                              createGroup(tagInput.trim());
-                              setTagInput("");
-                            }
-                          }}
-                        >Create</Button>
-                        <Button variant="ghost" onClick={() => { setShowCreateGroup(false); setTagInput(""); }}>Cancel</Button>
-                      </div>
+                {showCreateGroup && (
+                  <div className="mt-2">
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="New group name"
+                        value={tagInput}
+                        onChange={(e) => setTagInput(e.target.value)}
+                      />
+                      <Button
+                        onClick={() => {
+                          if (tagInput.trim()) {
+                            createGroup(tagInput.trim());
+                            setTagInput("");
+                          }
+                        }}
+                      >Create</Button>
+                      <Button variant="ghost" onClick={() => { setShowCreateGroup(false); setTagInput(""); }}>Cancel</Button>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
+              </div>
 
               <div className="space-y-2">
                 <Label>Tags</Label>
@@ -949,6 +949,69 @@ function EditTaskModal({
     task?.tags?.map((t: any) => t.id) || [],
   );
 
+  // Group state
+  const [selectedGroup, setSelectedGroup] = useState<string | undefined>(
+    task?.group || undefined,
+  );
+  const [projectGroups, setProjectGroups] = useState<{ id: string; name: string; }[]>([]);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+
+  // Labels / tags state
+  const [projectLabels, setProjectLabels] = useState<{ id: string; name: string; color: string; }[]>([]);
+  const [tagInput, setTagInput] = useState("");
+
+  // Helpers to persist project-level groups/labels in localStorage
+  const groupsKey = (projId: string) => `pmtool:project:${projId}:groups`;
+  const labelsKey = (projId: string) => `pmtool:project:${projId}:labels`;
+  const generateId = (prefix = '') => `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+
+  React.useEffect(() => {
+    if (!task?.projectId) return;
+    try {
+      const groupsRaw = localStorage.getItem(groupsKey(task.projectId));
+      const labelsRaw = localStorage.getItem(labelsKey(task.projectId));
+      setProjectGroups(groupsRaw ? JSON.parse(groupsRaw) : []);
+      setProjectLabels(labelsRaw ? JSON.parse(labelsRaw).map((l: any) => ({ id: l.id, name: l.name, color: l.color || '#CBD5E1' })) : []);
+    } catch (e) {
+      setProjectGroups([]);
+      setProjectLabels([]);
+    }
+  }, [task?.projectId]);
+
+  const persistGroups = (groups: { id: string; name: string }[]) => {
+    setProjectGroups(groups);
+    try { localStorage.setItem(groupsKey(task?.projectId || ''), JSON.stringify(groups)); } catch { }
+  };
+
+  const persistLabels = (labels: { id: string; name: string; color: string }[]) => {
+    setProjectLabels(labels);
+    try { localStorage.setItem(labelsKey(task?.projectId || ''), JSON.stringify(labels)); } catch { }
+  };
+
+  const addLabelByName = (name: string) => {
+    const existing = projectLabels.find((l) => l.name.toLowerCase() === name.toLowerCase());
+    let label = existing;
+    if (!existing) {
+      label = { id: generateId('l-'), name, color: '#CBD5E1' };
+      persistLabels([...projectLabels, label]);
+    }
+    if (!label) return;
+    if (!selectedTags.includes(label.id)) {
+      setSelectedTags((s) => [...s, label.id]);
+    }
+    setTagInput("");
+  };
+
+  const createGroup = (name: string) => {
+    const g = { id: generateId('g-'), name };
+    const next = [...projectGroups, g];
+    persistGroups(next);
+    setSelectedGroup(g.id);
+    setShowCreateGroup(false);
+    setNewGroupName("");
+  };
+
   // Comments state
   const [comments, setComments] = useState<TaskComment[]>(task?.comments || []);
   const [newComment, setNewComment] = useState("");
@@ -1070,7 +1133,7 @@ function EditTaskModal({
     }
 
     const selectedUser = users.find((u) => u.id === assignee);
-    const selectedTagObjects = availableTags.filter((t) =>
+    const selectedTagObjects = projectLabels.filter((t) =>
       selectedTags.includes(t.id),
     );
 
@@ -1088,6 +1151,7 @@ function EditTaskModal({
       comments,
       attachments,
       linkedTasks,
+      group: selectedGroup,
     });
     onClose();
   };
@@ -1447,31 +1511,110 @@ function EditTaskModal({
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Tags</Label>
-                <div className="flex flex-wrap gap-2 p-3 border rounded-lg bg-muted/30">
-                  {availableTags.map((tag) => (
-                    <button
-                      key={tag.id}
-                      type="button"
-                      onClick={() => toggleTag(tag.id)}
-                      className={`px-3 py-1 rounded-full text-sm transition-all ${
-                        selectedTags.includes(tag.id)
-                          ? "ring-2 ring-offset-1"
-                          : "opacity-60 hover:opacity-100"
-                      }`}
-                      style={{
-                        backgroundColor: `${tag.color}20`,
-                        color: tag.color,
-                        borderColor: tag.color,
-                        ...(selectedTags.includes(tag.id) && {
-                          ringColor: tag.color,
-                        }),
-                      }}
-                    >
-                      {tag.name}
-                    </button>
-                  ))}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Group</Label>
+                  <Select
+                    value={selectedGroup || "none"}
+                    onValueChange={(v) => {
+                      if (v === "__create_new__") {
+                        setShowCreateGroup(true);
+                        return;
+                      }
+                      setSelectedGroup(v === "none" ? undefined : v);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="No group" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No group</SelectItem>
+                      {projectGroups.map((g) => (
+                        <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                      ))}
+                      <SelectItem value="__create_new__">Create New Group...</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {showCreateGroup && (
+                    <div className="mt-2">
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="New group name"
+                          value={newGroupName}
+                          onChange={(e) => setNewGroupName(e.target.value)}
+                        />
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            if (newGroupName.trim()) {
+                              createGroup(newGroupName.trim());
+                            }
+                          }}
+                        >Create</Button>
+                        <Button type="button" variant="ghost" onClick={() => { setShowCreateGroup(false); setNewGroupName(""); }}>Cancel</Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Tags</Label>
+                  <div className="rounded-lg border bg-muted/20 p-3 max-h-40 overflow-y-auto">
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {selectedTags.map((id) => {
+                        const t = projectLabels.find((l) => l.id === id);
+                        return (
+                          <Badge key={id} className="flex items-center gap-2">
+                            <span>{t?.name || id}</span>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedTags((s) => s.filter((x) => x !== id))}
+                              className="ml-1"
+                            >
+                              ×
+                            </button>
+                          </Badge>
+                        );
+                      })}
+                    </div>
+
+                    <div className="relative">
+                      <Input
+                        placeholder="Add a tag and press Enter"
+                        value={tagInput}
+                        onChange={(e) => setTagInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ',') {
+                            e.preventDefault();
+                            const v = tagInput.trim();
+                            if (v) addLabelByName(v);
+                          }
+                        }}
+                      />
+
+                      {tagInput && (
+                        <div className="absolute z-20 left-0 right-0 bg-white shadow rounded mt-1 max-h-40 overflow-auto">
+                          {projectLabels
+                            .filter((l) => l.name.toLowerCase().includes(tagInput.toLowerCase()))
+                            .map((l) => (
+                              <div
+                                key={l.id}
+                                className="px-3 py-2 hover:bg-slate-50 cursor-pointer"
+                                onClick={() => addLabelByName(l.name)}
+                              >
+                                {l.name}
+                              </div>
+                            ))}
+                          {!projectLabels.some((l) => l.name.toLowerCase() === tagInput.toLowerCase()) && (
+                            <div className="px-3 py-2 hover:bg-slate-50 cursor-pointer" onClick={() => addLabelByName(tagInput.trim())}>
+                              Create "{tagInput}"
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </TabsContent>
@@ -2191,11 +2334,10 @@ function AssignTaskModal({
               key={user.id}
               type="button"
               onClick={() => setSelectedUser(user.id)}
-              className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${
-                selectedUser === user.id
-                  ? "border-primary bg-primary/5"
-                  : "border-border hover:bg-muted"
-              }`}
+              className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${selectedUser === user.id
+                ? "border-primary bg-primary/5"
+                : "border-border hover:bg-muted"
+                }`}
             >
               <UserAvatar user={user} size="md" />
               <div className="text-left">
@@ -4921,11 +5063,10 @@ function CreatePortfolioModal({
                               >
                                 <div className="flex items-center gap-2 w-full">
                                   <div
-                                    className={`flex size-4 items-center justify-center rounded-sm border border-primary transition-colors ${
-                                      selectedProgramIds.includes(program.id)
-                                        ? "bg-primary text-primary-foreground"
-                                        : "opacity-50 [&_svg]:invisible"
-                                    }`}
+                                    className={`flex size-4 items-center justify-center rounded-sm border border-primary transition-colors ${selectedProgramIds.includes(program.id)
+                                      ? "bg-primary text-primary-foreground"
+                                      : "opacity-50 [&_svg]:invisible"
+                                      }`}
                                   >
                                     <Check className="size-3" />
                                   </div>
@@ -5371,11 +5512,10 @@ function AddMemberModal({
                     key={user.id}
                     type="button"
                     onClick={() => setSelectedUser(user.id)}
-                    className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${
-                      selectedUser === user.id
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:bg-muted"
-                    }`}
+                    className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${selectedUser === user.id
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:bg-muted"
+                      }`}
                   >
                     <UserAvatar user={user} size="md" />
                     <div className="text-left flex-1 min-w-0">
@@ -5609,7 +5749,7 @@ function CreateSprintModal({
                         className={cn(
                           "flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-muted/50 transition-colors",
                           selectedBacklogTasks.includes(task.id) &&
-                            "bg-primary/5",
+                          "bg-primary/5",
                         )}
                       >
                         <Checkbox
@@ -6061,8 +6201,8 @@ export function StatusSettingsModal({
     deleteWorkflowStatus(
       deletingStatus.id,
       moveToStatusId ||
-        projectStatuses.find((s) => s.id !== deletingStatus.id)?.id ||
-        "",
+      projectStatuses.find((s) => s.id !== deletingStatus.id)?.id ||
+      "",
     );
     setDeletingStatus(null);
     setMoveToStatusId("");
@@ -6221,7 +6361,7 @@ export function StatusSettingsModal({
                                         className={cn(
                                           "size-6 rounded-md border transition-all hover:scale-110",
                                           status.color === color &&
-                                            "ring-2 ring-primary ring-offset-1",
+                                          "ring-2 ring-primary ring-offset-1",
                                         )}
                                         style={{ backgroundColor: color }}
                                         onClick={() =>
@@ -6376,48 +6516,48 @@ export function StatusSettingsModal({
               <span className="font-bold">{deletingStatus?.name}</span>" status?
               {tasks.filter((t) => t.statusId === deletingStatus?.id).length >
                 0 && (
-                <div className="mt-4 p-4 rounded-lg bg-destructive/5 border border-destructive/10">
-                  <p className="text-foreground font-semibold mb-2">
-                    Warning:{" "}
-                    {
-                      tasks.filter((t) => t.statusId === deletingStatus?.id)
-                        .length
-                    }{" "}
-                    tasks are currently in this status.
-                  </p>
-                  <p className="mb-4">
-                    You must choose a new status for these tasks before
-                    deleting.
-                  </p>
+                  <div className="mt-4 p-4 rounded-lg bg-destructive/5 border border-destructive/10">
+                    <p className="text-foreground font-semibold mb-2">
+                      Warning:{" "}
+                      {
+                        tasks.filter((t) => t.statusId === deletingStatus?.id)
+                          .length
+                      }{" "}
+                      tasks are currently in this status.
+                    </p>
+                    <p className="mb-4">
+                      You must choose a new status for these tasks before
+                      deleting.
+                    </p>
 
-                  <div className="space-y-2">
-                    <Label>Move tasks to:</Label>
-                    <Select
-                      value={moveToStatusId}
-                      onValueChange={setMoveToStatusId}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select target status..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {projectStatuses
-                          .filter((s) => s.id !== deletingStatus?.id)
-                          .map((s) => (
-                            <SelectItem key={s.id} value={s.id}>
-                              <div className="flex items-center gap-2">
-                                <div
-                                  className="size-2 rounded-full"
-                                  style={{ backgroundColor: s.color }}
-                                />
-                                {s.name}
-                              </div>
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="space-y-2">
+                      <Label>Move tasks to:</Label>
+                      <Select
+                        value={moveToStatusId}
+                        onValueChange={setMoveToStatusId}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select target status..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {projectStatuses
+                            .filter((s) => s.id !== deletingStatus?.id)
+                            .map((s) => (
+                              <SelectItem key={s.id} value={s.id}>
+                                <div className="flex items-center gap-2">
+                                  <div
+                                    className="size-2 rounded-full"
+                                    style={{ backgroundColor: s.color }}
+                                  />
+                                  {s.name}
+                                </div>
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="mt-6">
@@ -6429,7 +6569,7 @@ export function StatusSettingsModal({
               onClick={confirmDelete}
               disabled={
                 tasks.filter((t) => t.statusId === deletingStatus?.id).length >
-                  0 && !moveToStatusId
+                0 && !moveToStatusId
               }
             >
               Confirm Delete
