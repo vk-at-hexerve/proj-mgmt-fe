@@ -152,7 +152,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
     return found ? found.name : groupId;
   }, [getProjectGroups]);
 
-  const generateGroupId = () => `g-${Date.now().toString(36)}${Math.random().toString(36).slice(2,8)}`;
+  const generateGroupId = () => `g-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
   const getProjectTags = useCallback((taskProjectId: string) => {
     if (typeof window === 'undefined') return availableTags;
     try {
@@ -548,14 +548,11 @@ export function TaskListView({ projectId }: TaskListViewProps) {
             <TableHeader className="sticky top-0 bg-card z-10">
               <TableRow className="border-b-2 border-border">
                 <TableHead className="w-16 border-r-2 border-border/60 bg-card px-0">
-                  <div className="flex items-center justify-center w-full">
-                    <div className="flex items-center gap-2">
-                      <span className="w-5 flex-shrink-0" />
-                      <Checkbox
-                        checked={selectedTasks.length === tasks.length && tasks.length > 0}
-                        onCheckedChange={toggleAll}
-                      />
-                    </div>
+                  <div className="flex items-center justify-center w-full h-full">
+                    <Checkbox
+                      checked={selectedTasks.length === tasks.length && tasks.length > 0}
+                      onCheckedChange={toggleAll}
+                    />
                   </div>
                 </TableHead>
                 {columns.filter(c => c.visible).map((column) => (
@@ -576,7 +573,10 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                     onDrop={(e) => handleDrop(e, column.id)}
                     onDragEnd={handleDragEnd}
                   >
-                    <div className="flex items-center justify-between gap-1 pr-2">
+                    <div className={cn(
+                      "flex items-center gap-1 pr-2 w-full",
+                      column.id === 'title' ? "justify-start pl-2" : "justify-center"
+                    )}>
                       {editingColumn === column.id ? (
                         <Input
                           value={editingLabel}
@@ -594,7 +594,10 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                         />
                       ) : (
                         <div
-                          className="flex items-center gap-1 flex-1"
+                          className={cn(
+                            "flex items-center gap-1 flex-1",
+                            column.id === 'title' ? "justify-start" : "justify-center"
+                          )}
                           onClick={() => column.sortable && handleSort(column.id)}
                         >
                           <span className="text-sm font-semibold">{column.label}</span>
@@ -696,14 +699,9 @@ export function TaskListView({ projectId }: TaskListViewProps) {
               {/* Inline Create Row */}
               {inlineCreateOpen && !inlineSubtaskParent && (
                 <TableRow className="bg-primary/5 border-b-2 border-primary/20">
-                  <TableCell className="border-r-2 border-border/60 px-0">
+                  <TableCell className="border-r-2 border-border/60 px-0 text-center align-middle">
                     <div className="flex items-center justify-center w-full">
-                      <div className="flex items-center gap-2">
-                        <div className="size-5 flex items-center justify-center flex-shrink-0">
-                          <Plus className="size-4 text-primary" />
-                        </div>
-                        <span className="w-4 flex-shrink-0" />
-                      </div>
+                      <Plus className="size-4 text-primary" />
                     </div>
                   </TableCell>
                   {columns.filter(c => c.visible).map((column) => {
@@ -787,29 +785,25 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                         isSelected && 'bg-primary/5'
                       )}
                     >
-                      <TableCell className="border-r-2 border-border/60 px-0" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-center w-full">
-                          <div className="flex items-center gap-2">
-                            {hasChildren ? (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="size-5 text-muted-foreground hover:text-primary flex-shrink-0"
-                                onClick={() => toggleExpand(task.id)}
-                              >
-                                <ChevronRight className={cn(
-                                  'size-4 transition-transform',
-                                  isExpanded && 'rotate-90'
-                                )} />
-                              </Button>
-                            ) : (
-                              <span className="w-5 flex-shrink-0" />
-                            )}
-                            <Checkbox
-                              checked={isSelected}
-                              onCheckedChange={() => toggleTask(task.id)}
-                            />
-                          </div>
+                      <TableCell className="border-r-2 border-border/60 px-0 text-center align-middle" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-center gap-1 w-full">
+                          {hasChildren ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-5 text-muted-foreground hover:text-primary flex-shrink-0"
+                              onClick={() => toggleExpand(task.id)}
+                            >
+                              <ChevronRight className={cn(
+                                'size-4 transition-transform',
+                                isExpanded && 'rotate-90'
+                              )} />
+                            </Button>
+                          ) : null}
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleTask(task.id)}
+                          />
                         </div>
                       </TableCell>
 
@@ -817,8 +811,8 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                         switch (column.id) {
                           case 'type':
                             return (
-                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
-                                <div className="flex items-center gap-1">
+                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex items-center justify-center gap-1">
                                   <span className={type.color}>{type.icon}</span>
                                   <Button
                                     variant="ghost"
@@ -837,7 +831,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                               <TableCell
                                 key={column.id}
                                 style={{ width: column.width }}
-                                className="border-r-2 border-border/60 hover:bg-muted/40 transition-colors cursor-pointer"
+                                className="border-r-2 border-border/60 hover:bg-muted/40 transition-colors cursor-pointer text-center align-middle"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   openModal('edit-task', { taskId: task.id });
@@ -850,9 +844,9 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                             );
                           case 'title':
                             return (
-                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
+                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-left align-middle pl-2" onClick={(e) => e.stopPropagation()}>
                                 {editingField?.taskId === task.id && editingField?.field === 'title' ? (
-                                  <div className="flex items-center gap-1 w-full">
+                                  <div className="flex items-center gap-1 w-full pl-2">
                                     <Input
                                       autoFocus
                                       value={editingValue}
@@ -909,10 +903,10 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                             );
                           case 'status':
                             return (
-                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
+                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
-                                    <button className="flex items-center cursor-pointer focus:outline-none hover:opacity-80 transition-opacity">
+                                    <button className="flex items-center justify-center cursor-pointer focus:outline-none hover:opacity-80 transition-opacity w-full">
                                       <Badge
                                         className="text-xs"
                                         style={{
@@ -947,8 +941,8 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                             );
                           case 'progress':
                             return (
-                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60">
-                                <div className="flex items-center gap-2">
+                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle">
+                                <div className="flex items-center justify-center gap-2">
                                   <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                                     <div
                                       className={cn(
@@ -966,11 +960,11 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                             );
                           case 'priority':
                             return (
-                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
+                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
-                                    <button className="flex items-center cursor-pointer hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none w-max">
-                                      <div className={cn('flex items-center gap-1.5', priority.color)}>
+                                    <button className="flex items-center justify-center cursor-pointer hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none w-full">
+                                      <div className={cn('flex items-center justify-center gap-1.5', priority.color)}>
                                         {priority.icon}
                                         <span className="text-sm font-medium">{priority.label}</span>
                                       </div>
@@ -998,11 +992,11 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                             );
                           case 'assignee':
                             return (
-                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
+                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
-                                    <button className="flex items-center w-full focus:outline-none hover:bg-muted/40 p-1 rounded transition-colors text-left">
-                                       {task.assignee ? (
+                                    <button className="flex items-center justify-center w-full focus:outline-none hover:bg-muted/40 p-1 rounded transition-colors">
+                                      {task.assignee ? (
                                         <div className="flex items-center gap-1.5 min-w-0">
                                           <UserAvatar user={task.assignee} size="xs" />
                                           <span className="text-sm truncate font-medium">{task.assignee.name}</span>
@@ -1053,55 +1047,55 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                 </DropdownMenu>
                               </TableCell>
                             );
-                           case 'startDate':
-                             return (
-                               <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
-                                 <Popover>
-                                   <PopoverTrigger asChild>
-                                     <button className="flex items-center gap-1.5 text-sm hover:bg-muted/40 p-1.5 rounded transition-colors focus:outline-none w-full text-left font-medium">
-                                       <Calendar className="size-3.5 text-muted-foreground shrink-0" />
-                                       {formatDate(task.startDate)}
-                                     </button>
-                                   </PopoverTrigger>
-                                   <PopoverContent align="start" className="w-auto p-0">
-                                     <CalendarComponent
-                                       mode="single"
-                                       selected={task.startDate ? new Date(task.startDate) : undefined}
-                                       onSelect={(date) => {
-                                         updateTask(task.id, { startDate: date ? getLocalDateString(date) : undefined });
-                                       }}
-                                       initialFocus
-                                     />
-                                   </PopoverContent>
-                                 </Popover>
-                               </TableCell>
-                             );
-                           case 'dueDate':
-                             return (
-                               <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
-                                 <Popover>
-                                   <PopoverTrigger asChild>
-                                     <button className="flex items-center gap-1.5 text-sm hover:bg-muted/40 p-1.5 rounded transition-colors focus:outline-none w-full text-left font-medium">
-                                       <Calendar className="size-3.5 text-muted-foreground shrink-0" />
-                                       {formatDate(task.dueDate)}
-                                     </button>
-                                   </PopoverTrigger>
-                                   <PopoverContent align="start" className="w-auto p-0">
-                                     <CalendarComponent
-                                       mode="single"
-                                       selected={task.dueDate ? new Date(task.dueDate) : undefined}
-                                       onSelect={(date) => {
-                                         updateTask(task.id, { dueDate: date ? getLocalDateString(date) : undefined });
-                                       }}
-                                       initialFocus
-                                     />
-                                   </PopoverContent>
-                                 </Popover>
-                               </TableCell>
-                             );
+                          case 'startDate':
+                            return (
+                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <button className="flex items-center justify-center gap-1.5 text-sm hover:bg-muted/40 p-1.5 rounded transition-colors focus:outline-none w-full font-medium">
+                                      <Calendar className="size-3.5 text-muted-foreground shrink-0" />
+                                      {formatDate(task.startDate)}
+                                    </button>
+                                  </PopoverTrigger>
+                                  <PopoverContent align="start" className="w-auto p-0">
+                                    <CalendarComponent
+                                      mode="single"
+                                      selected={task.startDate ? new Date(task.startDate) : undefined}
+                                      onSelect={(date) => {
+                                        updateTask(task.id, { startDate: date ? getLocalDateString(date) : undefined });
+                                      }}
+                                      initialFocus
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                              </TableCell>
+                            );
+                          case 'dueDate':
+                            return (
+                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <button className="flex items-center justify-center gap-1.5 text-sm hover:bg-muted/40 p-1.5 rounded transition-colors focus:outline-none w-full font-medium">
+                                      <Calendar className="size-3.5 text-muted-foreground shrink-0" />
+                                      {formatDate(task.dueDate)}
+                                    </button>
+                                  </PopoverTrigger>
+                                  <PopoverContent align="start" className="w-auto p-0">
+                                    <CalendarComponent
+                                      mode="single"
+                                      selected={task.dueDate ? new Date(task.dueDate) : undefined}
+                                      onSelect={(date) => {
+                                        updateTask(task.id, { dueDate: date ? getLocalDateString(date) : undefined });
+                                      }}
+                                      initialFocus
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                              </TableCell>
+                            );
                           case 'points':
                             return (
-                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
+                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
                                 {editingField?.taskId === task.id && editingField?.field === 'points' ? (
                                   <Input
                                     type="number"
@@ -1145,11 +1139,11 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                             );
                           case 'group':
                             return (
-                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
+                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
                                 <Popover>
                                   {task.group ? (
                                     <PopoverTrigger asChild>
-                                      <button className="flex items-center gap-1.5 hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none text-left w-full">
+                                      <button className="flex items-center justify-center gap-1.5 hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none w-full">
                                         <FolderKanban className="size-3.5 text-muted-foreground shrink-0" />
                                         <Badge variant="outline" className="text-xs font-medium truncate max-w-[100px] md:max-w-none">
                                           {getGroupName(task.projectId, task.group)}
@@ -1158,7 +1152,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                     </PopoverTrigger>
                                   ) : (
                                     <PopoverTrigger asChild>
-                                      <button className="flex items-center gap-1.5 hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none text-left w-full text-muted-foreground text-xs group/grp">
+                                      <button className="flex items-center justify-center gap-1.5 hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none w-full text-muted-foreground text-xs group/grp">
                                         <FolderKanban className="size-3.5 text-muted-foreground shrink-0 opacity-20 group-hover/grp:opacity-100 transition-opacity" />
                                         <span className="opacity-0 group-hover/grp:opacity-100 transition-opacity font-semibold text-xs text-primary">+ Group</span>
                                         <span className="group-hover/grp:hidden pl-1">—</span>
@@ -1276,11 +1270,11 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                             );
                           case 'tags':
                             return (
-                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
+                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
                                 <Popover>
                                   {task.tags && task.tags.length > 0 ? (
                                     <PopoverTrigger asChild>
-                                      <button className="flex items-center gap-1.5 hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none text-left w-full overflow-hidden">
+                                      <button className="flex items-center justify-center gap-1.5 hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none w-full overflow-hidden">
                                         <TagIcon className="size-3.5 text-muted-foreground shrink-0" />
                                         <div className="flex items-center gap-1 flex-wrap truncate">
                                           {task.tags.slice(0, 2).map(tag => (
@@ -1303,7 +1297,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                     </PopoverTrigger>
                                   ) : (
                                     <PopoverTrigger asChild>
-                                      <button className="flex items-center gap-1.5 hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none text-left w-full text-muted-foreground text-xs group/tag-btn">
+                                      <button className="flex items-center justify-center gap-1.5 hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none w-full text-muted-foreground text-xs group/tag-btn">
                                         <TagIcon className="size-3.5 text-muted-foreground shrink-0 opacity-20 group-hover/tag-btn:opacity-100 transition-opacity" />
                                         <span className="opacity-0 group-hover/tag-btn:opacity-100 transition-opacity font-semibold text-xs text-primary">+ Tag</span>
                                         <span className="group-hover/tag-btn:hidden pl-1">—</span>
@@ -1444,7 +1438,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                             return null;
                         }
                       })}
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TableCell className="text-center align-middle" onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="size-8">
@@ -1493,15 +1487,12 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                             isSubtaskSelected && 'bg-primary/5'
                           )}
                         >
-                          <TableCell className="border-r-2 border-border/60 px-0" onClick={(e) => e.stopPropagation()}>
+                          <TableCell className="border-r-2 border-border/60 px-0 text-center align-middle" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-center w-full">
-                              <div className="flex items-center gap-2">
-                                <span className="w-5 flex-shrink-0" />
-                                <Checkbox
-                                  checked={isSubtaskSelected}
-                                  onCheckedChange={() => toggleTask(subtask.id)}
-                                />
-                              </div>
+                              <Checkbox
+                                checked={isSubtaskSelected}
+                                onCheckedChange={() => toggleTask(subtask.id)}
+                              />
                             </div>
                           </TableCell>
 
@@ -1509,8 +1500,8 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                             switch (column.id) {
                               case 'type':
                                 return (
-                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
-                                    <div className="flex items-center gap-1 pl-4">
+                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
+                                    <div className="flex items-center justify-center gap-1">
                                       <CornerDownRight className="size-3 text-muted-foreground" />
                                       <span className={subtaskType.color}>{subtaskType.icon}</span>
                                     </div>
@@ -1521,7 +1512,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                   <TableCell
                                     key={column.id}
                                     style={{ width: column.width }}
-                                    className="border-r-2 border-border/60 hover:bg-muted/40 transition-colors cursor-pointer"
+                                    className="border-r-2 border-border/60 hover:bg-muted/40 transition-colors cursor-pointer text-center align-middle"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       openModal('edit-task', { taskId: subtask.id });
@@ -1534,7 +1525,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                 );
                               case 'title':
                                 return (
-                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
+                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-left align-middle pl-2" onClick={(e) => e.stopPropagation()}>
                                     {editingField?.taskId === subtask.id && editingField?.field === 'title' ? (
                                       <div className="flex items-center gap-1 w-full pl-2">
                                         <Input
@@ -1572,10 +1563,10 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                 );
                               case 'status':
                                 return (
-                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
+                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
                                     <DropdownMenu>
                                       <DropdownMenuTrigger asChild>
-                                        <button className="flex items-center cursor-pointer focus:outline-none hover:opacity-85 transition-opacity">
+                                        <button className="flex items-center justify-center cursor-pointer focus:outline-none hover:opacity-85 transition-opacity w-full">
                                           <Badge
                                             className="text-xs"
                                             style={{
@@ -1610,8 +1601,8 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                 );
                               case 'progress':
                                 return (
-                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60">
-                                    <div className="flex items-center gap-2">
+                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle">
+                                    <div className="flex items-center justify-center gap-2">
                                       <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                                         <div
                                           className={cn(
@@ -1629,11 +1620,11 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                 );
                               case 'priority':
                                 return (
-                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
+                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
                                     <DropdownMenu>
                                       <DropdownMenuTrigger asChild>
-                                        <button className="flex items-center cursor-pointer hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none w-max">
-                                          <div className={cn('flex items-center gap-1.5', subtaskPriority.color)}>
+                                        <button className="flex items-center justify-center cursor-pointer hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none w-full">
+                                          <div className={cn('flex items-center justify-center gap-1.5', subtaskPriority.color)}>
                                             {subtaskPriority.icon}
                                             <span className="text-sm font-medium">{subtaskPriority.label}</span>
                                           </div>
@@ -1661,10 +1652,10 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                 );
                               case 'assignee':
                                 return (
-                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
+                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
                                     <DropdownMenu>
                                       <DropdownMenuTrigger asChild>
-                                        <button className="flex items-center w-full focus:outline-none hover:bg-muted/40 p-1 rounded transition-colors text-left">
+                                        <button className="flex items-center justify-center w-full focus:outline-none hover:bg-muted/40 p-1 rounded transition-colors">
                                           {subtask.assignee ? (
                                             <div className="flex items-center gap-1.5 min-w-0">
                                               <UserAvatar user={subtask.assignee} size="xs" />
@@ -1718,10 +1709,10 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                 );
                               case 'startDate':
                                 return (
-                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
+                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
                                     <Popover>
                                       <PopoverTrigger asChild>
-                                        <button className="flex items-center gap-1.5 text-sm hover:bg-muted/40 p-1.5 rounded transition-colors focus:outline-none w-full text-left font-medium">
+                                        <button className="flex items-center justify-center gap-1.5 text-sm hover:bg-muted/40 p-1.5 rounded transition-colors focus:outline-none w-full font-medium">
                                           <Calendar className="size-3.5 text-muted-foreground shrink-0" />
                                           {formatDate(subtask.startDate)}
                                         </button>
@@ -1741,10 +1732,10 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                 );
                               case 'dueDate':
                                 return (
-                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
+                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
                                     <Popover>
                                       <PopoverTrigger asChild>
-                                        <button className="flex items-center gap-1.5 text-sm hover:bg-muted/40 p-1.5 rounded transition-colors focus:outline-none w-full text-left font-medium">
+                                        <button className="flex items-center justify-center gap-1.5 text-sm hover:bg-muted/40 p-1.5 rounded transition-colors focus:outline-none w-full font-medium">
                                           <Calendar className="size-3.5 text-muted-foreground shrink-0" />
                                           {formatDate(subtask.dueDate)}
                                         </button>
@@ -1764,7 +1755,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                 );
                               case 'points':
                                 return (
-                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
+                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
                                     {editingField?.taskId === subtask.id && editingField?.field === 'points' ? (
                                       <Input
                                         type="number"
@@ -1808,11 +1799,11 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                 );
                               case 'group':
                                 return (
-                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
+                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
                                     <Popover>
                                       {subtask.group ? (
                                         <PopoverTrigger asChild>
-                                          <button className="flex items-center gap-1.5 hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none text-left w-full">
+                                          <button className="flex items-center justify-center gap-1.5 hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none w-full">
                                             <FolderKanban className="size-3.5 text-muted-foreground shrink-0" />
                                             <Badge variant="outline" className="text-xs font-medium truncate max-w-[100px] md:max-w-none">
                                               {getGroupName(subtask.projectId, subtask.group)}
@@ -1821,7 +1812,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                         </PopoverTrigger>
                                       ) : (
                                         <PopoverTrigger asChild>
-                                          <button className="flex items-center gap-1.5 hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none text-left w-full text-muted-foreground text-xs group/grp">
+                                          <button className="flex items-center justify-center gap-1.5 hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none w-full text-muted-foreground text-xs group/grp">
                                             <FolderKanban className="size-3.5 text-muted-foreground shrink-0 opacity-20 group-hover/grp:opacity-100 transition-opacity" />
                                             <span className="opacity-0 group-hover/grp:opacity-100 transition-opacity font-semibold text-xs text-primary">+ Group</span>
                                             <span className="group-hover/grp:hidden pl-1">—</span>
@@ -1939,11 +1930,11 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                 );
                               case 'tags':
                                 return (
-                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
+                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
                                     <Popover>
                                       {subtask.tags && subtask.tags.length > 0 ? (
                                         <PopoverTrigger asChild>
-                                          <button className="flex items-center gap-1.5 hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none text-left w-full overflow-hidden">
+                                          <button className="flex items-center justify-center gap-1.5 hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none w-full overflow-hidden">
                                             <TagIcon className="size-3.5 text-muted-foreground shrink-0" />
                                             <div className="flex items-center gap-1 flex-wrap truncate">
                                               {subtask.tags.slice(0, 2).map(tag => (
@@ -1966,7 +1957,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                         </PopoverTrigger>
                                       ) : (
                                         <PopoverTrigger asChild>
-                                          <button className="flex items-center gap-1.5 hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none text-left w-full text-muted-foreground text-xs group/tag-btn">
+                                          <button className="flex items-center justify-center gap-1.5 hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none w-full text-muted-foreground text-xs group/tag-btn">
                                             <TagIcon className="size-3.5 text-muted-foreground shrink-0 opacity-20 group-hover/tag-btn:opacity-100 transition-opacity" />
                                             <span className="opacity-0 group-hover/tag-btn:opacity-100 transition-opacity font-semibold text-xs text-primary">+ Tag</span>
                                             <span className="group-hover/tag-btn:hidden pl-1">—</span>
@@ -2107,7 +2098,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                 return null;
                             }
                           })}
-                          <TableCell onClick={(e) => e.stopPropagation()}>
+                          <TableCell className="text-center align-middle" onClick={(e) => e.stopPropagation()}>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon" className="size-8">
@@ -2138,21 +2129,16 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                     {/* Inline Subtask Create Row */}
                     {isCreatingSubtask && (
                       <TableRow className="bg-accent/5 border-b border-accent/20">
-                        <TableCell className="border-r-2 border-border/60 px-0">
+                        <TableCell className="border-r-2 border-border/60 px-0 text-center align-middle">
                           <div className="flex items-center justify-center w-full">
-                            <div className="flex items-center gap-2">
-                              <div className="size-5 flex items-center justify-center flex-shrink-0">
-                                <CornerDownRight className="size-4 text-accent" />
-                              </div>
-                              <span className="w-4 flex-shrink-0" />
-                            </div>
+                            <CornerDownRight className="size-4 text-accent" />
                           </div>
                         </TableCell>
                         {columns.filter(c => c.visible).map((column) => {
                           if (column.id === 'type') {
                             return (
-                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60">
-                                <div className="pl-4 flex items-center gap-1">
+                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle">
+                                <div className="flex items-center justify-center gap-1">
                                   <CornerDownRight className="size-3 text-muted-foreground" />
                                   <span className="text-blue-400">{typeConfig.subtask.icon}</span>
                                 </div>

@@ -103,6 +103,10 @@ export default function ProjectsPage() {
   const [newSprint, setNewSprint] = useState({ name: '', goal: '', startDate: '', endDate: '' });
   const [selectedBacklogTasks, setSelectedBacklogTasks] = useState<string[]>([]);
   const [dateError, setDateError] = useState('');
+  
+  // Confirmation state for moving tasks between sprints/backlog
+  const [confirmMoveDialogOpen, setConfirmMoveDialogOpen] = useState(false);
+  const [pendingMove, setPendingMove] = useState<{ taskId: string; sprintId: string | null } | null>(null);
 
 
   const currentProject = projects.find(p => p.id === currentProjectId) || projects[0];
@@ -170,11 +174,20 @@ export default function ProjectsPage() {
   };
 
   const handleMoveToSprint = (taskId: string, sprintId: string | null) => {
+    setPendingMove({ taskId, sprintId });
+    setConfirmMoveDialogOpen(true);
+  };
+
+  const executeMoveToSprint = () => {
+    if (!pendingMove) return;
+    const { taskId, sprintId } = pendingMove;
     updateTask(taskId, { sprintId: sprintId || undefined });
     showToast({
       title: sprintId ? 'Task moved to sprint' : 'Task moved to backlog',
       type: 'success'
     });
+    setConfirmMoveDialogOpen(false);
+    setPendingMove(null);
   };
 
   const toggleBacklogTaskSelection = (taskId: string) => {
@@ -772,6 +785,40 @@ export default function ProjectsPage() {
               disabled={!newSprint.name.trim() || !newSprint.startDate || !newSprint.endDate}
             >
               Create Sprint {selectedBacklogTasks.length > 0 && `(${selectedBacklogTasks.length} tasks)`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Move Task Confirmation Dialog */}
+      <Dialog open={confirmMoveDialogOpen} onOpenChange={setConfirmMoveDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-warning">
+              <Workflow className="size-5" />
+              Confirm Task Move
+            </DialogTitle>
+            <DialogDescription className="pt-2 text-sm text-muted-foreground">
+              Moving this task may change its workflow, sprint flow, or status. This can affect active sprint commitments, team velocity calculations, and board visualization.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <p className="text-sm font-medium">
+              Are you sure you want to move this task?
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setConfirmMoveDialogOpen(false);
+                setPendingMove(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={executeMoveToSprint}>
+              Confirm
             </Button>
           </DialogFooter>
         </DialogContent>
