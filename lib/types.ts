@@ -87,6 +87,35 @@ export interface Task {
   attachments?: TaskAttachment[];
   linkedTasks?: TaskLink[];
   group?: string;
+  isMilestone?: boolean;
+}
+
+export interface TaskFilters {
+  assignees?: string[];
+  priorities?: string[];
+  types?: string[];
+  statuses?: string[];
+  groups?: string[];
+  labels?: string[];
+  isMilestone?: boolean | null;
+  startDateAfter?: string;
+  endDateBefore?: string;
+}
+
+export interface TaskSort {
+  field: 'key' | 'title' | 'status' | 'progress' | 'priority' | 'startDate' | 'dueDate' | 'storyPoints';
+  direction: 'asc' | 'desc';
+}
+
+export interface CustomFilter {
+  id: string;
+  name: string;
+  projectId: string;
+  userId: string;
+  filters: TaskFilters;
+  sort: TaskSort;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Sprint {
@@ -361,6 +390,20 @@ export interface BackendTask {
   sprint_id?: string;
   created_at?: string;
   updated_at?: string;
+  is_milestone?: boolean;
+  task_type?: string;
+  parent_id?: string;
+}
+
+export interface BackendCustomFilter {
+  id: string;
+  name: string;
+  project_id: string;
+  user_id: string;
+  filters: any;
+  sort: any;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface BackendTeam {

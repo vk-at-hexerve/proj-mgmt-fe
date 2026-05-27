@@ -75,13 +75,9 @@ import { cn } from '@/lib/utils';
 import { UserAvatar } from '@/components/ui/user-avatar';
 import type { Sprint } from '@/lib/types';
 
-type ViewType = 'kanban' | 'list' | 'gantt' | 'calendar' | 'grid' | 'backlog';
+import { ProjectFilter } from '@/components/filters/project-filter';
 
-interface FilterState {
-  assignees: string[];
-  priorities: string[];
-  types: string[];
-}
+type ViewType = 'kanban' | 'list' | 'gantt' | 'calendar' | 'grid' | 'backlog';
 
 const viewOptions: { id: ViewType; label: string; icon: React.ReactNode }[] = [
   { id: 'kanban', label: 'Board View', icon: <LayoutGrid className="size-4" /> },
@@ -93,11 +89,9 @@ const viewOptions: { id: ViewType; label: string; icon: React.ReactNode }[] = [
 ];
 
 export default function ProjectsPage() {
-  const { projects, tasks: allTasks, showToast, teams, currentProject: currentProjectId, sprints: contextSprints, users, addSprint, updateSprint, openModal, workflowStatuses, updateTask } = useApp();
+  const { projects, tasks: allTasks, showToast, teams, currentProject: currentProjectId, sprints: contextSprints, users, addSprint, updateSprint, openModal, workflowStatuses, updateTask, getFilteredTasks } = useApp();
   const [currentView, setCurrentView] = useState<ViewType>('kanban');
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [filters, setFilters] = useState<FilterState>({ assignees: [], priorities: [], types: [] });
-  const [filterOpen, setFilterOpen] = useState(false);
   const [teamOpen, setTeamOpen] = useState(false);
   const [sprintDialogOpen, setSprintDialogOpen] = useState(false);
   const [newSprint, setNewSprint] = useState({ name: '', goal: '', startDate: '', endDate: '' });
@@ -114,20 +108,7 @@ export default function ProjectsPage() {
   const activeSprint = sprints.find((s) => s.status === 'active');
   const projectTeam = teams.find(t => t.projects.some(p => p.id === currentProject?.id)) || teams[0];
 
-  const backlogTasks = allTasks.filter(t =>
-    t.projectId === currentProject?.id && !t.sprintId
-  );
-
-  const activeFiltersCount = filters.assignees.length + filters.priorities.length + filters.types.length;
-  const clearFilters = () => setFilters({ assignees: [], priorities: [], types: [] });
-  const toggleFilter = (type: keyof FilterState, value: string) => {
-    setFilters(prev => ({
-      ...prev,
-      [type]: prev[type].includes(value)
-        ? prev[type].filter(v => v !== value)
-        : [...prev[type], value],
-    }));
-  };
+  const backlogTasks = currentProject ? getFilteredTasks(currentProject.id).filter(t => !t.sprintId) : [];
 
   const handleCreateSprint = () => {
     if (!newSprint.name.trim() || !newSprint.startDate || !newSprint.endDate) return;
@@ -291,83 +272,7 @@ export default function ProjectsPage() {
             </div>
 
             {/* Filter */}
-            <Popover open={filterOpen} onOpenChange={setFilterOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className={cn(
-                    'h-8 px-3 gap-1.5 bg-transparent shrink-0 text-sm font-medium rounded-md border-border',
-                    activeFiltersCount > 0 && 'border-primary'
-                  )}
-                >
-                  <Filter className="size-4" />
-                  Filter
-                  {activeFiltersCount > 0 && (
-                    <Badge variant="secondary" className="ml-1 text-xs">{activeFiltersCount}</Badge>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-72 p-4" align="start">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-medium text-sm">Filter Tasks</h4>
-                  {activeFiltersCount > 0 && (
-                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={clearFilters}>
-                      <X className="size-3 mr-1" /> Clear
-                    </Button>
-                  )}
-                </div>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">Priority</Label>
-                    <div className="space-y-1.5">
-                      {['critical', 'high', 'medium', 'low'].map((priority) => (
-                        <label key={priority} className="flex items-center gap-2 cursor-pointer">
-                          <Checkbox
-                            checked={filters.priorities.includes(priority)}
-                            onCheckedChange={() => toggleFilter('priorities', priority)}
-                          />
-                          <span className="text-sm capitalize">{priority}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">Type</Label>
-                    <div className="space-y-1.5">
-                      {['task', 'bug', 'story', 'epic'].map((type) => (
-                        <label key={type} className="flex items-center gap-2 cursor-pointer">
-                          <Checkbox
-                            checked={filters.types.includes(type)}
-                            onCheckedChange={() => toggleFilter('types', type)}
-                          />
-                          <span className="text-sm capitalize">{type}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                <Button className="w-full mt-4" size="sm" onClick={() => {
-                  setFilterOpen(false);
-                  showToast({ title: 'Filters applied', description: `${activeFiltersCount} filter(s) active`, type: 'success' });
-                }}>
-                  Apply Filters
-                </Button>
-              </PopoverContent>
-            </Popover>
-
-            {/* Group By (Status) */}
-            <Select defaultValue="status">
-              <SelectTrigger size="sm" className="w-[120px] text-sm font-medium rounded-md shrink-0 border-border">
-                <SelectValue placeholder="Group by" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="status">Status</SelectItem>
-                <SelectItem value="assignee">Assignee</SelectItem>
-                <SelectItem value="priority">Priority</SelectItem>
-                <SelectItem value="epic">Epic</SelectItem>
-              </SelectContent>
-            </Select>
+            <ProjectFilter projectId={currentProject.id} />
           </div>
 
           {/* Row 2: Secondary Action Controls */}
@@ -455,7 +360,7 @@ export default function ProjectsPage() {
               onClick={() => openModal('status-settings', { projectId: currentProject.id })}
             >
               <Workflow className="size-4" />
-              Workflow
+              Workflow Settings
             </Button>
             <Button
               variant="outline"
@@ -512,7 +417,7 @@ export default function ProjectsPage() {
               <div className="h-full flex flex-col gap-4 overflow-auto">
                 {/* Sprint sections */}
                 {sprints.map(sprint => {
-                  const sprintTasks = allTasks.filter(t => t.sprintId === sprint.id && t.projectId === currentProject.id);
+                  const sprintTasks = currentProject ? getFilteredTasks(currentProject.id).filter(t => t.sprintId === sprint.id) : [];
                   return (
                     <Card key={sprint.id} className="shrink-0">
                       <div className="px-4 py-3 border-b border-border flex items-center justify-between">

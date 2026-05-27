@@ -178,6 +178,8 @@ export interface GanttTask {
   dependencies?: string[];
   assignee?: User;
   projectId?: string;
+  isMilestone?: boolean;
+  parentId?: string;
 }
 
 export const generateGanttData = (): GanttTask[] => {
@@ -211,6 +213,7 @@ export const generateGanttData = (): GanttTask[] => {
       type: task.type === 'epic' ? 'project' : 'task',
       assignee: task.assignee,
       projectId: task.projectId,
+      isMilestone: task.isMilestone,
     });
   });
 

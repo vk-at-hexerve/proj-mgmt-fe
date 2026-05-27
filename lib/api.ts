@@ -1,4 +1,4 @@
-import { BackendProject, BackendTask, BackendTeam, BackendUser, Project, Task, Team, ProjectStatus, TaskPriority, UserRole, WorkflowStatus } from './types';
+import { BackendProject, BackendTask, BackendTeam, BackendUser, Project, Task, Team, ProjectStatus, TaskPriority, UserRole, WorkflowStatus, BackendCustomFilter, CustomFilter } from './types';
 import type { LoginResponse } from './auth';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8100/api/v1";
 
@@ -20,6 +20,12 @@ export async function fetchAPI(endpoint: string, options: RequestInit = {}) {
   const response = await fetch(`${API_URL}${endpoint}`, config);
 
   if (!response.ok) {
+    // If token expired or invalid, redirect to login
+    if (response.status === 401 && typeof window !== 'undefined') {
+      localStorage.removeItem('auth_token');
+      window.location.href = '/login';
+      throw new Error('Session expired. Please log in again.');
+    }
     const errorData = await response.json().catch(() => ({}));
     throw new Error(
       typeof errorData.detail === "object"
@@ -86,7 +92,7 @@ export function mapBackendTask(backendTask: BackendTask): Task {
     description: backendTask.description || '',
     statusId: String(backendTask.status_id || backendTask.status?.id || ''),
     priority: priorityMap[backendTask.priority] || 'medium',
-    type: 'task',
+    type: (backendTask.task_type as any) || 'task',
     projectId: String(backendTask.project_id),
     storyPoints: backendTask.story_points || 0,
     assignee: backendTask.assignee ? {
@@ -107,9 +113,10 @@ export function mapBackendTask(backendTask: BackendTask): Task {
     dueDate: backendTask.due_date,
     sprintId: backendTask.sprint_id ? String(backendTask.sprint_id) : undefined,
     createdAt: backendTask.created_at || new Date().toISOString(),
-    updatedAt: backendTask.updated_at || new Date().toISOString()
-    ,
+    updatedAt: backendTask.updated_at || new Date().toISOString(),
     group: backendTask.group_id ? String(backendTask.group_id) : undefined,
+    isMilestone: backendTask.is_milestone ?? false,
+    parentId: backendTask.parent_id ? String(backendTask.parent_id) : undefined,
   };
 }
 
@@ -184,8 +191,8 @@ export function mapBackendPortfolio(backendPortfolio: any) {
     budget: backendPortfolio.budget || 0,
     spent: backendPortfolio.spent || 0,
     programs: backendPortfolio.programs ? backendPortfolio.programs.map(mapBackendProgram) : [],
-    programIds: backendPortfolio.program_ids ? backendPortfolio.program_ids.map(String) : 
-                (backendPortfolio.programs ? backendPortfolio.programs.map((p: any) => String(p.id)) : []),
+    programIds: backendPortfolio.program_ids ? backendPortfolio.program_ids.map(String) :
+      (backendPortfolio.programs ? backendPortfolio.programs.map((p: any) => String(p.id)) : []),
     owner: backendPortfolio.owner ? {
       id: String(backendPortfolio.owner.id),
       name: backendPortfolio.owner.name,
@@ -214,8 +221,8 @@ export function mapBackendProgram(backendProgram: any) {
     budget: backendProgram.budget || 0,
     spent: backendProgram.spent || 0,
     projects: backendProgram.projects ? backendProgram.projects.map(mapBackendProject) : [],
-    projectIds: backendProgram.project_ids ? backendProgram.project_ids.map(String) : 
-                (backendProgram.projects ? backendProgram.projects.map((p: any) => String(p.id)) : []),
+    projectIds: backendProgram.project_ids ? backendProgram.project_ids.map(String) :
+      (backendProgram.projects ? backendProgram.projects.map((p: any) => String(p.id)) : []),
     owner: backendProgram.owner ? {
       id: String(backendProgram.owner.id),
       name: backendProgram.owner.name,
@@ -336,4 +343,17 @@ export async function addTimeEntry(data: {
     method: "POST",
     body: JSON.stringify(data),
   });
+}
+
+export function mapBackendCustomFilter(backendFilter: BackendCustomFilter): CustomFilter {
+  return {
+    id: String(backendFilter.id),
+    name: backendFilter.name,
+    projectId: String(backendFilter.project_id),
+    userId: String(backendFilter.user_id),
+    filters: backendFilter.filters || {},
+    sort: backendFilter.sort || { field: 'title', direction: 'asc' },
+    createdAt: backendFilter.created_at || new Date().toISOString(),
+    updatedAt: backendFilter.updated_at || new Date().toISOString(),
+  };
 }

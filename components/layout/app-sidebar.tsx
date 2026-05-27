@@ -48,6 +48,8 @@ import {
   UserCircle,
   Receipt,
   Package,
+  Filter,
+  Check,
 } from "lucide-react";
 // import { currentUser as mockUser } from '@/lib/mock-data';
 
@@ -141,10 +143,16 @@ export function AppSidebar() {
     currentUser,
     logoutAction,
     isMounted,
+    taskFilters,
+    setTaskFilters,
+    customFilters,
+    activeCustomFilterId,
+    applyCustomFilter,
   } = useApp();
 
   const [projectsExpanded, setProjectsExpanded] = useState(false);
   const [showAllProjects, setShowAllProjects] = useState(false);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
 
   const assignedTaskCount = appTasks.filter(
     (task: Task) => task.assignee?.id === currentUser?.id,
@@ -388,6 +396,89 @@ export function AppSidebar() {
 
 
           </div>
+
+          {/* Project Specific - Filters */}
+          {currentProject && (
+            <div className="space-y-1 mt-2 mb-2">
+              {(() => {
+                const FilterBtn = (
+                  <button
+                    onClick={() => setFiltersExpanded(!filtersExpanded)}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                      (filtersExpanded || activeCustomFilterId)
+                        ? "bg-sidebar-accent text-sidebar-foreground"
+                        : "text-sidebar-foreground hover:bg-sidebar-accent",
+                      collapsed && "justify-center px-2",
+                    )}
+                  >
+                    <Filter className="size-5" />
+                    {!collapsed && (
+                      <>
+                        <span className="flex-1 text-left">My Filters</span>
+                        <ChevronDown
+                          className={cn(
+                            "size-4 transition-transform duration-200",
+                            filtersExpanded && "rotate-180",
+                          )}
+                        />
+                      </>
+                    )}
+                  </button>
+                );
+
+                if (collapsed) {
+                  return (
+                    <Tooltip>
+                      <TooltipTrigger asChild>{FilterBtn}</TooltipTrigger>
+                      <TooltipContent side="right">
+                        <p>My Filters</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  );
+                }
+
+                return (
+                  <>
+                    {FilterBtn}
+                    {filtersExpanded && (
+                      <div className="mt-1 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden transition-all animate-in slide-in-from-top-2 duration-300">
+                        <div className="p-1 space-y-0.5 max-h-60 overflow-y-auto custom-scrollbar">
+                          <button
+                            onClick={() => applyCustomFilter(null)}
+                            className={cn(
+                              "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all text-left group",
+                              !activeCustomFilterId
+                                ? "bg-[#6366F1] text-white shadow-md"
+                                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 hover:shadow-sm"
+                            )}
+                          >
+                            <span className="truncate tracking-tight font-semibold">All Tasks</span>
+                            {!activeCustomFilterId && <Check className="size-4 ml-auto" />}
+                          </button>
+                          {customFilters.map(filter => (
+                            <button
+                              key={filter.id}
+                              onClick={() => applyCustomFilter(filter.id === activeCustomFilterId ? null : filter)}
+                              className={cn(
+                                "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all text-left group",
+                                activeCustomFilterId === filter.id
+                                  ? "bg-[#6366F1] text-white shadow-md"
+                                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 hover:shadow-sm"
+                              )}
+                            >
+                              <span className="truncate tracking-tight font-semibold">{filter.name}</span>
+                              {activeCustomFilterId === filter.id && <Check className="size-4 ml-auto" />}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          )}
 
           {/* Remaining Main Navigation */}
           {mainNav.filter((i: NavItem) => i.label !== "Dashboard").map((item: NavItem) => {

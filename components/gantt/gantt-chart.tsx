@@ -10,7 +10,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/lib/app-context';
 import { GROUP_PROGRESS_MAP } from '@/lib/status-utils';
@@ -50,13 +50,13 @@ export function GanttChart({ projectId }: GanttChartProps) {
   const [zoom, setZoom] = useState(1);
   const [scrollOffset, setScrollOffset] = useState(0);
 
-  const { tasks: allAppTasks, projects: allProjects, isTaskDone, getStatusGroup, updateTask } = useApp();
+  const { tasks: allAppTasks, projects: allProjects, isTaskDone, getStatusGroup, updateTask, getFilteredTasks } = useApp();
 
   const tasks = useMemo(() => {
     const ganttTasks: GanttTask[] = [];
-    
+
     const relevantProjects = projectId ? allProjects.filter(p => p.id === projectId) : allProjects;
-    
+
     // Add projects
     relevantProjects.forEach((project) => {
       ganttTasks.push({
@@ -69,14 +69,14 @@ export function GanttChart({ projectId }: GanttChartProps) {
       });
     });
 
-    const relevantTasks = projectId ? allAppTasks.filter(t => t.projectId === projectId) : allAppTasks;
-    
+    const relevantTasks = projectId ? getFilteredTasks(projectId) : allAppTasks;
+
     // Add tasks
     relevantTasks.forEach((task) => {
       const createdDate = new Date(task.startDate || task.createdAt || new Date().toISOString());
       // Make sure start date isn't invalid
       const safeStartDate = isNaN(createdDate.getTime()) ? new Date() : createdDate;
-      
+
       let safeDueDate: Date;
       if (task.dueDate) {
         safeDueDate = new Date(task.dueDate);
@@ -101,13 +101,38 @@ export function GanttChart({ projectId }: GanttChartProps) {
         start: safeStartDate,
         end: safeDueDate,
         progress,
-        type: task.type === 'epic' ? 'project' : 'task',
+        type: task.isMilestone ? 'milestone' : (task.type === 'epic' ? 'project' : 'task'),
         assignee: task.assignee,
         projectId: task.projectId,
-      });
+        isMilestone: task.isMilestone,
+        parentId: task.parentId,
+      } as any);
     });
 
-    return ganttTasks;
+    // Hierarchical sort: roots first, then their subtasks
+    const roots: any[] = [];
+    const parentMap = new Map<string, any[]>();
+    const taskIds = new Set(ganttTasks.map(t => t.id));
+    
+    ganttTasks.forEach(t => {
+      // A task is a subtask if its parentId is present in the filtered results
+      if (t.parentId && taskIds.has(t.parentId)) {
+        if (!parentMap.has(t.parentId)) parentMap.set(t.parentId, []);
+        parentMap.get(t.parentId)!.push(t);
+      } else {
+        roots.push(t);
+      }
+    });
+    
+    const sortedGanttTasks: any[] = [];
+    roots.forEach(root => {
+      sortedGanttTasks.push(root);
+      if (parentMap.has(root.id)) {
+        sortedGanttTasks.push(...parentMap.get(root.id)!);
+      }
+    });
+
+    return sortedGanttTasks;
   }, [allAppTasks, allProjects, projectId]);
 
   // Calculate date range
@@ -142,16 +167,16 @@ export function GanttChart({ projectId }: GanttChartProps) {
     // Generate weeks
     const weeksList: { start: Date; days: Date[] }[] = [];
     const currentDate = new Date(start);
-    
+
     while (currentDate <= end) {
       const weekStart = new Date(currentDate);
       const weekDays: Date[] = [];
-      
+
       for (let i = 0; i < 7 && currentDate <= end; i++) {
         weekDays.push(new Date(currentDate));
         currentDate.setDate(currentDate.getDate() + 1);
       }
-      
+
       weeksList.push({ start: weekStart, days: weekDays });
     }
 
@@ -161,7 +186,7 @@ export function GanttChart({ projectId }: GanttChartProps) {
   const getTaskPosition = (task: GanttTask) => {
     const startDiff = Math.ceil((task.start.getTime() - startDate.getTime()) / DAY_MS);
     const duration = Math.max(1, Math.ceil((task.end.getTime() - task.start.getTime()) / DAY_MS));
-    
+
     return {
       left: startDiff * CELL_WIDTH * zoom,
       width: duration * CELL_WIDTH * zoom,
@@ -246,9 +271,23 @@ export function GanttChart({ projectId }: GanttChartProps) {
   // Compute dynamic dates during drag for tooltip display
   const getDragDates = useCallback((taskId: string, task: GanttTask) => {
     const override = tempPosRef.current[taskId];
-    if (!override) return { start: task.start, end: task.end };
-    const newStart = pixelToDate(override.left);
-    const newEnd = pixelToDate(override.left + override.width);
+    let left: number;
+    let width: number;
+
+    if (!override) {
+      const pos = getTaskPosition(task);
+      left = pos.left;
+      width = task.type === 'milestone' ? CELL_WIDTH * zoomRef.current : pos.width;
+    } else {
+      left = override.left;
+      width = override.width;
+    }
+
+    const newStart = pixelToDate(left);
+    // The bar ends at (left + width). Since 1 day = CELL_WIDTH, a 1-day bar ends at the START of the next day.
+    // By subtracting DAY_MS, we get the inclusive last day it covers visually.
+    const newEnd = new Date(pixelToDate(left + width).getTime() - DAY_MS);
+    
     return { start: newStart, end: newEnd };
   }, [pixelToDate]);
 
@@ -361,8 +400,8 @@ export function GanttChart({ projectId }: GanttChartProps) {
             <Button variant="outline" size="icon" onClick={() => scroll(1)}>
               <ChevronRight className="size-4" />
             </Button>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               size="sm"
               onClick={() => {
                 if (scrollRef.current) {
@@ -408,21 +447,32 @@ export function GanttChart({ projectId }: GanttChartProps) {
               ref={leftScrollRef}
               onScroll={onLeftScroll}
             >
-              {tasks.map((task) => (
+              {tasks.map((task, _, arr) => {
+                const hasVisibleParent = task.parentId && arr.some(t => t.id === task.parentId);
+                return (
                 <div
                   key={task.id}
                   ref={(el) => { leftRowRefs.current[task.id] = el; }}
-                  className="flex items-start gap-3 px-4 border-b border-border hover:bg-muted/30"
-                  style={{ minHeight: ROW_HEIGHT, paddingTop: 10, paddingBottom: 10 }}
+                  className="flex items-start gap-3 px-4 border-b border-border hover:bg-muted/30 relative"
+                  style={{ minHeight: ROW_HEIGHT, paddingTop: 10, paddingBottom: 10, paddingLeft: hasVisibleParent ? '2.5rem' : '1rem' }}
                 >
+                  {hasVisibleParent && (
+                    <div className="absolute left-[1.125rem] top-0 bottom-0 w-px bg-border/80" />
+                  )}
+                  {hasVisibleParent && (
+                    <div className="absolute left-[1.125rem] top-[22px] w-3 h-px bg-border/80" />
+                  )}
                   {task.assignee && (
                     <UserAvatar user={task.assignee} size="sm" />
                   )}
                   <div className="flex-1 min-w-0">
                     <p className={cn(
-                      'text-sm whitespace-normal break-words',
+                      'text-sm whitespace-normal break-words flex items-center gap-1.5',
                       task.type === 'project' && 'font-semibold'
                     )}>
+                      {task.isMilestone && (
+                        <Star className="size-3.5 fill-yellow-400 text-yellow-400 shrink-0" />
+                      )}
                       {task.name}
                     </p>
                   </div>
@@ -430,7 +480,8 @@ export function GanttChart({ projectId }: GanttChartProps) {
                     <Badge variant="outline" className="text-xs">M</Badge>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
             {/* Resizer */}
             <div
@@ -610,6 +661,12 @@ export function GanttChart({ projectId }: GanttChartProps) {
                                     </div>
                                   )}
                                 </>
+                              )}
+                              
+                              {task.type === 'milestone' && (
+                                <div className="absolute inset-0 flex items-center justify-center -rotate-45">
+                                  <Star className="size-3 fill-yellow-400 text-yellow-400 drop-shadow-sm" />
+                                </div>
                               )}
                             </div>
                           </TooltipTrigger>

@@ -7,7 +7,7 @@ import React, {
   useCallback,
   type ReactNode,
 } from "react";
-import {
+import type {
   Task,
   Project,
   User,
@@ -22,7 +22,11 @@ import {
   ResourceAllocation,
   WorkflowStatus,
   WorkflowGroupKey,
+  TaskFilters,
+  TaskSort,
+  CustomFilter,
 } from "./types";
+import { GROUP_PROGRESS_MAP } from "./status-utils";
 
 export type { TimeEntry, ResourceAllocation };
 
@@ -124,9 +128,23 @@ interface AppState {
   aiCopilotOpen: boolean;
   isAuthenticated: boolean;
   token: string | null;
+  taskFilters: TaskFilters;
+  taskSort: TaskSort;
+  customFilters: CustomFilter[];
+  activeCustomFilterId: string | null;
 }
 
 interface AppContextType extends AppState {
+  setTaskFilters: (filters: React.SetStateAction<TaskFilters>) => void;
+  setTaskSort: (sort: React.SetStateAction<TaskSort>) => void;
+  getFilteredTasks: (projectId: string) => Task[];
+  
+  // Custom Filter actions
+  addCustomFilter: (projectId: string, name: string, filters: TaskFilters, sort: TaskSort) => Promise<void>;
+  updateCustomFilter: (id: string, updates: Partial<CustomFilter>) => Promise<void>;
+  deleteCustomFilter: (id: string) => Promise<void>;
+  applyCustomFilter: (filter: CustomFilter | null) => void;
+
   // Task actions
   addTask: (task: Omit<Task, "id" | "createdAt" | "updatedAt" | "key">) => Promise<void>;
   updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
@@ -271,6 +289,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [aiCopilotOpen, setAiCopilotOpen] = useState(false);
+  const [taskFilters, setTaskFilters] = useState<TaskFilters>({});
+  const [taskSort, setTaskSort] = useState<TaskSort>({ field: 'title', direction: 'asc' });
+  const [customFilters, setCustomFilters] = useState<CustomFilter[]>([]);
+  const [activeCustomFilterId, setActiveCustomFilterId] = useState<string | null>(null);
 
   // Toast action - defined early so other actions can use it
   const showToast = useCallback((toast: Omit<Toast, "id">) => {
@@ -426,6 +448,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     loadData();
   }, [isMounted, token]);
 
+  // Load Custom Filters
+  React.useEffect(() => {
+    if (!currentProject || !isMounted || !token) return;
+    const fetchCustomFilters = async () => {
+      try {
+        const { fetchAPI, mapBackendCustomFilter } = await import("./api");
+        const data = await fetchAPI(`/projects/${currentProject}/custom-filters`);
+        if (Array.isArray(data)) {
+          setCustomFilters(data.map(mapBackendCustomFilter));
+        }
+      } catch (error) {
+        console.error("Failed to fetch custom filters:", error);
+      }
+    };
+    fetchCustomFilters();
+  }, [currentProject, isMounted, token]);
+
   // Permission helpers
   const hasPermission = useCallback((permission: string) => {
     if (currentUser.permissions.includes("*")) return true;
@@ -479,6 +518,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
           assignee_id: task.assignee?.id || null,
           label_ids: task.tags ? task.tags.map(t => t.id) : undefined,
           group_id: (task as any).group || null,
+          is_milestone: task.isMilestone || false,
+          task_type: task.type,
+          parent_id: task.parentId || null,
         }),
       });
 
@@ -507,6 +549,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (updates.sprintId !== undefined) backendPayload.sprint_id = updates.sprintId || null;
       if ((updates as any).tags !== undefined) backendPayload.label_ids = (updates as any).tags.map((t: any) => t.id);
       if ((updates as any).group !== undefined) backendPayload.group_id = (updates as any).group || null;
+      if (updates.isMilestone !== undefined) backendPayload.is_milestone = updates.isMilestone;
+      if (updates.type !== undefined) backendPayload.task_type = updates.type;
+      if (updates.parentId !== undefined) backendPayload.parent_id = updates.parentId;
 
       await fetchAPI(`/tasks/${id}`, {
         method: "PATCH",
@@ -723,7 +768,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }),
       });
       setProjects((prev) => prev.map((p) => p.id === tempId ? mapBackendProject(savedProject) : p));
-      
+
       // Fetch the default statuses created by the backend and add them to state
       try {
         const statuses = await fetchAPI(`/projects/${savedProject.id}/statuses`);
@@ -738,7 +783,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } catch (e) {
         console.error("Failed to fetch default statuses for new project", e);
       }
-      
+
       showToast({ title: "Project created", description: savedProject.name, type: "success" });
     } catch (error: any) {
       setProjects((prev) => prev.filter((p) => p.id !== tempId));
@@ -1203,8 +1248,142 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const getPortfolio = useCallback((id: string) => portfolios.find((p) => p.id === id), [portfolios]);
   const getSprint = useCallback((id: string) => sprints.find((s) => s.id === id), [sprints]);
 
+  const getFilteredTasks = useCallback((projectId: string) => {
+    let result = tasks.filter(t => t.projectId === projectId);
+
+    const hasActiveFilters = Object.values(taskFilters).some(v =>
+      Array.isArray(v) ? v.length > 0 : (v !== undefined && v !== null && v !== '')
+    );
+
+    if (hasActiveFilters) {
+      // Apply filters
+      if (taskFilters.assignees && taskFilters.assignees.length > 0) {
+        result = result.filter(t => t.assignee?.id && taskFilters.assignees!.includes(t.assignee.id));
+      }
+      if (taskFilters.priorities && taskFilters.priorities.length > 0) {
+        result = result.filter(t => taskFilters.priorities!.includes(t.priority));
+      }
+      if (taskFilters.types && taskFilters.types.length > 0) {
+        result = result.filter(t =>
+          taskFilters.types!.includes(t.type) ||
+          (taskFilters.types!.includes('subtask') && !!t.parentId)
+        );
+      }
+      if (taskFilters.statuses && taskFilters.statuses.length > 0) {
+        result = result.filter(t => taskFilters.statuses!.includes(t.statusId));
+      }
+      if (taskFilters.groups && taskFilters.groups.length > 0) {
+        result = result.filter(t => t.group && taskFilters.groups!.includes(t.group));
+      }
+      if (taskFilters.isMilestone !== undefined && taskFilters.isMilestone !== null) {
+        result = result.filter(t => (t.isMilestone || false) === taskFilters.isMilestone);
+      }
+      if (taskFilters.startDateAfter) {
+        result = result.filter(t => t.startDate && t.startDate >= taskFilters.startDateAfter!);
+      }
+      if (taskFilters.endDateBefore) {
+        result = result.filter(t => t.dueDate && t.dueDate <= taskFilters.endDateBefore!);
+      }
+
+    }
+
+    // Apply Sort
+    result = [...result].sort((a, b) => {
+      let comp = 0;
+      switch (taskSort.field) {
+        case 'key': {
+          const [prefixA, numA] = a.key.split('-');
+          const [prefixB, numB] = b.key.split('-');
+          comp = prefixA !== prefixB ? prefixA.localeCompare(prefixB) : parseInt(numA || '0', 10) - parseInt(numB || '0', 10);
+          break;
+        }
+        case 'title': comp = a.title.localeCompare(b.title); break;
+        case 'status': comp = a.statusId.localeCompare(b.statusId); break;
+        case 'progress': {
+          const groupA = workflowStatuses.find(s => s.id === a.statusId)?.groupKey;
+          const groupB = workflowStatuses.find(s => s.id === b.statusId)?.groupKey;
+          const progA = groupA ? GROUP_PROGRESS_MAP[groupA] : 0;
+          const progB = groupB ? GROUP_PROGRESS_MAP[groupB] : 0;
+          comp = progA - progB;
+          break;
+        }
+        case 'priority': {
+          const pOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+          comp = (pOrder[a.priority] ?? 4) - (pOrder[b.priority] ?? 4);
+          break;
+        }
+        case 'startDate': comp = (a.startDate || 'zzzz').localeCompare(b.startDate || 'zzzz'); break;
+        case 'dueDate': comp = (a.dueDate || 'zzzz').localeCompare(b.dueDate || 'zzzz'); break;
+        case 'storyPoints': comp = (a.storyPoints || 0) - (b.storyPoints || 0); break;
+      }
+      return taskSort.direction === 'asc' ? comp : -comp;
+    });
+
+    return result;
+  }, [tasks, taskFilters, taskSort]);
+
+  // Custom Filters actions
+  const addCustomFilter = useCallback(async (projectId: string, name: string, filters: TaskFilters, sort: TaskSort) => {
+    try {
+      const { fetchAPI, mapBackendCustomFilter } = await import("./api");
+      const saved = await fetchAPI(`/projects/${projectId}/custom-filters`, {
+        method: "POST",
+        body: JSON.stringify({ name, filters, sort }),
+      });
+      const mapped = mapBackendCustomFilter(saved);
+      setCustomFilters(prev => [...prev, mapped]);
+      showToast({ title: "Filter saved", description: mapped.name, type: "success" });
+      setActiveCustomFilterId(mapped.id);
+    } catch (err: any) {
+      showToast({ title: "Failed to save filter", description: err.message, type: "error" });
+    }
+  }, [showToast]);
+
+  const updateCustomFilter = useCallback(async (id: string, updates: Partial<CustomFilter>) => {
+    setCustomFilters(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
+    try {
+      const { fetchAPI } = await import("./api");
+      const payload: any = {};
+      if (updates.name !== undefined) payload.name = updates.name;
+      if (updates.filters !== undefined) payload.filters = updates.filters;
+      if (updates.sort !== undefined) payload.sort = updates.sort;
+      await fetchAPI(`/custom-filters/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
+      showToast({ title: "Filter updated", type: "success" });
+    } catch (err: any) {
+      showToast({ title: "Failed to update filter", type: "error" });
+    }
+  }, [showToast]);
+
+  const deleteCustomFilter = useCallback(async (id: string) => {
+    setCustomFilters(prev => prev.filter(f => f.id !== id));
+    if (activeCustomFilterId === id) {
+      setActiveCustomFilterId(null);
+    }
+    try {
+      const { fetchAPI } = await import("./api");
+      await fetchAPI(`/custom-filters/${id}`, { method: "DELETE" });
+      showToast({ title: "Filter deleted", type: "success" });
+    } catch (err: any) {
+      showToast({ title: "Failed to delete filter", type: "error" });
+    }
+  }, [activeCustomFilterId, showToast]);
+
+  const applyCustomFilter = useCallback((filter: CustomFilter | null) => {
+    if (filter) {
+      setTaskFilters(filter.filters);
+      setTaskSort(filter.sort);
+      setActiveCustomFilterId(filter.id);
+    } else {
+      setTaskFilters({});
+      setTaskSort({ field: 'title', direction: 'asc' });
+      setActiveCustomFilterId(null);
+    }
+  }, []);
+
   const value: AppContextType = {
-    tasks, projects, teams, programs, portfolios, clients, users, timeEntries, resourceAllocations, sprints, workflowStatuses, currentUser, currentProject, selectedTasks, modal, toasts, searchOpen, aiCopilotOpen, isAuthenticated, token, isAuthInitialized,
+    tasks, projects, teams, programs, portfolios, clients, users, timeEntries, resourceAllocations, sprints, workflowStatuses, currentUser, currentProject, selectedTasks, modal, toasts, searchOpen, aiCopilotOpen, isAuthenticated, token, isAuthInitialized, taskFilters, taskSort, customFilters, activeCustomFilterId,
+    setTaskFilters, setTaskSort, getFilteredTasks,
+    addCustomFilter, updateCustomFilter, deleteCustomFilter, applyCustomFilter,
     addTask, updateTask, deleteTask, updateTaskStatus, assignTask, selectTask, selectAllTasks, clearSelectedTasks, bulkUpdateTaskStatus, bulkAssignTasks, bulkDeleteTasks,
     addWorkflowStatus, updateWorkflowStatus, deleteWorkflowStatus, reorderStatuses, getProjectStatuses, getStatusGroup, isTaskDone,
     setCurrentProject, addProject, updateProject, deleteProject,

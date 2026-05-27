@@ -24,27 +24,32 @@ export function AppToasts() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-6 left-6 z-[100] flex flex-col gap-2 max-w-sm">
+    <div className="fixed top-6 right-6 z-[100] flex flex-col gap-2 max-w-md">
       {toasts.map((toast) => (
         <div
           key={toast.id}
           className={cn(
-            'flex items-start gap-3 p-4 rounded-lg border shadow-lg bg-card animate-in slide-in-from-left-5',
+            'flex items-start gap-4 p-5 rounded-xl border shadow-xl bg-card animate-in slide-in-from-right-5',
             toastStyles[toast.type]
           )}
         >
-          {toastIcons[toast.type]}
+          <div className="shrink-0 mt-0.5">
+            {toast.type === 'success' && <CheckCircle2 className="size-6 text-success" />}
+            {toast.type === 'error' && <AlertCircle className="size-6 text-destructive" />}
+            {toast.type === 'warning' && <AlertTriangle className="size-6 text-warning" />}
+            {toast.type === 'info' && <Info className="size-6 text-accent" />}
+          </div>
           <div className="flex-1 min-w-0">
-            <p className="font-medium text-sm">{toast.title}</p>
+            <p className="font-semibold text-base">{toast.title}</p>
             {toast.description && (
-              <p className="text-xs text-muted-foreground mt-0.5">{toast.description}</p>
+              <p className="text-sm text-muted-foreground mt-1">{toast.description}</p>
             )}
           </div>
           <button
             onClick={() => dismissToast(toast.id)}
-            className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+            className="shrink-0 text-muted-foreground hover:text-foreground transition-colors p-1"
           >
-            <X className="size-4" />
+            <X className="size-5" />
           </button>
         </div>
       ))}

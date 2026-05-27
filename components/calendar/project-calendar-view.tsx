@@ -23,6 +23,7 @@ import {
   Clock,
   AlertCircle,
   Calendar,
+  Star,
 } from 'lucide-react';
 import type { Task, Sprint } from '@/lib/types';
 
@@ -143,6 +144,9 @@ function EventBanner({
       {isStart && (
         <>
           {typeIcon(event.type)}
+          {event.task?.isMilestone && (
+            <Star className="size-2.5 fill-yellow-300 text-yellow-300 shrink-0" />
+          )}
           <span className="truncate">{event.title}</span>
         </>
       )}
@@ -183,7 +187,12 @@ function OverflowPopover({
               >
                 <div className={cn('size-2 rounded-full shrink-0', colors.bg)} />
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium truncate">{ev.title}</p>
+                  <p className="font-medium truncate flex items-center gap-1">
+                    {ev.task?.isMilestone && (
+                      <Star className="size-3 fill-yellow-400 text-yellow-400 shrink-0" />
+                    )}
+                    {ev.title}
+                  </p>
                   <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground mt-0.5">
                     <span className="capitalize">{ev.type}</span>
                     {ev.statusId && (
@@ -322,7 +331,7 @@ interface ProjectCalendarViewProps {
 }
 
 export function ProjectCalendarView({ projectId }: ProjectCalendarViewProps) {
-  const { tasks: allTasks, sprints: allSprints, projects } = useApp();
+  const { sprints: allSprints, projects, getFilteredTasks } = useApp();
   const project = projects.find(p => p.id === projectId);
 
   // ── Month navigation ─────────────────────────────────────────────────────
@@ -371,9 +380,10 @@ export function ProjectCalendarView({ projectId }: ProjectCalendarViewProps) {
   const events = useMemo<CalendarEvent[]>(() => {
     const result: CalendarEvent[] = [];
 
+    const projectTasks = getFilteredTasks(projectId);
+    
     // Tasks
-    allTasks
-      .filter(t => t.projectId === projectId)
+    projectTasks
       .forEach(task => {
         const start = parseDate(task.startDate ?? task.createdAt);
         const end   = parseDate(task.dueDate ?? task.startDate ?? task.createdAt);
@@ -417,7 +427,7 @@ export function ProjectCalendarView({ projectId }: ProjectCalendarViewProps) {
       });
 
     return result;
-  }, [allTasks, allSprints, projectId]);
+  }, [getFilteredTasks, allSprints, projectId]);
 
   // ── For each row of 7 days, compute banner layout ───────────────────────
   // We process events week-by-week so banners wrap correctly at row boundaries.
