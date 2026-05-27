@@ -59,6 +59,7 @@ import {
   Tag as TagIcon,
   FolderKanban,
   Check,
+  Star,
 } from 'lucide-react';
 import type { Task, TaskPriority } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -96,6 +97,7 @@ const typeConfig: Record<string, { icon: React.ReactNode; color: string }> = {
 
 const defaultColumns: ColumnConfig[] = [
   { id: 'type', label: 'Type', width: 56, minWidth: 40, sortable: false, visible: true },
+  { id: 'milestone', label: 'Milestone', width: 72, minWidth: 56, sortable: false, visible: true },
   { id: 'key', label: 'Key', width: 100, minWidth: 80, sortable: true, visible: true },
   { id: 'title', label: 'Title', width: 280, minWidth: 150, sortable: true, visible: true },
   { id: 'status', label: 'Status', width: 130, minWidth: 100, sortable: true, visible: true },
@@ -110,9 +112,8 @@ const defaultColumns: ColumnConfig[] = [
 ];
 
 export function TaskListView({ projectId }: TaskListViewProps) {
-  const { tasks: allTasks, openModal, selectTask, selectedTasks, selectAllTasks, clearSelectedTasks, addTask, updateTask, showToast, currentUser, assignTask, users, isTaskDone, getStatusGroup, workflowStatuses, getProjectStatuses, projects } = useApp();
-  const [sortField, setSortField] = useState<string>('key');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const { tasks: allTasks, openModal, selectTask, selectedTasks, selectAllTasks, clearSelectedTasks, addTask, updateTask, showToast, currentUser, assignTask, users, isTaskDone, getStatusGroup, workflowStatuses, getProjectStatuses, projects, getFilteredTasks, taskSort, setTaskSort, teams, taskFilters, setTaskFilters } = useApp();
+  const projectTeam = React.useMemo(() => teams?.find((t: any) => t.projects.some((p: any) => p.id === projectId)) || teams?.[0], [teams, projectId]);
   const [columns, setColumns] = useState<ColumnConfig[]>(defaultColumns);
   const [editingColumn, setEditingColumn] = useState<string | null>(null);
   const [editingLabel, setEditingLabel] = useState('');
@@ -199,15 +200,19 @@ export function TaskListView({ projectId }: TaskListViewProps) {
   }, []);
 
   const tasks = projectId
-    ? allTasks.filter(t => t.projectId === projectId)
+    ? getFilteredTasks(projectId)
     : allTasks;
 
   // Group tasks: parent tasks with their subtasks
   const getHierarchicalTasks = () => {
-    const parentTasks = tasks.filter(t => !t.parentId);
+    const taskIds = new Set(tasks.map(t => t.id));
+
+    // A task is a parent task (root) if it has no parentId OR its parent is not in the filtered results
+    const parentTasks = tasks.filter(t => !t.parentId || !taskIds.has(t.parentId));
     const subtaskMap = new Map<string, Task[]>();
 
-    tasks.filter(t => t.parentId).forEach(subtask => {
+    // A task is a subtask if its parentId is present in the filtered results
+    tasks.filter(t => t.parentId && taskIds.has(t.parentId)).forEach(subtask => {
       const existing = subtaskMap.get(subtask.parentId!) || [];
       subtaskMap.set(subtask.parentId!, [...existing, subtask]);
     });
@@ -233,43 +238,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
     return (subtaskMap.get(taskId)?.length || 0) > 0;
   };
 
-  const sortedParentTasks = [...parentTasks].sort((a, b) => {
-    let comparison = 0;
-    switch (sortField) {
-      case 'key': {
-        const [prefixA, numA] = a.key.split('-');
-        const [prefixB, numB] = b.key.split('-');
-        if (prefixA !== prefixB) {
-          comparison = prefixA.localeCompare(prefixB);
-        } else {
-          comparison = parseInt(numA || '0', 10) - parseInt(numB || '0', 10);
-        }
-        break;
-      }
-      case 'title':
-        comparison = a.title.localeCompare(b.title);
-        break;
-      case 'priority':
-        const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
-        comparison = priorityOrder[a.priority] - priorityOrder[b.priority];
-        break;
-      case 'status':
-        comparison = getStatusName(workflowStatuses, a.statusId).localeCompare(getStatusName(workflowStatuses, b.statusId));
-        break;
-      case 'startDate': {
-        const dateA = a.startDate ? new Date(a.startDate).getTime() : Infinity;
-        const dateB = b.startDate ? new Date(b.startDate).getTime() : Infinity;
-        comparison = dateA - dateB;
-        break;
-      }
-      case 'dueDate':
-        const dateA = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
-        const dateB = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
-        comparison = dateA - dateB;
-        break;
-    }
-    return sortDirection === 'asc' ? comparison : -comparison;
-  });
+  const sortedParentTasks = parentTasks;
 
   const toggleTask = (taskId: string) => {
     selectTask(taskId);
@@ -284,11 +253,10 @@ export function TaskListView({ projectId }: TaskListViewProps) {
   };
 
   const handleSort = (field: string) => {
-    if (sortField === field) {
-      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    if (taskSort.field === field) {
+      setTaskSort(prev => ({ ...prev, direction: prev.direction === 'asc' ? 'desc' : 'asc' }));
     } else {
-      setSortField(field);
-      setSortDirection('asc');
+      setTaskSort({ field: field as any, direction: 'asc' });
     }
   };
 
@@ -417,11 +385,8 @@ export function TaskListView({ projectId }: TaskListViewProps) {
       ? parentTask.projectId
       : (projectId || 'proj-1');
 
-    // Subtasks inherit the parent's type and priority
-    // If parent is epic, subtask becomes task; otherwise inherits parent type
-    const inheritedType = isSubtask && parentTask
-      ? (parentTask.type === 'epic' ? 'task' : parentTask.type === 'subtask' ? 'subtask' : parentTask.type)
-      : newTaskType;
+    // Subtasks should always be of type 'subtask'
+    const inheritedType = isSubtask ? 'subtask' : newTaskType;
 
     const projectStatuses = workflowStatuses.filter(s => s.projectId === taskProjectId);
     const defaultStatus = projectStatuses.find(s => s.isDefault) || projectStatuses[0];
@@ -601,8 +566,8 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                           onClick={() => column.sortable && handleSort(column.id)}
                         >
                           <span className="text-sm font-semibold">{column.label}</span>
-                          {sortField === column.id && (
-                            sortDirection === 'asc'
+                          {taskSort.field === column.id && (
+                            taskSort.direction === 'asc'
                               ? <ChevronUp className="size-3" />
                               : <ChevronDown className="size-3" />
                           )}
@@ -610,27 +575,267 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                       )}
                       <Popover>
                         <PopoverTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-5 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <Pencil className="size-3" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-48 p-2" align="start">
-                          <div className="space-y-2">
-                            <p className="text-xs font-medium text-muted-foreground">Column Options</p>
+                          {['assignee', 'priority', 'status', 'type'].includes(column.id) ? (
                             <Button
                               variant="ghost"
-                              size="sm"
-                              className="w-full justify-start text-xs"
-                              onClick={() => startEditingColumn(column.id)}
+                              size="icon"
+                              className="size-5 opacity-0 group-hover:opacity-100 transition-opacity"
                             >
-                              <Pencil className="size-3 mr-2" />
-                              Rename Column
+                              <ChevronDown className="size-3" />
                             </Button>
-                          </div>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <Pencil className="size-3" />
+                            </Button>
+                          )}
+                        </PopoverTrigger>
+                        <PopoverContent className={cn("w-48", ['assignee', 'priority', 'status', 'type'].includes(column.id) ? "p-0" : "p-2")} align="start">
+                          {column.id === 'assignee' ? (
+                            <div className="flex flex-col max-h-60">
+                              <div className="flex items-center justify-between p-2 border-b border-border bg-muted/20">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <Checkbox
+                                    checked={projectTeam?.members?.length > 0 && taskFilters.assignees?.length === projectTeam?.members?.length}
+                                    onCheckedChange={(checked) => {
+                                      setTaskFilters((prev: any) => ({
+                                        ...prev,
+                                        assignees: checked && projectTeam ? projectTeam.members.map((m: any) => m.id) : []
+                                      }));
+                                    }}
+                                  />
+                                  <span className="text-xs font-medium">Select All</span>
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => setTaskFilters((prev: any) => ({ ...prev, assignees: [] }))}
+                                  className="text-[10px] font-semibold hover:underline underline-offset-2"
+                                >
+                                  Clear
+                                </button>
+                              </div>
+                              <div className="overflow-y-auto custom-scrollbar p-1 space-y-0.5">
+                                {projectTeam?.members?.map((member: any) => (
+                                  <label key={member.id} className="flex items-center gap-2 p-1.5 hover:bg-muted/50 rounded-md cursor-pointer">
+                                    <Checkbox
+                                      checked={(taskFilters.assignees || []).includes(member.id)}
+                                      onCheckedChange={(checked) => {
+                                        setTaskFilters((prev: any) => {
+                                          const current = prev.assignees || [];
+                                          const updated = checked
+                                            ? [...current, member.id]
+                                            : current.filter((id: string) => id !== member.id);
+                                          return { ...prev, assignees: updated };
+                                        });
+                                      }}
+                                    />
+                                    <span className="text-xs truncate">{member.name}</span>
+                                  </label>
+                                ))}
+                              </div>
+                              <div className="p-1 border-t border-border bg-muted/10">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="w-full justify-between text-xs text-muted-foreground hover:text-foreground h-7"
+                                  onClick={() => startEditingColumn(column.id)}
+                                >
+                                  Edit Column Name
+                                  <Pencil className="size-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          ) : column.id === 'priority' ? (
+                            <div className="flex flex-col max-h-60">
+                              <div className="flex items-center justify-between p-2 border-b border-border bg-muted/20">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <Checkbox
+                                    checked={taskFilters.priorities?.length === 4}
+                                    onCheckedChange={(checked) => {
+                                      setTaskFilters((prev: any) => ({
+                                        ...prev,
+                                        priorities: checked ? ['critical', 'high', 'medium', 'low'] : []
+                                      }));
+                                    }}
+                                  />
+                                  <span className="text-xs font-medium">Select All</span>
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => setTaskFilters((prev: any) => ({ ...prev, priorities: [] }))}
+                                  className="text-[10px] font-semibold hover:underline underline-offset-2"
+                                >
+                                  Clear
+                                </button>
+                              </div>
+                              <div className="overflow-y-auto custom-scrollbar p-1 space-y-0.5">
+                                {(['critical', 'high', 'medium', 'low'] as const).map((priority) => (
+                                  <label key={priority} className="flex items-center gap-2 p-1.5 hover:bg-muted/50 rounded-md cursor-pointer">
+                                    <Checkbox
+                                      checked={(taskFilters.priorities || []).includes(priority)}
+                                      onCheckedChange={(checked) => {
+                                        setTaskFilters((prev: any) => {
+                                          const current = prev.priorities || [];
+                                          const updated = checked
+                                            ? [...current, priority]
+                                            : current.filter((p: string) => p !== priority);
+                                          return { ...prev, priorities: updated };
+                                        });
+                                      }}
+                                    />
+                                    <span className={cn("text-xs capitalize", priorityConfig[priority].color)}>{priorityConfig[priority].label}</span>
+                                  </label>
+                                ))}
+                              </div>
+                              <div className="p-1 border-t border-border bg-muted/10">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="w-full justify-between text-xs text-muted-foreground hover:text-foreground h-7"
+                                  onClick={() => startEditingColumn(column.id)}
+                                >
+                                  Edit Column Name
+                                  <Pencil className="size-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          ) : column.id === 'status' ? (
+                            (() => {
+                              const projectStatuses = projectId ? workflowStatuses.filter((s: any) => s.projectId === projectId) : workflowStatuses;
+                              return (
+                                <div className="flex flex-col max-h-60">
+                                  <div className="flex items-center justify-between p-2 border-b border-border bg-muted/20">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                      <Checkbox
+                                        checked={projectStatuses.length > 0 && taskFilters.statuses?.length === projectStatuses.length}
+                                        onCheckedChange={(checked) => {
+                                          setTaskFilters((prev: any) => ({
+                                            ...prev,
+                                            statuses: checked ? projectStatuses.map((s: any) => s.id) : []
+                                          }));
+                                        }}
+                                      />
+                                      <span className="text-xs font-medium">Select All</span>
+                                    </label>
+                                    <button
+                                      type="button"
+                                      onClick={() => setTaskFilters((prev: any) => ({ ...prev, statuses: [] }))}
+                                      className="text-[10px] font-semibold hover:underline underline-offset-2"
+                                    >
+                                      Clear
+                                    </button>
+                                  </div>
+                                  <div className="overflow-y-auto custom-scrollbar p-1 space-y-0.5">
+                                    {projectStatuses.map((status: any) => (
+                                      <label key={status.id} className="flex items-center gap-2 p-1.5 hover:bg-muted/50 rounded-md cursor-pointer">
+                                        <Checkbox
+                                          checked={(taskFilters.statuses || []).includes(status.id)}
+                                          onCheckedChange={(checked) => {
+                                            setTaskFilters((prev: any) => {
+                                              const current = prev.statuses || [];
+                                              const updated = checked
+                                                ? [...current, status.id]
+                                                : current.filter((id: string) => id !== status.id);
+                                              return { ...prev, statuses: updated };
+                                            });
+                                          }}
+                                        />
+                                        <span
+                                          className="inline-block size-2 rounded-full shrink-0"
+                                          style={{ backgroundColor: status.color || '#6B7280' }}
+                                        />
+                                        <span className="text-xs capitalize truncate">{status.name}</span>
+                                      </label>
+                                    ))}
+                                  </div>
+                                  <div className="p-1 border-t border-border bg-muted/10">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="w-full justify-between text-xs text-muted-foreground hover:text-foreground h-7"
+                                      onClick={() => startEditingColumn(column.id)}
+                                    >
+                                      Edit Column Name
+                                      <Pencil className="size-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              );
+                            })()
+                          ) : column.id === 'type' ? (
+                            <div className="flex flex-col max-h-60">
+                              <div className="flex items-center justify-between p-2 border-b border-border bg-muted/20">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <Checkbox
+                                    checked={taskFilters.types?.length === 5}
+                                    onCheckedChange={(checked) => {
+                                      setTaskFilters((prev: any) => ({
+                                        ...prev,
+                                        types: checked ? ['epic', 'story', 'task', 'subtask', 'bug'] : []
+                                      }));
+                                    }}
+                                  />
+                                  <span className="text-xs font-medium">Select All</span>
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => setTaskFilters((prev: any) => ({ ...prev, types: [] }))}
+                                  className="text-[10px] font-semibold hover:underline underline-offset-2"
+                                >
+                                  Clear
+                                </button>
+                              </div>
+                              <div className="overflow-y-auto custom-scrollbar p-1 space-y-0.5">
+                                {(['epic', 'story', 'task', 'subtask', 'bug'] as const).map((taskType) => (
+                                  <label key={taskType} className="flex items-center gap-2 p-1.5 hover:bg-muted/50 rounded-md cursor-pointer">
+                                    <Checkbox
+                                      checked={(taskFilters.types || []).includes(taskType)}
+                                      onCheckedChange={(checked) => {
+                                        setTaskFilters((prev: any) => {
+                                          const current = prev.types || [];
+                                          const updated = checked
+                                            ? [...current, taskType]
+                                            : current.filter((t: string) => t !== taskType);
+                                          return { ...prev, types: updated };
+                                        });
+                                      }}
+                                    />
+                                    <span className={cn("flex items-center gap-1.5 text-xs capitalize", typeConfig[taskType]?.color)}>
+                                      {typeConfig[taskType]?.icon}
+                                      {taskType}
+                                    </span>
+                                  </label>
+                                ))}
+                              </div>
+                              <div className="p-1 border-t border-border bg-muted/10">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="w-full justify-between text-xs text-muted-foreground hover:text-foreground h-7"
+                                  onClick={() => startEditingColumn(column.id)}
+                                >
+                                  Edit Column Name
+                                  <Pencil className="size-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <p className="text-xs font-medium text-muted-foreground">Column Options</p>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="w-full justify-start text-xs"
+                                onClick={() => startEditingColumn(column.id)}
+                              >
+                                <Pencil className="size-3 mr-2" />
+                                Rename Column
+                              </Button>
+                            </div>
+                          )}
                         </PopoverContent>
                       </Popover>
                     </div>
@@ -719,6 +924,11 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                             </SelectContent>
                           </Select>
                         </TableCell>
+                      );
+                    }
+                    if (column.id === 'milestone') {
+                      return (
+                        <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60" />
                       );
                     }
                     if (column.id === 'key') {
@@ -824,6 +1034,25 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                     <Plus className="size-3" />
                                   </Button>
                                 </div>
+                              </TableCell>
+                            );
+                          case 'milestone':
+                            return (
+                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  title={task.isMilestone ? 'Remove milestone' : 'Mark as milestone'}
+                                  onClick={() => updateTask(task.id, { isMilestone: !task.isMilestone })}
+                                  className="flex items-center justify-center w-full h-full p-1 hover:scale-110 transition-transform focus:outline-none"
+                                >
+                                  <Star
+                                    className={cn(
+                                      'size-4 transition-colors',
+                                      task.isMilestone
+                                        ? 'fill-yellow-400 text-yellow-400'
+                                        : 'text-muted-foreground/30 hover:text-yellow-400'
+                                    )}
+                                  />
+                                </button>
                               </TableCell>
                             );
                           case 'key':
@@ -1487,8 +1716,12 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                             isSubtaskSelected && 'bg-primary/5'
                           )}
                         >
-                          <TableCell className="border-r-2 border-border/60 px-0 text-center align-middle" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center justify-center w-full">
+                          <TableCell className="border-r-2 border-border/60 px-0 text-center align-middle relative" onClick={(e) => e.stopPropagation()}>
+                            {/* Tree connector vertical line */}
+                            <div className="absolute top-0 bottom-0 left-[18px] w-px bg-border/80" />
+                            {/* Tree connector horizontal line */}
+                            <div className="absolute top-1/2 left-[18px] w-3 h-px bg-border/80" />
+                            <div className="flex items-center justify-center w-full pl-8">
                               <Checkbox
                                 checked={isSubtaskSelected}
                                 onCheckedChange={() => toggleTask(subtask.id)}
@@ -1501,10 +1734,29 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                               case 'type':
                                 return (
                                   <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
-                                    <div className="flex items-center justify-center gap-1">
-                                      <CornerDownRight className="size-3 text-muted-foreground" />
+                                    <div className="flex items-center justify-center gap-1 pl-4">
+                                      <CornerDownRight className="size-3.5 text-muted-foreground/60" />
                                       <span className={subtaskType.color}>{subtaskType.icon}</span>
                                     </div>
+                                  </TableCell>
+                                );
+                              case 'milestone':
+                                return (
+                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
+                                    <button
+                                      title={subtask.isMilestone ? 'Remove milestone' : 'Mark as milestone'}
+                                      onClick={() => updateTask(subtask.id, { isMilestone: !subtask.isMilestone })}
+                                      className="flex items-center justify-center w-full h-full p-1 hover:scale-110 transition-transform focus:outline-none"
+                                    >
+                                      <Star
+                                        className={cn(
+                                          'size-4 transition-colors',
+                                          subtask.isMilestone
+                                            ? 'fill-yellow-400 text-yellow-400'
+                                            : 'text-muted-foreground/30 hover:text-yellow-400'
+                                        )}
+                                      />
+                                    </button>
                                   </TableCell>
                                 );
                               case 'key':
@@ -1525,7 +1777,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                 );
                               case 'title':
                                 return (
-                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-left align-middle pl-2" onClick={(e) => e.stopPropagation()}>
+                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-left align-middle pl-6" onClick={(e) => e.stopPropagation()}>
                                     {editingField?.taskId === subtask.id && editingField?.field === 'title' ? (
                                       <div className="flex items-center gap-1 w-full pl-2">
                                         <Input
@@ -2143,6 +2395,11 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                   <span className="text-blue-400">{typeConfig.subtask.icon}</span>
                                 </div>
                               </TableCell>
+                            );
+                          }
+                          if (column.id === 'milestone') {
+                            return (
+                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60" />
                             );
                           }
                           if (column.id === 'key') {

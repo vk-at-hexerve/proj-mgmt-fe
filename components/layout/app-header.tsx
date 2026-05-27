@@ -12,9 +12,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Bell, Plus, Search, MessageSquare, HelpCircle, LogOut, User as UserIcon, Settings } from 'lucide-react';
+import { Bell, Plus, Search, MessageSquare, HelpCircle, LogOut, User as UserIcon, Settings, ChevronDown } from 'lucide-react';
 import { UserAvatar } from '@/components/ui/user-avatar';
-// import { aiInsights } from '@/lib/mock-data';
 const aiInsights: any[] = []; // Placeholder or derived from tasks
 
 interface AppHeaderProps {
@@ -25,7 +24,20 @@ interface AppHeaderProps {
 
 export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
   const router = useRouter();
-  const { setSearchOpen, openModal, showToast, currentUser, logoutAction, isAuthenticated, tasks, isMounted, isTaskDone } = useApp();
+  const {
+    setSearchOpen,
+    openModal,
+    showToast,
+    currentUser,
+    logoutAction,
+    isAuthenticated,
+    tasks,
+    isMounted,
+    isTaskDone,
+    projects,
+    currentProject,
+    setCurrentProject
+  } = useApp();
 
   if (!isMounted) {
     return (
@@ -66,13 +78,55 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
   const criticalInsightsCount = liveInsights.filter((i) => i.severity === 'critical').length;
   const warningInsightsCount = liveInsights.filter((i) => i.severity === 'warning').length;
 
+  const activeProj = projects.find(p => p.id === currentProject || p.name === title);
+  const isProjectPage = activeProj && (title === activeProj.name || title === `Project - ${activeProj.name}`);
+
   return (
     <header className="h-16 border-b border-border bg-card px-6 flex items-center justify-between">
       <div className="flex items-center gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">{title}</h1>
-          {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
-        </div>
+        {isProjectPage ? (
+          <div className="flex flex-col">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-1.5 text-xl font-semibold text-foreground hover:opacity-80 transition-opacity focus:outline-none text-left">
+                  <span>Project - {activeProj.name}</span>
+                  <ChevronDown className="size-4 text-muted-foreground mt-1" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-64 z-50">
+                {projects.map((project) => (
+                  <DropdownMenuItem
+                    key={project.id}
+                    className="gap-2"
+                    onClick={() => {
+                      setCurrentProject(project.id);
+                      router.push("/projects");
+                    }}
+                  >
+                    <Badge variant="outline" className="font-mono text-xs">
+                      {project.key}
+                    </Badge>
+                    {project.name}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="gap-2"
+                  onClick={() => openModal("create-project")}
+                >
+                  <Plus className="size-4" />
+                  Create new project
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
+          </div>
+        ) : (
+          <div>
+            <h1 className="text-xl font-semibold text-foreground">{title}</h1>
+            {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-2">

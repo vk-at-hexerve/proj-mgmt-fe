@@ -44,6 +44,7 @@ import {
   Columns,
   Settings2,
   UserCheck,
+  Star,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { users, tags as availableTags } from '@/lib/mock-data';
@@ -70,6 +71,7 @@ interface WBSRow {
   isParent: boolean;
   isCritical: boolean;
   isEditing: boolean;
+  parentId?: string;
   // Extended columns
   taskType: 'milestone' | 'task' | 'summary';
   work: number; // hours
@@ -181,7 +183,7 @@ export function ProjectGridView({ projectId, projectKey = 'PRJ' }: ProjectGridVi
     showToast, 
     currentUser, 
     users, 
-    tasks: allTasks, 
+    getFilteredTasks,
     addTask: addTaskContext, 
     updateTask: updateTaskContext, 
     deleteTask: deleteTaskContext,
@@ -194,8 +196,7 @@ export function ProjectGridView({ projectId, projectKey = 'PRJ' }: ProjectGridVi
 
   const project = projects.find(p => p.id === projectId);
 
-  // Map Task to WBSRow
-  const mapTaskToWBSRow = useCallback((task: Task, index: number, projectKey: string): WBSRow => {
+  const mapTaskToWBSRow = useCallback((task: Task, index: number, projectKey: string, isParent: boolean, indent: number): WBSRow => {
       const group = getStatusGroup(task.statusId);
       const progress = group ? GROUP_PROGRESS_MAP[group] : 0;
 
@@ -213,12 +214,13 @@ export function ProjectGridView({ projectId, projectKey = 'PRJ' }: ProjectGridVi
       statusId: task.statusId,
       progress,
       notes: task.description || '',
-      indent: 0,
+      indent,
       expanded: true,
-      isParent: false,
+      isParent,
       isCritical: false,
       isEditing: false,
-      taskType: task.type === 'epic' ? 'summary' : 'task',
+      parentId: task.parentId,
+      taskType: task.type === 'epic' ? 'summary' : (task.isMilestone ? 'milestone' : 'task'),
       work: 8,
       actualWork: 0,
       remainingWork: 8,
@@ -235,7 +237,7 @@ export function ProjectGridView({ projectId, projectKey = 'PRJ' }: ProjectGridVi
       outlineLevel: 1,
       resourceNames: task.assignee?.name || '',
       percentWorkComplete: progress,
-      milestoneFlag: false,
+      milestoneFlag: task.isMilestone || false,
       summaryFlag: task.type === 'epic',
       tags: (task.tags || []).map(t => t.name),
       riskLevel: task.priority === 'critical' ? 'critical' : task.priority === 'high' ? 'high' : 'low',
@@ -251,14 +253,52 @@ export function ProjectGridView({ projectId, projectKey = 'PRJ' }: ProjectGridVi
   }, []);
 
   const projectTasks = useMemo(() => {
-    return allTasks.filter(t => t.projectId === projectId);
-  }, [allTasks, projectId]);
+    const tasks = projectId ? getFilteredTasks(projectId) : [];
+    
+    // Hierarchical sort: roots first, then their subtasks
+    const roots: Task[] = [];
+    const parentMap = new Map<string, Task[]>();
+    const taskIds = new Set(tasks.map(t => t.id));
+    
+    tasks.forEach(t => {
+      // A task is a subtask if its parentId is present in the filtered results
+      if (t.parentId && taskIds.has(t.parentId)) {
+        if (!parentMap.has(t.parentId)) parentMap.set(t.parentId, []);
+        parentMap.get(t.parentId)!.push(t);
+      } else {
+        roots.push(t);
+      }
+    });
+    
+    const sorted: Task[] = [];
+    roots.forEach(root => {
+      sorted.push(root);
+      if (parentMap.has(root.id)) {
+        sorted.push(...parentMap.get(root.id)!);
+      }
+    });
+
+    return sorted;
+  }, [getFilteredTasks, projectId]);
 
   const [rows, setRows] = useState<WBSRow[]>([]);
 
   // Update rows when tasks change
   useEffect(() => {
-    const mappedRows = projectTasks.map((t: Task, i: number) => mapTaskToWBSRow(t, i, projectKey));
+    const parentMap = new Map<string, boolean>();
+    projectTasks.forEach(t => {
+      if (t.parentId) {
+        parentMap.set(t.parentId, true);
+      }
+    });
+    const taskIds = new Set(projectTasks.map(t => t.id));
+
+    const mappedRows = projectTasks.map((t: Task, i: number) => {
+      const isParent = !!parentMap.get(t.id);
+      // It's a subtask visually only if its parent is present in the current view
+      const indent = t.parentId && taskIds.has(t.parentId) ? 1 : 0;
+      return mapTaskToWBSRow(t, i, projectKey, isParent, indent);
+    });
     setRows(mappedRows);
   }, [projectTasks, projectKey, mapTaskToWBSRow]);
 
@@ -335,36 +375,36 @@ export function ProjectGridView({ projectId, projectKey = 'PRJ' }: ProjectGridVi
   // Get visible rows
   const visibleRows = useMemo(() => {
     const result: WBSRow[] = [];
-    const collapsedParents = new Set<string>();
+    const hiddenParents = new Set<string>();
 
     rows.forEach(row => {
-      const wbsParts = row.wbs.replace(`${projectKey}-`, '').split('.');
       let isHidden = false;
       
-      for (let i = 1; i < wbsParts.length; i++) {
-        const parentWBS = `${projectKey}-${wbsParts.slice(0, i).join('.')}`;
-        if (collapsedParents.has(parentWBS)) {
-          isHidden = true;
-          break;
-        }
+      // If parent is hidden, or if parent is collapsed, we hide this row
+      if (row.parentId && hiddenParents.has(row.parentId)) {
+        isHidden = true;
       }
 
       if (!isHidden) {
         result.push(row);
-        if (row.isParent && !row.expanded) {
-          collapsedParents.add(row.wbs);
-        }
+      }
+      
+      // A row is considered a 'hidden parent' for its children if:
+      // 1. It is hidden itself OR
+      // 2. It is collapsed
+      if (isHidden || (row.isParent && !row.expanded)) {
+        hiddenParents.add(row.id);
       }
     });
 
     return result;
-  }, [rows, projectKey]);
+  }, [rows]);
 
   const visibleColumns = columns.filter(c => c.visible);
 
-  const toggleRowExpand = (wbs: string) => {
+  const toggleRowExpand = (id: string) => {
     setRows(prev => prev.map(row => 
-      row.wbs === wbs ? { ...row, expanded: !row.expanded } : row
+      row.id === id ? { ...row, expanded: !row.expanded } : row
     ));
   };
 
@@ -757,11 +797,16 @@ export function ProjectGridView({ projectId, projectKey = 'PRJ' }: ProjectGridVi
                         className={cn("py-1 border-r flex items-center gap-1 shrink-0", col.frozen && "bg-card")}
                       >
                         {row.isParent && (
-                          <button onClick={() => toggleRowExpand(row.wbs)} className="p-0.5 hover:bg-muted rounded">
+                          <button onClick={() => toggleRowExpand(row.id)} className="p-0.5 hover:bg-muted rounded">
                             {row.expanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
                           </button>
                         )}
-                        <span className={cn("text-xs truncate", row.isParent && "font-medium")}>{row.taskName}</span>
+                        <span className={cn("text-xs truncate flex items-center gap-1", row.isParent && "font-medium")}>
+                          {row.milestoneFlag && (
+                            <Star className="size-3.5 fill-yellow-400 text-yellow-400 shrink-0" />
+                          )}
+                          {row.taskName}
+                        </span>
                       </div>
                     );
                   }

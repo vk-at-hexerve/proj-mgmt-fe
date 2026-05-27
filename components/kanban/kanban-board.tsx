@@ -51,6 +51,7 @@ import {
   Workflow,
   PlusCircle,
   Settings,
+  Star,
 } from 'lucide-react';
 import { useApp } from '@/lib/app-context';
 import type { Task, TaskPriority, WorkflowStatus, WorkflowGroupKey } from '@/lib/types';
@@ -138,8 +139,9 @@ interface KanbanCardProps {
 }
 
 function KanbanCard({ task, onDragStart, onEdit, onAssign, onDelete, onViewDetail }: KanbanCardProps) {
-  const { getStatusGroup } = useApp();
+  const { getStatusGroup, tasks } = useApp();
   const group = getStatusGroup(task.statusId);
+  const parentTask = task.parentId ? tasks.find(t => t.id === task.parentId) : null;
   const progressPct = group ? GROUP_PROGRESS_MAP[group] : 0;
   const isDone = group === 'CLOSED';
 
@@ -154,11 +156,19 @@ function KanbanCard({ task, onDragStart, onEdit, onAssign, onDelete, onViewDetai
       onClick={onViewDetail}
     >
       <CardContent className="p-3 pt-3 space-y-2.5">
-        {/* Top row: type icon + key + menu */}
+        {/* Top row: type icon + key + milestone + menu */}
         <div className="flex items-center justify-between gap-1.5">
-          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1 flex-wrap">
             {typeIcons[task.type]}
             <span className="text-xs font-mono leading-none text-muted-foreground">{task.key}</span>
+            {parentTask && (
+              <Badge variant="outline" className="text-[10px] h-4 px-1 py-0 leading-none bg-muted/30 text-muted-foreground border-dashed">
+                <span className="opacity-70 mr-0.5">Parent:</span> {parentTask.key}
+              </Badge>
+            )}
+            {task.isMilestone && (
+              <Star className="size-3.5 fill-yellow-400 text-yellow-400 shrink-0" />
+            )}
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
@@ -465,6 +475,7 @@ export function KanbanBoard({
     getProjectStatuses,
     addWorkflowStatus,
     updateWorkflowStatus,
+    getFilteredTasks,
   } = useApp();
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   
@@ -513,7 +524,7 @@ export function KanbanBoard({
   }, [columns]);
 
   const filteredTasks = projectId
-    ? tasks.filter((t) => t.projectId === projectId)
+    ? getFilteredTasks(projectId)
     : tasks;
 
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
