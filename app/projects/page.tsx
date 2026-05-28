@@ -68,6 +68,7 @@ import {
   MoveRight,
   Maximize2,
   Minimize2,
+  Save,
 } from 'lucide-react';
 import { getStatusName } from '@/lib/status-utils';
 // import { sprints as initialSprints, generateCalendarEvents, users } from '@/lib/mock-data';
@@ -89,7 +90,10 @@ const viewOptions: { id: ViewType; label: string; icon: React.ReactNode }[] = [
 ];
 
 export default function ProjectsPage() {
-  const { projects, tasks: allTasks, showToast, teams, currentProject: currentProjectId, sprints: contextSprints, users, addSprint, updateSprint, openModal, workflowStatuses, updateTask, getFilteredTasks } = useApp();
+  const {
+    projects, tasks: allTasks, showToast, teams, currentProject: currentProjectId, sprints: contextSprints, users, addSprint, updateSprint, openModal, workflowStatuses, updateTask, getFilteredTasks,
+    taskFilters, taskSort, customFilters, activeCustomFilterId, addCustomFilter, applyCustomFilter
+  } = useApp();
   const [currentView, setCurrentView] = useState<ViewType>('kanban');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [teamOpen, setTeamOpen] = useState(false);
@@ -97,7 +101,10 @@ export default function ProjectsPage() {
   const [newSprint, setNewSprint] = useState({ name: '', goal: '', startDate: '', endDate: '' });
   const [selectedBacklogTasks, setSelectedBacklogTasks] = useState<string[]>([]);
   const [dateError, setDateError] = useState('');
-  
+  const [customFilterName, setCustomFilterName] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveFilterPopoverOpen, setSaveFilterPopoverOpen] = useState(false);
+
   // Confirmation state for moving tasks between sprints/backlog
   const [confirmMoveDialogOpen, setConfirmMoveDialogOpen] = useState(false);
   const [pendingMove, setPendingMove] = useState<{ taskId: string; sprintId: string | null } | null>(null);
@@ -189,6 +196,28 @@ export default function ProjectsPage() {
     updateSprint(sprintId, { status: 'completed' });
     showToast({ title: 'Sprint completed', type: 'success' });
   };
+
+  const handleSaveCustomFilter = async () => {
+    if (!customFilterName.trim() || !currentProject) return;
+    setIsSaving(true);
+    await addCustomFilter(currentProject.id, customFilterName.trim(), taskFilters, taskSort);
+    setCustomFilterName('');
+    setIsSaving(false);
+    setSaveFilterPopoverOpen(false);
+  };
+
+
+
+  const activeFiltersCount =
+    (taskFilters.assignees?.length || 0) +
+    (taskFilters.priorities?.length || 0) +
+    (taskFilters.types?.length || 0) +
+    (taskFilters.statuses?.length || 0) +
+    (taskFilters.isMilestone !== undefined && taskFilters.isMilestone !== null ? 1 : 0) +
+    (taskFilters.startDateAfter ? 1 : 0) +
+    (taskFilters.endDateBefore ? 1 : 0);
+
+  const hasActiveFilters = activeFiltersCount > 0 || taskSort.field !== 'title' || taskSort.direction !== 'asc';
 
   if (!currentProject) {
     return (
@@ -371,6 +400,50 @@ export default function ProjectsPage() {
               <Settings className="size-4" />
               Settings
             </Button>
+
+            {/* Save Filter Controls */}
+            {hasActiveFilters && !activeCustomFilterId && (
+              <Popover open={saveFilterPopoverOpen} onOpenChange={setSaveFilterPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-3 gap-1.5 bg-transparent text-sm font-medium rounded-md border-border text-primary hover:text-primary hover:bg-primary/10"
+                  >
+                    <Save className="size-4" />
+                    Save Filter
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-72 p-3" align="start">
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-sm">Save Custom Filter</h4>
+                    <div className="flex gap-2 items-center">
+                      <Input
+                        placeholder="Filter name..."
+                        value={customFilterName}
+                        onChange={(e) => setCustomFilterName(e.target.value)}
+                        className="h-8 text-xs"
+                      />
+                      <Button size="sm" className="h-8 shrink-0 text-xs" onClick={handleSaveCustomFilter} disabled={!customFilterName.trim() || isSaving}>
+                        Save
+                      </Button>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
+
+            {activeCustomFilterId && (
+              <div className="flex items-center gap-2 px-2 py-1 bg-muted/50 rounded-md border border-border/50 h-8 shrink-0">
+                <div className="flex items-center gap-1.5 min-w-0 max-w-[150px]">
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider shrink-0">Active</span>
+                  <span className="text-xs font-medium truncate">{customFilters.find(f => f.id === activeCustomFilterId)?.name}</span>
+                </div>
+                <Button size="sm" variant="ghost" className="h-6 px-2 text-xs hover:bg-background shrink-0 text-muted-foreground hover:text-foreground" onClick={() => applyCustomFilter(null)}>
+                  Clear Filter
+                </Button>
+              </div>
+            )}
 
             {/* Board Specific Controls: Full Screen */}
             {currentView === 'kanban' && (

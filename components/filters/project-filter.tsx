@@ -34,13 +34,10 @@ export function ProjectFilter({ projectId }: ProjectFilterProps) {
   const {
     taskFilters, setTaskFilters,
     taskSort, setTaskSort,
-    workflowStatuses, teams, tasks, showToast,
-    customFilters, activeCustomFilterId, addCustomFilter, updateCustomFilter
+    workflowStatuses, teams, tasks, showToast
   } = useApp();
 
   const [open, setOpen] = React.useState(false);
-  const [customFilterName, setCustomFilterName] = React.useState('');
-  const [isSaving, setIsSaving] = React.useState(false);
   const [assigneeSearch, setAssigneeSearch] = React.useState('');
 
   // Compute active filters count
@@ -74,21 +71,6 @@ export function ProjectFilter({ projectId }: ProjectFilterProps) {
   const handleApply = () => {
     setOpen(false);
     showToast({ title: 'Filters applied', description: `${activeFiltersCount} filter(s) active`, type: 'success' });
-  };
-
-  const handleSaveCustomFilter = async () => {
-    if (!customFilterName.trim()) return;
-    setIsSaving(true);
-    await addCustomFilter(projectId, customFilterName.trim(), taskFilters, taskSort);
-    setCustomFilterName('');
-    setIsSaving(false);
-  };
-
-  const handleUpdateCustomFilter = async () => {
-    if (!activeCustomFilterId) return;
-    setIsSaving(true);
-    await updateCustomFilter(activeCustomFilterId, { filters: taskFilters, sort: taskSort });
-    setIsSaving(false);
   };
 
   // Extract available data for this project
@@ -330,30 +312,6 @@ export function ProjectFilter({ projectId }: ProjectFilterProps) {
         </ScrollArea>
 
         <div className="p-4 border-t border-border bg-card space-y-3">
-          {(activeFiltersCount > 0 || taskSort.field !== 'title' || taskSort.direction !== 'asc') && !activeCustomFilterId && (
-            <div className="flex gap-2 items-center">
-              <Input
-                placeholder="Filter name..."
-                value={customFilterName}
-                onChange={(e) => setCustomFilterName(e.target.value)}
-                className="h-8 text-xs"
-              />
-              <Button size="sm" variant="secondary" className="h-8 shrink-0 text-xs" onClick={handleSaveCustomFilter} disabled={!customFilterName.trim() || isSaving}>
-                Save as Custom Filter
-              </Button>
-            </div>
-          )}
-          {activeCustomFilterId && (
-            <div className="flex items-center justify-between gap-2 px-2 py-1.5 bg-muted/50 rounded-md border border-border/50">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Active</span>
-                <span className="text-xs font-medium truncate">{customFilters.find(f => f.id === activeCustomFilterId)?.name}</span>
-              </div>
-              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs hover:bg-background shrink-0" onClick={handleUpdateCustomFilter} disabled={isSaving}>
-                Update
-              </Button>
-            </div>
-          )}
           <Button className="w-full" size="sm" onClick={handleApply}>
             Apply Filters
           </Button>
