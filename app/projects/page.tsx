@@ -9,6 +9,7 @@ import { TaskListView } from '@/components/tasks/task-list-view';
 import { GanttChart } from '@/components/gantt/gantt-chart';
 import { ProjectGridView } from '@/components/project-grid/project-grid-view';
 import { ProjectCalendarView } from '@/components/calendar/project-calendar-view';
+import { AllProjectsView } from '@/components/projects/all-projects-view';
 import { AICopilot } from '@/components/ai/ai-copilot';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -110,7 +111,7 @@ export default function ProjectsPage() {
   const [pendingMove, setPendingMove] = useState<{ taskId: string; sprintId: string | null } | null>(null);
 
 
-  const currentProject = projects.find(p => p.id === currentProjectId) || projects[0];
+  const currentProject = currentProjectId === null ? null : (projects.find(p => p.id === currentProjectId) || projects[0]);
   const sprints = contextSprints.filter(s => s.projectId === currentProject?.id);
   const activeSprint = sprints.find((s) => s.status === 'active');
   const projectTeam = teams.find(t => t.projects.some(p => p.id === currentProject?.id)) || teams[0];
@@ -118,6 +119,7 @@ export default function ProjectsPage() {
   const backlogTasks = currentProject ? getFilteredTasks(currentProject.id).filter(t => !t.sprintId) : [];
 
   const handleCreateSprint = () => {
+    if (!currentProject) return;
     if (!newSprint.name.trim() || !newSprint.startDate || !newSprint.endDate) return;
 
     const today = new Date();
@@ -221,8 +223,15 @@ export default function ProjectsPage() {
 
   if (!currentProject) {
     return (
-      <div className="flex h-screen bg-background items-center justify-center">
-        <p className="text-muted-foreground">No projects available</p>
+      <div className="flex h-screen bg-background">
+        <AppSidebar />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <AppHeader
+            title="Workspace Overview"
+            subtitle="All Projects"
+          />
+          <AllProjectsView />
+        </div>
       </div>
     );
   }
