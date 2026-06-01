@@ -158,8 +158,9 @@ export function AppSidebar() {
     (task: Task) => task.assignee?.id === currentUser?.id,
   ).length;
 
-  const activeProj = projects.find((p: Project) => p.id === currentProject) ||
-    projects[0] || { name: "No Projects" };
+  const activeProj = currentProject
+    ? projects.find((p: Project) => p.id === currentProject) || { name: "Unknown Project", key: "UNK" }
+    : { name: "All Projects", key: "ALL" };
 
   if (!isMounted || !currentUser) return null;
 
@@ -335,6 +336,22 @@ export function AppSidebar() {
                     showAllProjects && "max-h-60 overflow-y-auto custom-scrollbar"
                   )}
                 >
+                  <button
+                    onClick={() => {
+                      setCurrentProject(null);
+                      router.push("/projects");
+                    }}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all text-left group",
+                      !currentProject && pathname === "/projects"
+                        ? "bg-[#6366F1] text-white shadow-md"
+                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 hover:shadow-sm"
+                    )}
+                  >
+                    <Layers className={cn("size-4", !currentProject && pathname === "/projects" ? "text-white" : "text-slate-400 group-hover:text-slate-600")} />
+                    <span className="truncate tracking-tight font-semibold">View All Projects</span>
+                  </button>
+                  <div className="h-px bg-slate-100 my-1 mx-2" />
                   {(showAllProjects ? projects : projects.slice(0, 3)).map((project: Project) => (<button
                     key={project.id}
                     onClick={() => {
