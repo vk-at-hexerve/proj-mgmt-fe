@@ -437,3 +437,21 @@ export interface Team {
   velocity: number;
   capacity: number;
 }
+
+// Email Notification Preferences
+export interface NotificationPreference {
+  eventType: string;
+  emailEnabled: boolean;
+  label: string;
+  description: string;
+  category: string;
+}
+
+export interface NotificationPreferencesResponse {
+  preferences: NotificationPreference[];
+}
+
+export interface NotificationPreferenceUpdateItem {
+  event_type: string;
+  email_enabled: boolean;
+}

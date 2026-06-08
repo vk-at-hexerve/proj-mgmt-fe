@@ -357,3 +357,32 @@ export function mapBackendCustomFilter(backendFilter: BackendCustomFilter): Cust
     updatedAt: backendFilter.updated_at || new Date().toISOString(),
   };
 }
+
+// ── Notification Preference API helpers ───────────────────────────
+
+export async function getNotificationPreferences() {
+  const data = await fetchAPI("/users/me/notification-preferences");
+  return (data.preferences || []).map((p: any) => ({
+    eventType: p.event_type,
+    emailEnabled: p.email_enabled,
+    label: p.label,
+    description: p.description,
+    category: p.category,
+  }));
+}
+
+export async function updateNotificationPreferences(
+  preferences: { event_type: string; email_enabled: boolean }[]
+) {
+  const data = await fetchAPI("/users/me/notification-preferences", {
+    method: "PUT",
+    body: JSON.stringify({ preferences }),
+  });
+  return (data.preferences || []).map((p: any) => ({
+    eventType: p.event_type,
+    emailEnabled: p.email_enabled,
+    label: p.label,
+    description: p.description,
+    category: p.category,
+  }));
+}
