@@ -48,7 +48,8 @@ export interface TaskAttachment {
   id: string;
   taskId: string;
   name: string;
-  url: string;
+  url: string; // Will map to secure_url
+  cloudinaryPublicId?: string;
   type: string;
   size: number;
   uploadedBy: string;
@@ -393,6 +394,7 @@ export interface BackendTask {
   is_milestone?: boolean;
   task_type?: string;
   parent_id?: string;
+  attachments?: any[];
 }
 
 export interface BackendCustomFilter {
