@@ -117,6 +117,17 @@ export function mapBackendTask(backendTask: BackendTask): Task {
     group: backendTask.group_id ? String(backendTask.group_id) : undefined,
     isMilestone: backendTask.is_milestone ?? false,
     parentId: backendTask.parent_id ? String(backendTask.parent_id) : undefined,
+    attachments: (backendTask.attachments || []).map((a: any) => ({
+      id: String(a.id),
+      taskId: String(a.task_id),
+      name: a.file_name,
+      url: a.secure_url,
+      cloudinaryPublicId: a.cloudinary_public_id,
+      type: a.mime_type,
+      size: a.file_size,
+      uploadedBy: String(a.uploaded_by_id),
+      uploadedAt: a.created_at || new Date().toISOString(),
+    })),
   };
 }
 
@@ -356,4 +367,78 @@ export function mapBackendCustomFilter(backendFilter: BackendCustomFilter): Cust
     createdAt: backendFilter.created_at || new Date().toISOString(),
     updatedAt: backendFilter.updated_at || new Date().toISOString(),
   };
+}
+
+// ── Notification Preference API helpers ───────────────────────────
+
+export async function getNotificationPreferences() {
+  const data = await fetchAPI("/users/me/notification-preferences");
+  return (data.preferences || []).map((p: any) => ({
+    eventType: p.event_type,
+    emailEnabled: p.email_enabled,
+    label: p.label,
+    description: p.description,
+    category: p.category,
+  }));
+}
+
+export async function updateNotificationPreferences(
+  preferences: { event_type: string; email_enabled: boolean }[]
+) {
+  const data = await fetchAPI("/users/me/notification-preferences", {
+    method: "PUT",
+    body: JSON.stringify({ preferences }),
+  });
+  return (data.preferences || []).map((p: any) => ({
+    eventType: p.event_type,
+    emailEnabled: p.email_enabled,
+    label: p.label,
+    description: p.description,
+    category: p.category,
+  }));
+}
+
+// ── Attachment API helpers ────────────────────────────────────────────────
+
+export async function uploadTaskAttachment(taskId: string, file: File) {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(`${API_URL}/tasks/${taskId}/attachments`, {
+    method: "POST",
+    headers: {
+      ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+      // Do not set Content-Type, browser will automatically set it with boundary for FormData
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(
+      typeof errorData.detail === "object"
+        ? JSON.stringify(errorData.detail)
+        : errorData.detail || `Upload failed: ${response.status}`
+    );
+  }
+
+  const a = await response.json();
+  return {
+    id: String(a.id),
+    taskId: String(a.task_id),
+    name: a.file_name,
+    url: a.secure_url,
+    cloudinaryPublicId: a.cloudinary_public_id,
+    type: a.mime_type,
+    size: a.file_size,
+    uploadedBy: String(a.uploaded_by_id),
+    uploadedAt: a.created_at || new Date().toISOString(),
+  };
+}
+
+export async function deleteTaskAttachment(taskId: string, attachmentId: string) {
+  return fetchAPI(`/tasks/${taskId}/attachments/${attachmentId}`, {
+    method: "DELETE",
+  });
 }

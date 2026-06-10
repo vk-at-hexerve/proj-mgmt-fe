@@ -152,6 +152,7 @@ import {
   getStatusColor,
   getProjectStatuses,
 } from "@/lib/status-utils";
+import { uploadTaskAttachment, deleteTaskAttachment } from "@/lib/api";
 
 const getTodayDateInputValue = () => {
   const today = new Date();
@@ -919,6 +920,7 @@ function EditTaskModal({
     projects,
     workflowStatuses,
     getStatusGroup,
+    updateTask,
   } = useApp();
   const project = projects.find((p) => p.id === task?.projectId);
   const [title, setTitle] = useState(task?.title || "");
@@ -1025,6 +1027,7 @@ function EditTaskModal({
   const [attachments, setAttachments] = useState<TaskAttachment[]>(
     task?.attachments || [],
   );
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
 
   // Linked tasks state
   const [linkedTasks, setLinkedTasks] = useState<TaskLink[]>(
@@ -1207,28 +1210,44 @@ function EditTaskModal({
   };
 
   // Attachment handlers
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
 
-    Array.from(files).forEach((file) => {
-      const attachment: TaskAttachment = {
-        id: `attachment-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        taskId: task.id,
-        name: file.name,
-        url: URL.createObjectURL(file),
-        type: file.type,
-        size: file.size,
-        uploadedBy: currentUserId,
-        uploadedAt: new Date().toISOString(),
-      };
-      setAttachments((prev) => [...prev, attachment]);
-    });
-    e.target.value = "";
+    setIsUploadingAttachment(true);
+    try {
+      const uploadedAttachments: TaskAttachment[] = [];
+      for (const file of Array.from(files)) {
+        const uploaded = await uploadTaskAttachment(task.id, file);
+        uploadedAttachments.push(uploaded as unknown as TaskAttachment);
+      }
+      setAttachments((prev) => [...prev, ...uploadedAttachments]);
+      
+      // Update global context so it persists
+      updateTask(task.id, {
+        attachments: [...attachments, ...uploadedAttachments]
+      });
+    } catch (error) {
+      console.error("Failed to upload attachments:", error);
+      // You could add a toast notification here
+    } finally {
+      setIsUploadingAttachment(false);
+      e.target.value = "";
+    }
   };
 
-  const handleDeleteAttachment = (attachmentId: string) => {
-    setAttachments(attachments.filter((a) => a.id !== attachmentId));
+  const handleDeleteAttachment = async (attachmentId: string) => {
+    try {
+      await deleteTaskAttachment(task.id, attachmentId);
+      const newAttachments = attachments.filter((a) => a.id !== attachmentId);
+      setAttachments(newAttachments);
+      
+      updateTask(task.id, {
+        attachments: newAttachments
+      });
+    } catch (error) {
+      console.error("Failed to delete attachment:", error);
+    }
   };
 
   const formatFileSize = (bytes: number) => {
@@ -1907,14 +1926,19 @@ function EditTaskModal({
                   className="hidden"
                   multiple
                   onChange={handleFileUpload}
+                  disabled={isUploadingAttachment}
                 />
                 <label
                   htmlFor="file-upload"
-                  className="cursor-pointer flex flex-col items-center gap-2"
+                  className={cn("flex flex-col items-center gap-2", isUploadingAttachment ? "cursor-not-allowed opacity-50" : "cursor-pointer")}
                 >
-                  <Upload className="size-8 text-muted-foreground" />
+                  {isUploadingAttachment ? (
+                    <Loader2 className="size-8 text-muted-foreground animate-spin" />
+                  ) : (
+                    <Upload className="size-8 text-muted-foreground" />
+                  )}
                   <span className="text-sm text-muted-foreground">
-                    Click to upload or drag and drop
+                    {isUploadingAttachment ? "Uploading..." : "Click to upload or drag and drop"}
                   </span>
                   <span className="text-xs text-muted-foreground">
                     PDF, Images, Documents up to 10MB
@@ -2272,6 +2296,30 @@ function TaskDetailModal({
                   >
                     {tag.name}
                   </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {task.attachments && task.attachments.length > 0 && (
+            <div>
+              <Label className="text-muted-foreground">Attachments</Label>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                {task.attachments.map((a: TaskAttachment) => (
+                  <a
+                    key={a.id}
+                    href={a.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-2 p-2 rounded border bg-card hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="size-8 rounded bg-muted flex items-center justify-center shrink-0">
+                      <Paperclip className="size-4 text-muted-foreground" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{a.name}</p>
+                    </div>
+                  </a>
                 ))}
               </div>
             </div>

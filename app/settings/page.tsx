@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import { AppHeader } from '@/components/layout/app-header';
 import { AICopilot } from '@/components/ai/ai-copilot';
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
   DialogContent,
@@ -32,7 +33,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Plus, MoreHorizontal, Pencil, Trash2, GripVertical } from 'lucide-react';
+import { Plus, MoreHorizontal, Pencil, Trash2, GripVertical, Bell, Mail, CheckCircle2, Loader2, MessageSquare, Zap, FolderKanban } from 'lucide-react';
+import { getNotificationPreferences, updateNotificationPreferences } from '@/lib/api';
+import type { NotificationPreference } from '@/lib/types';
 
 // Types for settings items
 interface StatusItem {
@@ -96,6 +99,31 @@ const initialGroups: GroupItem[] = [
   { id: 'group-4', name: 'DevOps', description: 'Infrastructure and deployment' },
 ];
 
+// Category icons and colors for the notification UI
+const CATEGORY_CONFIG: Record<string, { icon: React.ReactNode; gradient: string; badgeColor: string }> = {
+  Tasks: {
+    icon: <Zap className="size-5" />,
+    gradient: 'from-violet-500/10 to-purple-500/10',
+    badgeColor: 'bg-violet-500/15 text-violet-600 dark:text-violet-400',
+  },
+  Comments: {
+    icon: <MessageSquare className="size-5" />,
+    gradient: 'from-amber-500/10 to-orange-500/10',
+    badgeColor: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+  },
+  Sprints: {
+    icon: <Zap className="size-5" />,
+    gradient: 'from-emerald-500/10 to-teal-500/10',
+    badgeColor: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+  },
+  Projects: {
+    icon: <FolderKanban className="size-5" />,
+    gradient: 'from-blue-500/10 to-cyan-500/10',
+    badgeColor: 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
+  },
+};
+
+
 export default function SettingsPage() {
   const [statuses, setStatuses] = useState<StatusItem[]>(initialStatuses);
   const [tags, setTags] = useState<TagItem[]>(initialTags);
@@ -126,6 +154,84 @@ export default function SettingsPage() {
 
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupDescription, setNewGroupDescription] = useState('');
+
+  // ── Notification preference state ────────────────────────────
+  const [notifPreferences, setNotifPreferences] = useState<NotificationPreference[]>([]);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [notifSaving, setNotifSaving] = useState(false);
+  const [notifSaved, setNotifSaved] = useState(false);
+  const [notifError, setNotifError] = useState<string | null>(null);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingUpdatesRef = useRef<Map<string, boolean>>(new Map());
+
+  // Load notification preferences when the tab is activated
+  const loadNotifPreferences = useCallback(async () => {
+    setNotifLoading(true);
+    setNotifError(null);
+    try {
+      const prefs = await getNotificationPreferences();
+      setNotifPreferences(prefs);
+    } catch (e: any) {
+      setNotifError(e.message || 'Failed to load preferences');
+    } finally {
+      setNotifLoading(false);
+    }
+  }, []);
+
+  // Debounced save — batches all toggle changes within 600ms
+  const debouncedSave = useCallback(() => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    saveTimeoutRef.current = setTimeout(async () => {
+      const updates = Array.from(pendingUpdatesRef.current.entries()).map(
+        ([event_type, email_enabled]) => ({ event_type, email_enabled })
+      );
+      if (updates.length === 0) return;
+
+      setNotifSaving(true);
+      setNotifSaved(false);
+      setNotifError(null);
+      try {
+        const result = await updateNotificationPreferences(updates);
+        setNotifPreferences(result);
+        pendingUpdatesRef.current.clear();
+        setNotifSaved(true);
+        setTimeout(() => setNotifSaved(false), 2000);
+      } catch (e: any) {
+        setNotifError(e.message || 'Failed to save preferences');
+      } finally {
+        setNotifSaving(false);
+      }
+    }, 600);
+  }, []);
+
+  // Toggle a single notification preference
+  const handleTogglePreference = useCallback((eventType: string, enabled: boolean) => {
+    // Optimistic update
+    setNotifPreferences((prev) =>
+      prev.map((p) => (p.eventType === eventType ? { ...p, emailEnabled: enabled } : p))
+    );
+    pendingUpdatesRef.current.set(eventType, enabled);
+    debouncedSave();
+  }, [debouncedSave]);
+
+  // Enable all / Disable all
+  const handleToggleAll = useCallback((enabled: boolean) => {
+    setNotifPreferences((prev) =>
+      prev.map((p) => {
+        // Don't toggle comment preferences (they're dormant)
+        if (p.category === 'Comments') return p;
+        return { ...p, emailEnabled: enabled };
+      })
+    );
+    notifPreferences.forEach((p) => {
+      if (p.category !== 'Comments') {
+        pendingUpdatesRef.current.set(p.eventType, enabled);
+      }
+    });
+    debouncedSave();
+  }, [notifPreferences, debouncedSave]);
 
   // Status handlers
   const handleAddStatus = () => {
@@ -227,6 +333,25 @@ export default function SettingsPage() {
     setGroups(groups.filter(g => g.id !== id));
   };
 
+  // Group preferences by category for rendering
+  const groupedPreferences = notifPreferences.reduce<Record<string, NotificationPreference[]>>(
+    (acc, pref) => {
+      const cat = pref.category || 'Other';
+      if (!acc[cat]) acc[cat] = [];
+      acc[cat].push(pref);
+      return acc;
+    },
+    {}
+  );
+
+  // Category order
+  const categoryOrder = ['Tasks', 'Comments', 'Sprints', 'Projects'];
+  const sortedCategories = categoryOrder.filter((c) => groupedPreferences[c]);
+
+  // Count of enabled notifications
+  const enabledCount = notifPreferences.filter((p) => p.emailEnabled && p.category !== 'Comments').length;
+  const totalCount = notifPreferences.filter((p) => p.category !== 'Comments').length;
+
   return (
     <div className="flex h-screen bg-background">
       <AppSidebar />
@@ -238,11 +363,17 @@ export default function SettingsPage() {
         <main className="flex-1 overflow-y-auto p-6">
           <div className="max-w-5xl mx-auto">
             <Tabs defaultValue="statuses" className="space-y-6">
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="statuses">Statuses</TabsTrigger>
                 <TabsTrigger value="tags">Tags</TabsTrigger>
                 <TabsTrigger value="types">Types</TabsTrigger>
                 <TabsTrigger value="groups">Groups</TabsTrigger>
+                <TabsTrigger value="notifications" onClick={() => {
+                  if (notifPreferences.length === 0) loadNotifPreferences();
+                }}>
+                  <Bell className="size-4 mr-1.5" />
+                  Notifications
+                </TabsTrigger>
               </TabsList>
 
               {/* Statuses Tab */}
@@ -504,6 +635,157 @@ export default function SettingsPage() {
                     </Table>
                   </CardContent>
                 </Card>
+              </TabsContent>
+
+              {/* ── Notifications Tab ─────────────────────────────── */}
+              <TabsContent value="notifications">
+                <div className="space-y-6">
+                  {/* Header Card */}
+                  <Card className="border-0 shadow-md bg-gradient-to-br from-violet-500/5 via-background to-purple-500/5">
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center justify-center size-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg shadow-violet-500/25">
+                            <Mail className="size-5" />
+                          </div>
+                          <div>
+                            <CardTitle className="text-xl">Email Notifications</CardTitle>
+                            <CardDescription className="mt-1">
+                              Choose which events trigger email notifications. Changes save automatically.
+                            </CardDescription>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {notifSaving && (
+                            <div className="flex items-center gap-1.5 text-sm text-muted-foreground animate-pulse">
+                              <Loader2 className="size-3.5 animate-spin" />
+                              Saving…
+                            </div>
+                          )}
+                          {notifSaved && !notifSaving && (
+                            <div className="flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400">
+                              <CheckCircle2 className="size-3.5" />
+                              Saved
+                            </div>
+                          )}
+                          {!notifLoading && notifPreferences.length > 0 && (
+                            <Badge variant="secondary" className="font-mono text-xs px-2.5 py-1">
+                              {enabledCount}/{totalCount} active
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </CardHeader>
+                    {!notifLoading && notifPreferences.length > 0 && (
+                      <CardContent className="pt-0 pb-4">
+                        <div className="flex items-center gap-3">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleToggleAll(true)}
+                            className="text-xs h-8"
+                            disabled={enabledCount === totalCount}
+                          >
+                            Enable All
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleToggleAll(false)}
+                            className="text-xs h-8"
+                            disabled={enabledCount === 0}
+                          >
+                            Disable All
+                          </Button>
+                        </div>
+                      </CardContent>
+                    )}
+                  </Card>
+
+                  {/* Error state */}
+                  {notifError && (
+                    <Card className="border-destructive/50 bg-destructive/5">
+                      <CardContent className="py-4">
+                        <p className="text-sm text-destructive">{notifError}</p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={loadNotifPreferences}
+                          className="mt-2"
+                        >
+                          Retry
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Loading skeleton */}
+                  {notifLoading && (
+                    <Card>
+                      <CardContent className="py-8">
+                        <div className="flex items-center justify-center gap-3 text-muted-foreground">
+                          <Loader2 className="size-5 animate-spin" />
+                          <span>Loading notification preferences…</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Preference cards by category */}
+                  {!notifLoading && sortedCategories.map((category) => {
+                    const prefs = groupedPreferences[category];
+                    const config = CATEGORY_CONFIG[category] || CATEGORY_CONFIG.Tasks;
+                    const isCommentCategory = category === 'Comments';
+
+                    return (
+                      <Card key={category} className="overflow-hidden shadow-sm">
+                        <CardHeader className={`pb-3 bg-gradient-to-r ${config.gradient}`}>
+                          <div className="flex items-center gap-2.5">
+                            <span className={`${config.badgeColor} p-1.5 rounded-lg`}>
+                              {config.icon}
+                            </span>
+                            <div>
+                              <CardTitle className="text-base">{category}</CardTitle>
+                              {isCommentCategory && (
+                                <Badge variant="outline" className="mt-1 text-[10px] px-1.5 py-0 border-amber-300 text-amber-600 dark:text-amber-400">
+                                  Coming Soon
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                          <div className="divide-y divide-border">
+                            {prefs.map((pref, idx) => (
+                              <div
+                                key={pref.eventType}
+                                className={`flex items-center justify-between px-6 py-4 transition-colors ${isCommentCategory ? 'opacity-50' : 'hover:bg-muted/30'
+                                  }`}
+                              >
+                                <div className="flex items-start gap-3 min-w-0 flex-1">
+                                  <Mail className="size-4 text-muted-foreground mt-0.5 shrink-0" />
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium leading-tight">{pref.label}</p>
+                                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{pref.description}</p>
+                                  </div>
+                                </div>
+                                <div className="ml-4 shrink-0">
+                                  <Switch
+                                    id={`notif-${pref.eventType}`}
+                                    checked={pref.emailEnabled}
+                                    onCheckedChange={(checked) => handleTogglePreference(pref.eventType, checked)}
+                                    disabled={isCommentCategory}
+                                    aria-label={`Toggle ${pref.label} notifications`}
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
               </TabsContent>
             </Tabs>
           </div>
