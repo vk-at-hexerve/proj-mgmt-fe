@@ -3,6 +3,7 @@
 import React from "react";
 
 import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { useApp } from "@/lib/app-context";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -179,6 +180,7 @@ const isPastDate = (value: string) => {
 };
 
 export function AppModals() {
+  const pathname = usePathname();
   const {
     modal,
     closeModal,
@@ -206,6 +208,7 @@ export function AppModals() {
     programs,
     teams,
     currentUser,
+    currentProject,
     isMounted,
     addSprint,
   } = useApp();
@@ -225,11 +228,14 @@ export function AppModals() {
 
   // Create Task Modal
   if (modal.type === "create-task") {
+    const requestedProjectId = modal.data?.projectId as string | undefined;
+    const routeProjectId = pathname === "/projects" ? currentProject ?? undefined : undefined;
+
     return (
       <CreateTaskModal
         onClose={closeModal}
         onSubmit={addTask}
-        projectId={modal.data?.projectId as string}
+        projectId={requestedProjectId || routeProjectId}
       />
     );
   }
@@ -439,7 +445,8 @@ function CreateTaskModal({
   const [description, setDescription] = useState("");
   const [type, setType] = useState<"task" | "bug" | "story" | "epic">("task");
   const [priority, setPriority] = useState<TaskPriority>("medium");
-  const [project, setProject] = useState(projectId || projects[0]?.id || "");
+  const [project, setProject] = useState(projectId || "");
+  const [projectError, setProjectError] = useState<string>("");
   const [assignee, setAssignee] = useState<string>("");
   const [storyPoints, setStoryPoints] = useState<string>("");
   const [startDate, setStartDate] = useState<string>(getTodayDateInputValue());
@@ -512,6 +519,10 @@ function CreateTaskModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
+    if (!project) {
+      setProjectError("Please select a project.");
+      return;
+    }
 
     if (isPastDate(startDate)) {
       setStartDateError("Please select today's date or a future start date.");
@@ -593,9 +604,15 @@ function CreateTaskModal({
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Project</Label>
-                <Select value={project} onValueChange={setProject}>
+                <Select
+                  value={project}
+                  onValueChange={(value) => {
+                    setProject(value);
+                    setProjectError("");
+                  }}
+                >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Select project" />
                   </SelectTrigger>
                   <SelectContent>
                     {projects.map((p: Project) => (
@@ -613,6 +630,9 @@ function CreateTaskModal({
                     ))}
                   </SelectContent>
                 </Select>
+                {projectError && (
+                  <p className="text-sm text-destructive">{projectError}</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -888,7 +908,7 @@ function CreateTaskModal({
             </Button>
             <Button
               type="submit"
-              disabled={!title.trim() || !!dueDateError || !!startDateError}
+              disabled={!title.trim() || !project || !!dueDateError || !!startDateError}
             >
               Create Task
             </Button>
@@ -2943,11 +2963,15 @@ function CreateProjectModal({
                                 ) : (
                                   <Building className="size-3.5 text-green-500" />
                                 )}
-                                <span>{client.name}</span>
-                                {client.company && (
-                                  <span className="text-xs text-muted-foreground ml-1">
-                                    ({client.company})
-                                  </span>
+                                {client.company ? (
+                                  <>
+                                    <span>{client.company}</span>
+                                    <span className="text-xs text-muted-foreground ml-1">
+                                      ({client.name})
+                                    </span>
+                                  </>
+                                ) : (
+                                  <span>{client.name}</span>
                                 )}
                               </div>
                             </SelectItem>
@@ -3623,7 +3647,7 @@ function EditProjectModal({
                       <SelectItem value="none">No Client</SelectItem>
                       {clients.map((c: any) => (
                         <SelectItem key={c.id} value={c.id}>
-                          {c.company || c.name}
+                          {c.company ? `${c.company} (${c.name})` : c.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
