@@ -218,12 +218,13 @@ The Projects page supports **5 view modes** via tabs:
 
 - Project name, key badge, description
 - Toolbar: View mode tabs, filters (status, priority, assignee, type), search input
+- **Save Custom Filter**: Users can save their current complex filter combinations for quick reuse.
 - **"+ Create Task"** button → opens create-task modal
 - Sprint selector dropdown (filters tasks by sprint)
 
-### 4.3 Kanban Board
+### 4.3 Kanban Board & Custom Workflow Statuses
 
-**Columns:** Open → Assigned → In Progress → Pending Approval → On Hold → Closed
+The Kanban board columns are dynamically driven by the **Workflow Status Engine**. Instead of hardcoded statuses, each project has its own customizable statuses that map to four internal workflow groups (`OPEN`, `IN_PROGRESS`, `ON_HOLD`, `CLOSED`).
 
 Each task card shows:
 - Type icon (colored by type: epic/story/task/subtask/bug)
@@ -237,7 +238,7 @@ Each task card shows:
 
 **Interactions:**
 - Click card → opens task detail view
-- Drag card between columns → calls `updateTaskStatus(taskId, newStatus)`
+- Drag card between dynamic columns → automatically handles the backend update to transition the task via `updateTaskStatus(taskId, newStatusId)`
 - Context menu (⋮) → Edit, Assign, Change Priority, Delete
 
 ### 4.4 Sprint Management
@@ -254,7 +255,7 @@ Each task card shows:
 - Status transitions via dropdown on sprint header
 - Active sprint highlighted in sprint selector
 
-### 4.5 Create Task Flow
+### 4.5 Create & Edit Task Flow
 
 **Modal Fields:**
 | Field | Type | Required |
@@ -263,7 +264,7 @@ Each task card shows:
 | Description | Textarea | ❌ |
 | Type | Select (epic/story/task/subtask/bug) | ✅ |
 | Priority | Select (critical/high/medium/low) | ✅ |
-| Status | Select | ✅ (default: open) |
+| Status | Dynamic Select | ✅ (default: first OPEN status) |
 | Project | Select | ✅ |
 | Assignee | Select (from users) | ❌ |
 | Reporter | Auto-set to current user | — |
@@ -272,6 +273,10 @@ Each task card shows:
 | Due Date | Date picker | ❌ |
 | Story Points | Number | ❌ |
 | Tags | Multi-select | ❌ |
+
+**Advanced Task Features:**
+- **Files / Attachments:** Drag-and-drop file uploads with a dedicated files tab showing file icons, sizes, and timestamps.
+- **Task Watchers:** Users can click the "Eye" icon (`TaskWatchButton`) to subscribe to task updates, regardless of their project membership.
 
 **API Flow:** `addTask()` → optimistic local insert → `POST /tasks` → replace temp ID with server ID or rollback on failure.
 
@@ -341,12 +346,13 @@ When tasks are selected, a floating action bar appears:
 - Clicking expands to show subtasks indented below parent
 - Subtasks display with visual indentation and a connecting line indicator
 
-### 5.6 Filtering & Search
+### 5.6 Filtering, Search & Custom Filters
 
 - **Search:** Text input filters by task title
-- **Status Filter:** Dropdown (All, Open, Assigned, In Progress, etc.)
+- **Status Filter:** Dropdown populated from the dynamic workflow statuses
 - **Priority Filter:** Dropdown (All, Critical, High, Medium, Low)
 - **Assignee Filter:** Dropdown (All Users, Unassigned, specific users)
+- **Custom Filters:** Users can save the combination of the above filters into named presets for instant reuse (persisted to the backend).
 
 ---
 
@@ -1125,6 +1131,32 @@ Centralized via `openModal(type, data?)` / `closeModal()`:
 - Sidebar: Collapsible (`w-64` → `w-[72px]`) with tooltips in collapsed state
 - Grids: Breakpoints at `sm`, `md`, `lg`, `xl` for column adjustments
 - Hidden elements: Team stats, project members hidden on smaller screens via `hidden sm:flex`
+
+---
+
+# Part 4 — Advanced Features & Automation
+
+---
+
+## 20. Advanced Workflow & Notifications Engine
+
+### 20.1 Email Notifications & Preferences
+The PM Tool includes a robust, event-driven email notification engine managed via `Settings > Notifications`.
+
+**Key Capabilities:**
+- **Event-Driven Delivery:** Emails are dispatched asynchronously by the backend (`notification_log`) for events like Task Creation, Status Changes, Sprint Starts, etc.
+- **Category Grouping:** Users can individually toggle notifications across logical categories (Tasks, Sprints, Projects, Comments).
+- **Optimistic UI:** The settings page utilizes a `debouncedSave` hook to optimistically update the UI while batching API requests.
+
+### 20.2 Task Watchers (Subscriptions)
+Beyond direct assignments, users can subscribe to individual tasks as "Watchers".
+- **Interaction:** A dedicated `TaskWatchButton` (eye icon) is present in the task detail and modal views.
+- **Delivery Logic:** The backend seamlessly merges explicitly subscribed watchers with standard recipients (like assignees), ensuring stakeholders are kept in the loop without needing project membership.
+
+### 20.3 Dynamic Workflow Status Engine
+Replacing hardcoded logic, the PM Tool utilizes a `WorkflowStatus` engine configured via `Settings > Statuses`.
+- **Customization:** Teams can define their own status names, colors, and order via drag-and-drop.
+- **Internal Grouping:** Every custom status maps to a core system group (`OPEN`, `IN_PROGRESS`, `ON_HOLD`, `CLOSED`), allowing global metrics and sprint logic to function uniformly despite customized visual pipelines.
 
 ---
 

@@ -128,6 +128,8 @@ export function mapBackendTask(backendTask: BackendTask): Task {
       uploadedBy: String(a.uploaded_by_id),
       uploadedAt: a.created_at || new Date().toISOString(),
     })),
+    watcherCount: backendTask.watcher_count || 0,
+    isWatching: backendTask.is_watching || false,
   };
 }
 
@@ -441,4 +443,22 @@ export async function deleteTaskAttachment(taskId: string, attachmentId: string)
   return fetchAPI(`/tasks/${taskId}/attachments/${attachmentId}`, {
     method: "DELETE",
   });
+}
+
+// ── Task Watcher API helpers ───────────────────────────────────
+
+export async function watchTask(taskId: string) {
+  return fetchAPI(`/tasks/${taskId}/watch`, { method: "POST" });
+}
+
+export async function unwatchTask(taskId: string) {
+  return fetchAPI(`/tasks/${taskId}/watch`, { method: "DELETE" });
+}
+
+export async function getTaskWatchers(taskId: string) {
+  return fetchAPI(`/tasks/${taskId}/watchers`);
+}
+
+export async function getWatchStatus(taskId: string) {
+  return fetchAPI(`/tasks/${taskId}/watch/status`);
 }

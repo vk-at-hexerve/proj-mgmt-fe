@@ -89,6 +89,15 @@ export interface Task {
   linkedTasks?: TaskLink[];
   group?: string;
   isMilestone?: boolean;
+  watcherCount?: number;
+  isWatching?: boolean;
+}
+
+export interface TaskWatcher {
+  id: string;
+  name: string;
+  email: string;
+  watchingSince?: string;
 }
 
 export interface TaskFilters {
@@ -395,6 +404,8 @@ export interface BackendTask {
   task_type?: string;
   parent_id?: string;
   attachments?: any[];
+  watcher_count?: number;
+  is_watching?: boolean;
 }
 
 export interface BackendCustomFilter {

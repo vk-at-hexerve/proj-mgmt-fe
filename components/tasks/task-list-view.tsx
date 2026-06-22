@@ -65,6 +65,7 @@ import type { Task, TaskPriority } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { getStatusName, getStatusColor, getStatusGroup, GROUP_PROGRESS_MAP } from '@/lib/status-utils';
 import { tags as availableTags } from '@/lib/mock-data';
+import { TaskWatchButton } from '@/components/tasks/task-watch-button';
 
 interface TaskListViewProps {
   projectId?: string;
@@ -1125,7 +1126,12 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                         </div>
                                       )}
                                     </div>
-                                    <Pencil className="size-3.5 opacity-0 group-hover/title:opacity-100 ml-2 text-muted-foreground shrink-0" />
+                                    <div className="flex items-center gap-1 opacity-0 group-hover/title:opacity-100 transition-opacity">
+                                      <div onClick={(e) => e.stopPropagation()}>
+                                        <TaskWatchButton taskId={task.id} size="xs" />
+                                      </div>
+                                      <Pencil className="size-3.5 ml-1 text-muted-foreground shrink-0" />
+                                    </div>
                                   </div>
                                 )}
                               </TableCell>
@@ -1808,7 +1814,12 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                         }}
                                       >
                                         <p className="font-medium truncate text-sm flex-1 min-w-0">{subtask.title}</p>
-                                        <Pencil className="size-3.5 opacity-0 group-hover/title:opacity-100 ml-2 text-muted-foreground shrink-0" />
+                                        <div className="flex items-center gap-1 opacity-0 group-hover/title:opacity-100 transition-opacity">
+                                          <div onClick={(e) => e.stopPropagation()}>
+                                            <TaskWatchButton taskId={subtask.id} size="xs" />
+                                          </div>
+                                          <Pencil className="size-3.5 ml-1 text-muted-foreground shrink-0" />
+                                        </div>
                                       </div>
                                     )}
                                   </TableCell>

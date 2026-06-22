@@ -59,10 +59,10 @@ import {
   X,
   CornerDownRight,
 } from 'lucide-react';
-// import { projects as mockProjects } from '@/lib/mock-data';
 import type { Task, TaskPriority } from '@/lib/types';
 import { getStatusName } from '@/lib/status-utils';
 import { cn } from '@/lib/utils';
+import { TaskWatchButton } from '@/components/tasks/task-watch-button';
 
 const priorityStyles: Record<TaskPriority, string> = {
   critical: 'bg-destructive text-destructive-foreground',
@@ -646,13 +646,16 @@ export default function TasksClient() {
                               </Badge>
                             </TableCell>
                             <TableCell style={{ width: columns[2].width }} className="border-r-2 border-border/60">
-                              <div className="max-w-full">
+                              <div className="max-w-full flex items-center gap-2 group/title">
                                 <p className={cn(
                                   'font-medium truncate',
                                   isTaskDone(task) && 'line-through text-muted-foreground'
                                 )}>
                                   {task.title}
                                 </p>
+                                <div className="opacity-0 group-hover/title:opacity-100 transition-opacity">
+                                  <TaskWatchButton taskId={task.id} size="xs" />
+                                </div>
                               </div>
                             </TableCell>
                             <TableCell style={{ width: columns[3].width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>
@@ -791,13 +794,16 @@ export default function TasksClient() {
                                   </Badge>
                                 </TableCell>
                                 <TableCell style={{ width: columns[2].width }} className="border-r-2 border-border/60">
-                                  <div className="max-w-full pl-2">
+                                  <div className="max-w-full pl-2 flex items-center gap-2 group/title">
                                     <p className={cn(
                                       'font-medium truncate text-sm',
                                       isTaskDone(subtask) && 'line-through text-muted-foreground'
                                     )}>
                                       {subtask.title}
                                     </p>
+                                    <div className="opacity-0 group-hover/title:opacity-100 transition-opacity">
+                                      <TaskWatchButton taskId={subtask.id} size="xs" />
+                                    </div>
                                   </div>
                                 </TableCell>
                                 <TableCell style={{ width: columns[3].width }} className="border-r-2 border-border/60" onClick={(e) => e.stopPropagation()}>

@@ -158,6 +158,11 @@ interface AppContextType extends AppState {
   bulkAssignTasks: (ids: string[], userId: string) => Promise<void>;
   bulkDeleteTasks: (ids: string[]) => Promise<void>;
 
+  // Watcher actions
+  toggleWatchTask: (taskId: string) => Promise<void>;
+  getTaskWatcherCount: (taskId: string) => number;
+  isWatchingTask: (taskId: string) => boolean;
+
   // Workflow status actions
   addWorkflowStatus: (projectId: string, data: Partial<WorkflowStatus>) => Promise<void>;
   updateWorkflowStatus: (statusId: string, updates: Partial<WorkflowStatus>) => Promise<void>;
@@ -645,6 +650,56 @@ export function AppProvider({ children }: { children: ReactNode }) {
       showToast({ title: "Bulk delete failed", type: "error" });
     }
   }, [showToast]);
+
+  const toggleWatchTask = useCallback(async (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    
+    const wasWatching = task.isWatching;
+    
+    // Optimistic update
+    setTasks(prev => prev.map(t => 
+      t.id === taskId 
+        ? { 
+            ...t, 
+            isWatching: !wasWatching, 
+            watcherCount: (t.watcherCount || 0) + (wasWatching ? -1 : 1) 
+          } 
+        : t
+    ));
+
+    try {
+      const { watchTask, unwatchTask } = await import("./api");
+      if (wasWatching) {
+        await unwatchTask(taskId);
+      } else {
+        await watchTask(taskId);
+      }
+      showToast({ 
+        title: wasWatching ? "Stopped watching" : "Now watching", 
+        description: task.key,
+        type: "success" 
+      });
+    } catch (err) {
+      // Rollback on failure
+      setTasks(prev => prev.map(t => 
+        t.id === taskId 
+          ? { ...t, isWatching: wasWatching, watcherCount: task.watcherCount } 
+          : t
+      ));
+      showToast({ title: "Watch update failed", type: "error" });
+    }
+  }, [tasks, showToast]);
+
+  const getTaskWatcherCount = useCallback((taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    return task?.watcherCount || 0;
+  }, [tasks]);
+
+  const isWatchingTask = useCallback((taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    return task?.isWatching || false;
+  }, [tasks]);
 
   // ── Workflow Status actions ──────────────────────────────────────────
 
@@ -1402,6 +1457,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     hasPermission, canManageTask, canManageProject,
     getUser, getProject, getTask, getTeam, getProgram, getPortfolio, getSprint,
     loginAction, signupAction, logoutAction, isMounted,
+    toggleWatchTask, getTaskWatcherCount, isWatchingTask,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

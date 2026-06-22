@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { useApp } from '@/lib/app-context';
 import { GROUP_PROGRESS_MAP } from '@/lib/status-utils';
 import type { GanttTask } from '@/lib/mock-data';
+import { TaskWatchButton } from '@/components/tasks/task-watch-button';
 
 interface GanttChartProps {
   projectId?: string;
@@ -466,15 +467,22 @@ export function GanttChart({ projectId }: GanttChartProps) {
                     <UserAvatar user={task.assignee} size="sm" />
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className={cn(
-                      'text-sm whitespace-normal break-words flex items-center gap-1.5',
-                      task.type === 'project' && 'font-semibold'
-                    )}>
-                      {task.isMilestone && (
-                        <Star className="size-3.5 fill-yellow-400 text-yellow-400 shrink-0" />
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      {task.type !== 'project' && (
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                          <TaskWatchButton taskId={task.id} size="xs" />
+                        </div>
                       )}
-                      {task.name}
-                    </p>
+                      <p className={cn(
+                        'text-sm whitespace-normal break-words flex items-center gap-1.5',
+                        task.type === 'project' && 'font-semibold'
+                      )}>
+                        {task.isMilestone && (
+                          <Star className="size-3.5 fill-yellow-400 text-yellow-400 shrink-0" />
+                        )}
+                        {task.name}
+                      </p>
+                    </div>
                   </div>
                   {task.type === 'milestone' && (
                     <Badge variant="outline" className="text-xs">M</Badge>

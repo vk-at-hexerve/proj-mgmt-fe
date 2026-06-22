@@ -56,6 +56,7 @@ import {
 import { useApp } from '@/lib/app-context';
 import type { Task, TaskPriority, WorkflowStatus, WorkflowGroupKey } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { TaskWatchButton } from '@/components/tasks/task-watch-button';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -217,6 +218,9 @@ function KanbanCard({ task, onDragStart, onEdit, onAssign, onDelete, onViewDetai
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
+            <div onClick={(e) => e.stopPropagation()}>
+              <TaskWatchButton taskId={task.id} size="xs" />
+            </div>
             <div className={cn('size-2 rounded-full', priorityDots[task.priority])} />
             <TooltipProvider>
               <Tooltip>

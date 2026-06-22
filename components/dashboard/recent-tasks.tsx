@@ -12,6 +12,7 @@ import { useApp } from '@/lib/app-context';
 import type { Task, TaskPriority } from '@/lib/types';
 import { getStatusName } from '@/lib/status-utils';
 import { cn } from '@/lib/utils';
+import { TaskWatchButton } from '@/components/tasks/task-watch-button';
 
 const priorityStyles: Record<TaskPriority, string> = {
   critical: 'bg-destructive text-destructive-foreground',
@@ -99,6 +100,10 @@ export function RecentTasks() {
                       </span>
                     )}
                   </div>
+                </div>
+
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                   <TaskWatchButton taskId={task.id} size="xs" />
                 </div>
 
                 <Badge

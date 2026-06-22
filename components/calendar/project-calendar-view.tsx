@@ -12,6 +12,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import {
+  AlertCircle,
   ChevronLeft,
   ChevronRight,
   Flag,
@@ -21,11 +22,11 @@ import {
   BookOpen,
   CheckCircle2,
   Clock,
-  AlertCircle,
   Calendar,
   Star,
 } from 'lucide-react';
 import type { Task, Sprint } from '@/lib/types';
+import { TaskWatchButton } from '@/components/tasks/task-watch-button';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -255,7 +256,14 @@ function EventDetailPopover({
             {typeIcon(event.type)}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm leading-tight">{event.title}</p>
+            <div className="flex items-start justify-between gap-2">
+              <p className="font-semibold text-sm leading-tight">{event.title}</p>
+              {task && (
+                <div className="-mt-1">
+                  <TaskWatchButton taskId={task.id} size="xs" />
+                </div>
+              )}
+            </div>
             <div className="flex items-center gap-1.5 mt-1">
               <Badge variant="outline" className="text-[10px] capitalize">{event.type}</Badge>
               {event.statusId && (

@@ -50,6 +50,7 @@ import { cn } from '@/lib/utils';
 import { users, tags as availableTags } from '@/lib/mock-data';
 import { getStatusName, getStatusGroup, GROUP_PROGRESS_MAP } from '@/lib/status-utils';
 import type { Task, TaskPriority, Project } from '@/lib/types';
+import { TaskWatchButton } from '@/components/tasks/task-watch-button';
 
 // Extended WBS Grid Row type with many more columns
 interface WBSRow {
@@ -794,19 +795,24 @@ export function ProjectGridView({ projectId, projectKey = 'PRJ' }: ProjectGridVi
                       <div 
                         key={col.id}
                         style={{ width: col.width, paddingLeft: `${row.indent * 16 + 8}px` }}
-                        className={cn("py-1 border-r flex items-center gap-1 shrink-0", col.frozen && "bg-card")}
+                        className={cn("py-1 border-r flex items-center justify-between shrink-0 group/wbs-title", col.frozen && "bg-card")}
                       >
-                        {row.isParent && (
-                          <button onClick={() => toggleRowExpand(row.id)} className="p-0.5 hover:bg-muted rounded">
-                            {row.expanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
-                          </button>
-                        )}
-                        <span className={cn("text-xs truncate flex items-center gap-1", row.isParent && "font-medium")}>
-                          {row.milestoneFlag && (
-                            <Star className="size-3.5 fill-yellow-400 text-yellow-400 shrink-0" />
+                        <div className="flex items-center gap-1 min-w-0">
+                          {row.isParent && (
+                            <button onClick={() => toggleRowExpand(row.id)} className="p-0.5 hover:bg-muted rounded shrink-0">
+                              {row.expanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+                            </button>
                           )}
-                          {row.taskName}
-                        </span>
+                          <span className={cn("text-xs truncate flex items-center gap-1", row.isParent && "font-medium")}>
+                            {row.milestoneFlag && (
+                              <Star className="size-3.5 fill-yellow-400 text-yellow-400 shrink-0" />
+                            )}
+                            {row.taskName}
+                          </span>
+                        </div>
+                        <div className="flex items-center opacity-0 group-hover/wbs-title:opacity-100 transition-opacity pr-1">
+                           <TaskWatchButton taskId={row.id} size="xs" />
+                        </div>
                       </div>
                     );
                   }

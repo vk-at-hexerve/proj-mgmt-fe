@@ -154,6 +154,7 @@ import {
   getProjectStatuses,
 } from "@/lib/status-utils";
 import { uploadTaskAttachment, deleteTaskAttachment } from "@/lib/api";
+import { TaskWatchButton, WatcherListPopover } from "@/components/tasks/task-watch-button";
 
 const getTodayDateInputValue = () => {
   const today = new Date();
@@ -551,12 +552,15 @@ function CreateTaskModal({
       priority,
       statusId:
         workflowStatuses.find(
-          (s) =>
-            (s.projectId === project || s.isDefault) && s.groupKey === "OPEN",
+          (s) => s.projectId === project && s.groupKey === "OPEN",
         )?.id ||
-        workflowStatuses.find((s) => s.projectId === project || s.isDefault)
-          ?.id ||
-        "open",
+        workflowStatuses.find(
+          (s) => s.projectId === project,
+        )?.id ||
+        workflowStatuses.find(
+          (s) => s.isDefault && s.groupKey === "OPEN",
+        )?.id ||
+        "",
       projectId: project,
       assignee: selectedUser,
       reporter: users[0],
@@ -573,9 +577,11 @@ function CreateTaskModal({
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-2xl max-h-[92vh] p-0 overflow-hidden flex flex-col">
-        <DialogHeader className="p-6 pb-2 shrink-0 bg-slate-50/50">
-          <DialogTitle>Create New Task</DialogTitle>
-          <DialogDescription>Add a new task to your project</DialogDescription>
+        <DialogHeader className="p-6 pb-2 shrink-0 bg-slate-50/50 flex flex-row items-start justify-between">
+          <div>
+            <DialogTitle>Create Task</DialogTitle>
+            <DialogDescription>Create a new task</DialogDescription>
+          </div>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
           <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-5 custom-scrollbar">
@@ -1242,7 +1248,7 @@ function EditTaskModal({
         uploadedAttachments.push(uploaded as unknown as TaskAttachment);
       }
       setAttachments((prev) => [...prev, ...uploadedAttachments]);
-      
+
       // Update global context so it persists
       updateTask(task.id, {
         attachments: [...attachments, ...uploadedAttachments]
@@ -1261,7 +1267,7 @@ function EditTaskModal({
       await deleteTaskAttachment(task.id, attachmentId);
       const newAttachments = attachments.filter((a) => a.id !== attachmentId);
       setAttachments(newAttachments);
-      
+
       updateTask(task.id, {
         attachments: newAttachments
       });
@@ -2183,14 +2189,17 @@ function TaskDetailModal({
                 {task.type}
               </Badge>
             </div>
-            <Link
-              href={`/tasks/${task.id}`}
-              target="_blank"
-              className="text-muted-foreground hover:text-primary transition-colors"
-              title="Open in new tab"
-            >
-              <ExternalLink className="size-4" />
-            </Link>
+            <div className="flex items-center gap-3">
+              <TaskWatchButton taskId={task.id} />
+              <Link
+                href={`/tasks/${task.id}`}
+                target="_blank"
+                className="text-muted-foreground hover:text-primary transition-colors"
+                title="Open in new tab"
+              >
+                <ExternalLink className="size-4" />
+              </Link>
+            </div>
           </div>
           <DialogTitle className="text-xl mt-2">{task.title}</DialogTitle>
         </DialogHeader>
@@ -2264,6 +2273,12 @@ function TaskDetailModal({
               <div className="flex items-center gap-2 mt-1">
                 <UserAvatar user={task.reporter} size="sm" />
                 <span>{task.reporter.name}</span>
+              </div>
+            </div>
+            <div>
+              <Label className="text-muted-foreground">Watchers</Label>
+              <div className="mt-1">
+                <WatcherListPopover taskId={task.id} />
               </div>
             </div>
             <div>
