@@ -91,6 +91,7 @@ export interface Task {
   isMilestone?: boolean;
   watcherCount?: number;
   isWatching?: boolean;
+  watchers?: TaskWatcher[];
 }
 
 export interface TaskWatcher {
@@ -113,7 +114,7 @@ export interface TaskFilters {
 }
 
 export interface TaskSort {
-  field: 'key' | 'title' | 'status' | 'progress' | 'priority' | 'startDate' | 'dueDate' | 'storyPoints';
+  field: 'key' | 'title' | 'status' | 'progress' | 'priority' | 'startDate' | 'dueDate' | 'storyPoints' | 'createdAt';
   direction: 'asc' | 'desc';
 }
 
@@ -406,6 +407,7 @@ export interface BackendTask {
   attachments?: any[];
   watcher_count?: number;
   is_watching?: boolean;
+  watchers?: { id: string; name: string; email: string; role?: string }[];
 }
 
 export interface BackendCustomFilter {
@@ -467,4 +469,60 @@ export interface NotificationPreferencesResponse {
 export interface NotificationPreferenceUpdateItem {
   event_type: string;
   email_enabled: boolean;
+}
+
+// ── Analytics API response types ────────────────────────────────────
+export interface UserTaskMetric {
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  total_tasks: number;
+  completed_tasks: number;
+  active_tasks: number;
+  overdue_tasks: number;
+}
+
+export interface ProjectTaskMetric {
+  project_id: string;
+  project_name: string;
+  project_key: string;
+  total_tasks: number;
+  completed_tasks: number;
+  active_tasks: number;
+  overdue_tasks: number;
+  completion_percentage: number;
+}
+
+export interface DueDateTaskItem {
+  task_id: string;
+  task_code: string | null;
+  title: string;
+  assignee_name: string | null;
+  assignee_id: string | null;
+  project_name: string;
+  project_id: string;
+  priority: string | null;
+  status_group: string | null;
+  status_name: string | null;
+  due_date: string | null;
+}
+
+export interface UserWorkloadItem {
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  active_task_count: number;
+}
+
+export interface AnalyticsSummaryData {
+  total_users: number;
+  users_with_no_active_tasks: number;
+  avg_active_tasks_per_user: number;
+  total_projects: number;
+  active_projects: number;
+  completed_projects: number;
+  total_tasks: number;
+  completed_tasks: number;
+  overdue_tasks: number;
+  tasks_in_progress: number;
 }

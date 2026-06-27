@@ -47,7 +47,7 @@ import { cn } from '@/lib/utils';
 
 export default function TaskDetailClient({ taskId }: { taskId: string }) {
   const router = useRouter();
-  const { tasks, users, currentUser, getTask, updateTask, openModal, projects, isMounted, getTaskActivities, addTimeEntry, showToast, getProjectStatuses, workflowStatuses } = useApp();
+  const { tasks, users, currentUser, getTask, updateTask, openModal, projects, isMounted, getTaskActivities, addTimeEntry, showToast, getProjectStatuses, workflowStatuses, isTaskOverdue } = useApp();
   const task = getTask(taskId);
   
   const [title, setTitle] = useState('');
@@ -826,6 +826,35 @@ export default function TaskDetailClient({ taskId }: { taskId: string }) {
                             <SelectItem value="epic">Epic</SelectItem>
                           </SelectContent>
                         </Select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-3">
+                        <Label className="text-sm text-muted-foreground">Start Date</Label>
+                        <Input
+                          type="date"
+                          value={startDate}
+                          onChange={(e) => setStartDate(e.target.value)}
+                          className="h-10"
+                        />
+                      </div>
+                      <div className="space-y-3">
+                        <Label className={cn(
+                          "text-sm text-muted-foreground",
+                          isTaskOverdue(task) && "text-destructive font-bold"
+                        )}>
+                          Due Date {isTaskOverdue(task) && "(Overdue)"}
+                        </Label>
+                        <Input
+                          type="date"
+                          value={dueDate}
+                          onChange={(e) => setDueDate(e.target.value)}
+                          className={cn(
+                            "h-10",
+                            isTaskOverdue(task) && "border-destructive bg-destructive/5 text-destructive font-semibold"
+                          )}
+                        />
                       </div>
                     </div>
 

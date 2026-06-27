@@ -17,7 +17,7 @@ import { Search, FolderKanban, ArrowRight } from 'lucide-react';
 import { format } from 'date-fns';
 
 export function AllProjectsView() {
-  const { projects, setCurrentProject, sprints } = useApp();
+  const { projects, setCurrentProject, sprints, tasks, isTaskOverdue } = useApp();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -82,6 +82,7 @@ export function AllProjectsView() {
                 filteredProjects.map((project) => {
                   const projectSprints = sprints.filter((s) => s.projectId === project.id);
                   const activeSprint = projectSprints.find((s) => s.status === 'active');
+                  const overdueTasksCount = tasks.filter(t => t.projectId === project.id && isTaskOverdue(t)).length;
 
                   return (
                     <TableRow
@@ -91,7 +92,14 @@ export function AllProjectsView() {
                     >
                       <TableCell>
                         <div className="flex flex-col">
-                          <span className="font-medium text-foreground">{project.name}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-foreground">{project.name}</span>
+                            {overdueTasksCount > 0 && (
+                              <Badge variant="destructive" className="text-[10px] px-1.5 h-4">
+                                {overdueTasksCount} overdue {overdueTasksCount === 1 ? 'task' : 'tasks'}
+                              </Badge>
+                            )}
+                          </div>
                           {project.description && (
                             <span className="text-xs text-muted-foreground truncate max-w-[200px]">
                               {project.description}

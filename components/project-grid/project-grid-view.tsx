@@ -103,6 +103,7 @@ interface WBSRow {
   lateFinish: string;
   totalSlack: number;
   freeSlack: number;
+  isOverdue?: boolean;
 }
 
 // Column configuration
@@ -193,6 +194,7 @@ export function ProjectGridView({ projectId, projectKey = 'PRJ' }: ProjectGridVi
     isTaskDone,
     getStatusGroup,
     workflowStatuses,
+    isTaskOverdue,
   } = useApp();
 
   const project = projects.find(p => p.id === projectId);
@@ -250,8 +252,9 @@ export function ProjectGridView({ projectId, projectKey = 'PRJ' }: ProjectGridVi
       lateFinish: '',
       totalSlack: 0,
       freeSlack: 0,
+      isOverdue: isTaskOverdue(task),
     };
-  }, []);
+  }, [getStatusGroup, isTaskOverdue]);
 
   const projectTasks = useMemo(() => {
     const tasks = projectId ? getFilteredTasks(projectId) : [];
@@ -650,7 +653,10 @@ export function ProjectGridView({ projectId, projectKey = 'PRJ' }: ProjectGridVi
 
     return (
       <div 
-        className="px-2 py-0.5 cursor-pointer hover:bg-muted/50 rounded text-xs truncate"
+        className={cn(
+          "px-2 py-0.5 cursor-pointer hover:bg-muted/50 rounded text-xs truncate",
+          field === 'endDate' && row.isOverdue && "text-destructive font-medium"
+        )}
         onClick={() => setEditingCell({ rowId: row.id, field })}
       >
         {String(value) || '-'}
@@ -760,6 +766,7 @@ export function ProjectGridView({ projectId, projectKey = 'PRJ' }: ProjectGridVi
                 className={cn(
                   'flex items-center border-b hover:bg-muted/30 transition-colors',
                   selectedRows.has(row.id) && 'bg-primary/5',
+                  row.isOverdue && 'bg-destructive/5 hover:bg-destructive/10 dark:bg-destructive/10 dark:hover:bg-destructive/20',
                   showCriticalPath && row.isCritical && 'bg-red-50 dark:bg-red-950/20 border-l-2 border-l-red-500'
                 )}
               >
@@ -803,7 +810,11 @@ export function ProjectGridView({ projectId, projectKey = 'PRJ' }: ProjectGridVi
                               {row.expanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
                             </button>
                           )}
-                          <span className={cn("text-xs truncate flex items-center gap-1", row.isParent && "font-medium")}>
+                          <span className={cn(
+                            "text-xs truncate flex items-center gap-1", 
+                            row.isParent && "font-medium",
+                            row.isOverdue && "text-destructive font-medium"
+                          )}>
                             {row.milestoneFlag && (
                               <Star className="size-3.5 fill-yellow-400 text-yellow-400 shrink-0" />
                             )}

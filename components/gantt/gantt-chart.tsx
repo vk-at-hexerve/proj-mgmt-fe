@@ -51,7 +51,7 @@ export function GanttChart({ projectId }: GanttChartProps) {
   const [zoom, setZoom] = useState(1);
   const [scrollOffset, setScrollOffset] = useState(0);
 
-  const { tasks: allAppTasks, projects: allProjects, isTaskDone, getStatusGroup, updateTask, getFilteredTasks } = useApp();
+  const { tasks: allAppTasks, projects: allProjects, isTaskDone, isTaskOverdue, getStatusGroup, updateTask, getFilteredTasks } = useApp();
 
   const tasks = useMemo(() => {
     const ganttTasks: GanttTask[] = [];
@@ -93,6 +93,7 @@ export function GanttChart({ projectId }: GanttChartProps) {
         safeDueDate = new Date(safeStartDate.getTime() + DAY_MS);
       }
 
+      const isOverdue = isTaskOverdue(task);
       const group = getStatusGroup(task.statusId);
       const progress = group ? GROUP_PROGRESS_MAP[group] : 0;
 
@@ -107,6 +108,7 @@ export function GanttChart({ projectId }: GanttChartProps) {
         projectId: task.projectId,
         isMilestone: task.isMilestone,
         parentId: task.parentId,
+        isOverdue,
       } as any);
     });
 
@@ -475,7 +477,8 @@ export function GanttChart({ projectId }: GanttChartProps) {
                       )}
                       <p className={cn(
                         'text-sm whitespace-normal break-words flex items-center gap-1.5',
-                        task.type === 'project' && 'font-semibold'
+                        task.type === 'project' && 'font-semibold',
+                        task.isOverdue && 'text-destructive font-medium'
                       )}>
                         {task.isMilestone && (
                           <Star className="size-3.5 fill-yellow-400 text-yellow-400 shrink-0" />
@@ -599,7 +602,7 @@ export function GanttChart({ projectId }: GanttChartProps) {
                                 'absolute top-2 rounded-md transition-shadow group/bar',
                                 task.type === 'project' ? 'h-6' : 'h-5',
                                 task.type === 'milestone' ? 'w-4 h-4 rotate-45 top-3' : '',
-                                getProgressColor(task.progress, task.type),
+                                task.isOverdue ? 'bg-destructive' : getProgressColor(task.progress, task.type),
                                 isTask && !isDragging && 'cursor-grab hover:shadow-lg hover:shadow-black/20 hover:ring-2 hover:ring-primary/40',
                                 isBeingDragged && 'shadow-xl shadow-black/30 ring-2 ring-primary/60 opacity-90',
                                 !isTask && 'cursor-pointer hover:opacity-80',
@@ -720,6 +723,10 @@ export function GanttChart({ projectId }: GanttChartProps) {
           <div className="flex items-center gap-2 text-sm">
             <div className="w-3 h-3 rotate-45 bg-accent" />
             <span className="text-muted-foreground">Milestone</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <div className="w-6 h-3 rounded bg-destructive" />
+            <span className="text-muted-foreground">Overdue</span>
           </div>
           <div className="flex items-center gap-2 text-sm ml-auto">
             <div className="w-0.5 h-4 bg-primary" />

@@ -1,6 +1,6 @@
 'use client';
 
-import React from "react"
+import React, { useState, useMemo } from "react"
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,10 +9,12 @@ import { UserAvatar } from '@/components/ui/user-avatar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ArrowRight, Bug, BookOpen, Zap, ListTodo } from 'lucide-react';
 import { useApp } from '@/lib/app-context';
-import type { Task, TaskPriority } from '@/lib/types';
+import type { Task, TaskPriority, TaskFilters, TaskSort, CustomFilter } from '@/lib/types';
 import { getStatusName } from '@/lib/status-utils';
 import { cn } from '@/lib/utils';
 import { TaskWatchButton } from '@/components/tasks/task-watch-button';
+import { applyTaskFilters } from "@/lib/filter-utils";
+import { TaskFilterPanel } from "@/components/filters/task-filter-panel";
 
 const priorityStyles: Record<TaskPriority, string> = {
   critical: 'bg-destructive text-destructive-foreground',
@@ -31,18 +33,48 @@ const typeIcons: Record<Task['type'], React.ReactNode> = {
 };
 
 export function RecentTasks() {
-  const { tasks, isTaskDone, getStatusGroup, workflowStatuses } = useApp();
-  const recentTasks = tasks.slice(0, 5);
+  const { tasks, isTaskDone, getStatusGroup, workflowStatuses, customFilters } = useApp();
+  
+  const [widgetFilters, setWidgetFilters] = useState<TaskFilters>({});
+  const [widgetSort, setWidgetSort] = useState<TaskSort>({ field: 'createdAt', direction: 'desc' });
+  const [activeCustomFilterId, setActiveCustomFilterId] = useState<string | null>(null);
+
+  const recentTasks = useMemo(() => {
+    return applyTaskFilters(tasks, widgetFilters, widgetSort, workflowStatuses).slice(0, 5);
+  }, [tasks, widgetFilters, widgetSort, workflowStatuses]);
+
+  const handleApplyCustomFilter = (filter: CustomFilter | null) => {
+    if (filter) {
+      setWidgetFilters(filter.filters);
+      setWidgetSort(filter.sort);
+      setActiveCustomFilterId(filter.id);
+    } else {
+      setWidgetFilters({});
+      setWidgetSort({ field: 'createdAt', direction: 'desc' });
+      setActiveCustomFilterId(null);
+    }
+  };
 
   return (
     <Card className="h-full">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base">Recent Tasks</CardTitle>
-          <Button variant="ghost" size="sm" className="text-primary">
-            View all
-            <ArrowRight className="size-4 ml-1" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <TaskFilterPanel
+              filters={widgetFilters}
+              setFilters={setWidgetFilters}
+              sort={widgetSort}
+              setSort={setWidgetSort}
+              customFilters={customFilters}
+              activeCustomFilterId={activeCustomFilterId}
+              onApplyCustomFilter={handleApplyCustomFilter}
+            />
+            <Button variant="ghost" size="sm" className="text-primary h-8 px-2 text-xs">
+              View all
+              <ArrowRight className="size-3 ml-1" />
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
