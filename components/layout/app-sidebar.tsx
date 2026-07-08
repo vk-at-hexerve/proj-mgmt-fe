@@ -7,6 +7,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/lib/app-context";
+import { PermissionGate } from "@/lib/permission-guard";
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Badge } from "@/components/ui/badge";
@@ -239,13 +240,15 @@ export function AppSidebar() {
                   </DropdownMenuItem>
                 ))}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="gap-2"
-                  onClick={() => openModal("create-project")}
-                >
-                  <Plus className="size-4" />
-                  Create new project
-                </DropdownMenuItem>
+                <PermissionGate permission="projects:create">
+                  <DropdownMenuItem
+                    className="gap-2"
+                    onClick={() => openModal("create-project")}
+                  >
+                    <Plus className="size-4" />
+                    Create new project
+                  </DropdownMenuItem>
+                </PermissionGate>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -400,13 +403,15 @@ export function AppSidebar() {
                       Show Less
                     </button>
                   )}
-                  <button
-                    onClick={() => openModal("create-project")}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-200/60 hover:text-slate-900 transition-all whitespace-nowrap"
-                  >
-                    <Plus className="size-4" />
-                    Create New Project
-                  </button>
+                  <PermissionGate permission="projects:create">
+                    <button
+                      onClick={() => openModal("create-project")}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-200/60 hover:text-slate-900 transition-all whitespace-nowrap"
+                    >
+                      <Plus className="size-4" />
+                      Create New Project
+                    </button>
+                  </PermissionGate>
                 </div>
               </div>
             )}

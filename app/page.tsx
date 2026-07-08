@@ -213,7 +213,7 @@ export default function DashboardPage() {
           subtitle="Here's what's happening with your projects today"
         />
         <main className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-7xl mx-auto space-y-6">
+          <div className="max-w-7xl mx-auto space-y-4">
             {/* Dashboard Controls */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -311,7 +311,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Main Content Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               {/* Group panels by their layout */}
               {visiblePanels.map((panel) => (
                 <div 

@@ -36,7 +36,7 @@ export function RecentTasks() {
 
   return (
     <Card className="h-full">
-      <CardHeader className="pb-3">
+      <CardHeader className="p-4 pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base">Recent Tasks</CardTitle>
           <Button variant="ghost" size="sm" className="text-primary">
@@ -45,13 +45,13 @@ export function RecentTasks() {
           </Button>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-4 pt-0">
         <div className="space-y-1">
           {recentTasks.length > 0 ? (
             recentTasks.map((task) => (
               <div
                 key={task.id}
-                className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group"
+                className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group"
               >
                 <Checkbox
                   checked={isTaskDone(task)}
@@ -121,7 +121,7 @@ export function RecentTasks() {
             ))
           ) : (
             <div className="text-center py-12 text-muted-foreground">
-              <ListTodo className="size-12 mx-auto mb-3 opacity-50" />
+              <ListTodo className="size-10 mx-auto mb-3 opacity-50" />
               <p className="font-medium">No tasks yet</p>
               <p className="text-xs">Tasks from your active projects will appear here</p>
             </div>

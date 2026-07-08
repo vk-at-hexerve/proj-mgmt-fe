@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useApp } from '@/lib/app-context';
+import { PermissionGate } from '@/lib/permission-guard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -666,27 +667,31 @@ export function ProjectGridView({ projectId, projectKey = 'PRJ' }: ProjectGridVi
         {/* Toolbar */}
         <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30 shrink-0">
           <div className="flex items-center gap-2">
-            <Button size="sm" className="h-7 gap-1" onClick={() => openModal('create-task', { projectId })}>
-              <Plus className="size-3.5" />
-              Add Task
-            </Button>
+            <PermissionGate permission="tasks:create">
+              <Button size="sm" className="h-7 gap-1" onClick={() => openModal('create-task', { projectId })}>
+                <Plus className="size-3.5" />
+                Add Task
+              </Button>
+            </PermissionGate>
             <div className="h-4 w-px bg-border" />
-            <Button 
-              size="sm" 
-              variant="outline" 
-              className="h-7"
-              onClick={() => {
-                if (selectedRows.size > 0) {
-                  const idsToDelete = Array.from(selectedRows);
-                  idsToDelete.forEach(id => deleteTaskContext(id));
-                  setSelectedRows(new Set());
-                  showToast({ title: `${idsToDelete.length} tasks removed`, type: 'success' });
-                }
-              }}
-              disabled={selectedRows.size === 0}
-            >
-              <Trash2 className="size-3.5" />
-            </Button>
+            <PermissionGate permission="tasks:delete">
+              <Button 
+                size="sm" 
+                variant="outline" 
+                className="h-7"
+                onClick={() => {
+                  if (selectedRows.size > 0) {
+                    const idsToDelete = Array.from(selectedRows);
+                    idsToDelete.forEach(id => deleteTaskContext(id));
+                    setSelectedRows(new Set());
+                    showToast({ title: `${idsToDelete.length} tasks removed`, type: 'success' });
+                  }
+                }}
+                disabled={selectedRows.size === 0}
+              >
+                <Trash2 className="size-3.5" />
+              </Button>
+            </PermissionGate>
           </div>
 
           <div className="flex items-center gap-2">

@@ -4,6 +4,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import { AppHeader } from '@/components/layout/app-header';
 import { AICopilot } from '@/components/ai/ai-copilot';
+import { UsersPanel } from '@/components/settings/users-panel';
+import { RolesPanel } from '@/components/settings/roles-panel';
+import { EmailConfigPanel } from '@/components/settings/email-config-panel';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -363,11 +366,14 @@ export default function SettingsPage() {
         <main className="flex-1 overflow-y-auto p-6">
           <div className="max-w-5xl mx-auto">
             <Tabs defaultValue="statuses" className="space-y-6">
-              <TabsList className="grid w-full grid-cols-5">
+              <TabsList className="grid w-full grid-cols-8">
                 <TabsTrigger value="statuses">Statuses</TabsTrigger>
                 <TabsTrigger value="tags">Tags</TabsTrigger>
                 <TabsTrigger value="types">Types</TabsTrigger>
                 <TabsTrigger value="groups">Groups</TabsTrigger>
+                <TabsTrigger value="users">Users</TabsTrigger>
+                <TabsTrigger value="roles">Roles</TabsTrigger>
+                <TabsTrigger value="email">Email</TabsTrigger>
                 <TabsTrigger value="notifications" onClick={() => {
                   if (notifPreferences.length === 0) loadNotifPreferences();
                 }}>
@@ -786,6 +792,21 @@ export default function SettingsPage() {
                     );
                   })}
                 </div>
+              </TabsContent>
+
+              {/* Users Tab */}
+              <TabsContent value="users">
+                <UsersPanel />
+              </TabsContent>
+
+              {/* Roles Tab */}
+              <TabsContent value="roles">
+                <RolesPanel />
+              </TabsContent>
+
+              {/* Email Config Tab */}
+              <TabsContent value="email">
+                <EmailConfigPanel />
               </TabsContent>
             </Tabs>
           </div>

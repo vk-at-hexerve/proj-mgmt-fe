@@ -26,12 +26,12 @@ export function SprintProgress() {
   if (!activeSprint) {
     return (
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="p-4 pb-2">
           <CardTitle className="text-base">Active Sprint</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 pt-0">
           <div className="text-center py-12 text-muted-foreground">
-            <Target className="size-12 mx-auto mb-3 opacity-50" />
+            <Target className="size-10 mx-auto mb-3 opacity-50" />
             <p className="font-medium">No active sprint</p>
             <p className="text-xs">Create a sprint to track your progress</p>
           </div>
@@ -42,7 +42,7 @@ export function SprintProgress() {
 
   return (
     <Card>
-      <CardHeader className="pb-3">
+      <CardHeader className="p-4 pb-2">
         <div className="flex items-center justify-between">
           <div className="space-y-1">
             <CardTitle className="text-base">{activeSprint.name}</CardTitle>
@@ -51,7 +51,7 @@ export function SprintProgress() {
           <Badge variant="default" className="bg-primary">Active</Badge>
         </div>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="p-4 pt-0 space-y-4">
         {/* Progress Bar */}
         <div className="space-y-2">
           <div className="flex items-center justify-between text-sm">
@@ -63,8 +63,8 @@ export function SprintProgress() {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 gap-4">
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-            <div className="flex items-center justify-center size-10 rounded-lg bg-primary/10 text-primary">
+          <div className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/50">
+            <div className="flex items-center justify-center size-8 rounded-lg bg-primary/10 text-primary">
               <Target className="size-5" />
             </div>
             <div>
@@ -73,8 +73,8 @@ export function SprintProgress() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-            <div className="flex items-center justify-center size-10 rounded-lg bg-accent/10 text-accent">
+          <div className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/50">
+            <div className="flex items-center justify-center size-8 rounded-lg bg-accent/10 text-accent">
               <TrendingUp className="size-5" />
             </div>
             <div>
@@ -83,8 +83,8 @@ export function SprintProgress() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-            <div className="flex items-center justify-center size-10 rounded-lg bg-success/10 text-success">
+          <div className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/50">
+            <div className="flex items-center justify-center size-8 rounded-lg bg-success/10 text-success">
               <Calendar className="size-5" />
             </div>
             <div>
@@ -93,8 +93,8 @@ export function SprintProgress() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-            <div className="flex items-center justify-center size-10 rounded-lg bg-warning/10 text-warning-foreground">
+          <div className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/50">
+            <div className="flex items-center justify-center size-8 rounded-lg bg-warning/10 text-warning-foreground">
               <Clock className="size-5" />
             </div>
             <div>

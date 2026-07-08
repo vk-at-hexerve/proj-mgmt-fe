@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useApp } from '@/lib/app-context';
+import { PermissionGate } from '@/lib/permission-guard';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 
 import { UserAvatar } from '@/components/ui/user-avatar';
@@ -481,28 +482,32 @@ export function TaskListView({ projectId }: TaskListViewProps) {
         <div className="px-4 py-2 bg-primary/10 border-b border-border flex items-center gap-4 shrink-0">
           <span className="text-sm font-medium">{selectedTasks.length} selected</span>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => openModal('change-status', { taskIds: selectedTasks })}
-            >
-              Change Status
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => openModal('assign-task', { taskIds: selectedTasks })}
-            >
-              Assign To
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-destructive bg-transparent"
-              onClick={() => openModal('confirm-delete', { taskIds: selectedTasks })}
-            >
-              Delete
-            </Button>
+            <PermissionGate permission="tasks:update">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => openModal('change-status', { taskIds: selectedTasks })}
+              >
+                Change Status
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => openModal('assign-task', { taskIds: selectedTasks })}
+              >
+                Assign To
+              </Button>
+            </PermissionGate>
+            <PermissionGate permission="tasks:delete">
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-destructive bg-transparent"
+                onClick={() => openModal('confirm-delete', { taskIds: selectedTasks })}
+              >
+                Delete
+              </Button>
+            </PermissionGate>
           </div>
         </div>
       )}

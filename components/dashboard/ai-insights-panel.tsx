@@ -200,7 +200,7 @@ export function AIInsightsPanel() {
 
   return (
     <Card className="h-full flex flex-col">
-      <CardHeader className="pb-3 shrink-0">
+      <CardHeader className="p-4 pb-2 shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="flex items-center justify-center size-8 rounded-lg bg-gradient-to-br from-primary to-accent">
@@ -223,7 +223,7 @@ export function AIInsightsPanel() {
         </div>
       </CardHeader>
       
-      <CardContent className="flex-1 flex flex-col gap-4 overflow-hidden">
+      <CardContent className="p-4 pt-0 flex-1 flex flex-col gap-3 overflow-hidden">
         {/* Ask AI Section */}
         <div className="space-y-2">
           <div className="flex gap-2">
@@ -289,7 +289,7 @@ export function AIInsightsPanel() {
             <div
               key={insight.id}
               className={cn(
-                'p-3 rounded-lg border-l-4 transition-colors hover:bg-muted/50 relative group',
+                'p-2.5 rounded-lg border-l-4 transition-colors hover:bg-muted/50 relative group',
                 severityStyles[insight.severity]
               )}
             >
