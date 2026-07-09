@@ -27,6 +27,7 @@ import type {
   CustomFilter,
 } from "./types";
 import { GROUP_PROGRESS_MAP } from "./status-utils";
+import { applyTaskFilters } from "./filter-utils";
 
 export type { TimeEntry, ResourceAllocation };
 
@@ -173,6 +174,7 @@ interface AppContextType extends AppState {
   getProjectStatuses: (projectId: string) => WorkflowStatus[];
   getStatusGroup: (statusId: string) => WorkflowGroupKey | undefined;
   isTaskDone: (task: Task) => boolean;
+  isTaskOverdue: (task: Task) => boolean;
 
   // Project actions
   setCurrentProject: (id: string | null) => void;
@@ -656,17 +658,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!task) return;
     
     const wasWatching = task.isWatching;
+    const me = { id: currentUser.id, name: currentUser.name, email: currentUser.email };
     
-    // Optimistic update
-    setTasks(prev => prev.map(t => 
-      t.id === taskId 
-        ? { 
-            ...t, 
-            isWatching: !wasWatching, 
-            watcherCount: (t.watcherCount || 0) + (wasWatching ? -1 : 1) 
-          } 
-        : t
-    ));
+    // Optimistic update: update isWatching, watcherCount AND watchers array
+    setTasks(prev => prev.map(t => {
+      if (t.id !== taskId) return t;
+      const prevWatchers = t.watchers || [];
+      const updatedWatchers = wasWatching
+        ? prevWatchers.filter(w => w.id !== me.id)
+        : prevWatchers.some(w => w.id === me.id) ? prevWatchers : [...prevWatchers, me];
+      return { 
+        ...t, 
+        isWatching: !wasWatching, 
+        watcherCount: (t.watcherCount || 0) + (wasWatching ? -1 : 1),
+        watchers: updatedWatchers,
+      };
+    }));
 
     try {
       const { watchTask, unwatchTask } = await import("./api");
@@ -684,12 +691,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Rollback on failure
       setTasks(prev => prev.map(t => 
         t.id === taskId 
-          ? { ...t, isWatching: wasWatching, watcherCount: task.watcherCount } 
+          ? { ...t, isWatching: wasWatching, watcherCount: task.watcherCount, watchers: task.watchers } 
           : t
       ));
       showToast({ title: "Watch update failed", type: "error" });
     }
-  }, [tasks, showToast]);
+  }, [tasks, currentUser, showToast]);
 
   const getTaskWatcherCount = useCallback((taskId: string) => {
     const task = tasks.find(t => t.id === taskId);
@@ -799,6 +806,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const isTaskDone = useCallback((task: Task): boolean => {
     return workflowStatuses.find((s) => s.id === task.statusId)?.groupKey === 'CLOSED';
   }, [workflowStatuses]);
+
+  const isTaskOverdue = useCallback((task: Task): boolean => {
+    if (!task.dueDate) return false;
+    if (isTaskDone(task)) return false;
+    const dueDateObj = new Date(task.dueDate);
+    dueDateObj.setHours(23, 59, 59, 999);
+    return dueDateObj < new Date();
+  }, [isTaskDone]);
 
   // Project actions
   const addProject = useCallback(async (project: Omit<Project, "id" | "createdAt">) => {
@@ -1305,77 +1320,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const getFilteredTasks = useCallback((projectId: string) => {
     let result = tasks.filter(t => t.projectId === projectId);
-
-    const hasActiveFilters = Object.values(taskFilters).some(v =>
-      Array.isArray(v) ? v.length > 0 : (v !== undefined && v !== null && v !== '')
-    );
-
-    if (hasActiveFilters) {
-      // Apply filters
-      if (taskFilters.assignees && taskFilters.assignees.length > 0) {
-        result = result.filter(t => t.assignee?.id && taskFilters.assignees!.includes(t.assignee.id));
-      }
-      if (taskFilters.priorities && taskFilters.priorities.length > 0) {
-        result = result.filter(t => taskFilters.priorities!.includes(t.priority));
-      }
-      if (taskFilters.types && taskFilters.types.length > 0) {
-        result = result.filter(t =>
-          taskFilters.types!.includes(t.type) ||
-          (taskFilters.types!.includes('subtask') && !!t.parentId)
-        );
-      }
-      if (taskFilters.statuses && taskFilters.statuses.length > 0) {
-        result = result.filter(t => taskFilters.statuses!.includes(t.statusId));
-      }
-      if (taskFilters.groups && taskFilters.groups.length > 0) {
-        result = result.filter(t => t.group && taskFilters.groups!.includes(t.group));
-      }
-      if (taskFilters.isMilestone !== undefined && taskFilters.isMilestone !== null) {
-        result = result.filter(t => (t.isMilestone || false) === taskFilters.isMilestone);
-      }
-      if (taskFilters.startDateAfter) {
-        result = result.filter(t => t.startDate && t.startDate >= taskFilters.startDateAfter!);
-      }
-      if (taskFilters.endDateBefore) {
-        result = result.filter(t => t.dueDate && t.dueDate <= taskFilters.endDateBefore!);
-      }
-
-    }
-
-    // Apply Sort
-    result = [...result].sort((a, b) => {
-      let comp = 0;
-      switch (taskSort.field) {
-        case 'key': {
-          const [prefixA, numA] = a.key.split('-');
-          const [prefixB, numB] = b.key.split('-');
-          comp = prefixA !== prefixB ? prefixA.localeCompare(prefixB) : parseInt(numA || '0', 10) - parseInt(numB || '0', 10);
-          break;
-        }
-        case 'title': comp = a.title.localeCompare(b.title); break;
-        case 'status': comp = a.statusId.localeCompare(b.statusId); break;
-        case 'progress': {
-          const groupA = workflowStatuses.find(s => s.id === a.statusId)?.groupKey;
-          const groupB = workflowStatuses.find(s => s.id === b.statusId)?.groupKey;
-          const progA = groupA ? GROUP_PROGRESS_MAP[groupA] : 0;
-          const progB = groupB ? GROUP_PROGRESS_MAP[groupB] : 0;
-          comp = progA - progB;
-          break;
-        }
-        case 'priority': {
-          const pOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
-          comp = (pOrder[a.priority] ?? 4) - (pOrder[b.priority] ?? 4);
-          break;
-        }
-        case 'startDate': comp = (a.startDate || 'zzzz').localeCompare(b.startDate || 'zzzz'); break;
-        case 'dueDate': comp = (a.dueDate || 'zzzz').localeCompare(b.dueDate || 'zzzz'); break;
-        case 'storyPoints': comp = (a.storyPoints || 0) - (b.storyPoints || 0); break;
-      }
-      return taskSort.direction === 'asc' ? comp : -comp;
-    });
-
-    return result;
-  }, [tasks, taskFilters, taskSort]);
+    return applyTaskFilters(result, taskFilters, taskSort, workflowStatuses);
+  }, [tasks, taskFilters, taskSort, workflowStatuses]);
 
   // Custom Filters actions
   const addCustomFilter = useCallback(async (projectId: string, name: string, filters: TaskFilters, sort: TaskSort) => {
@@ -1440,7 +1386,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTaskFilters, setTaskSort, getFilteredTasks,
     addCustomFilter, updateCustomFilter, deleteCustomFilter, applyCustomFilter,
     addTask, updateTask, deleteTask, updateTaskStatus, assignTask, selectTask, selectAllTasks, clearSelectedTasks, bulkUpdateTaskStatus, bulkAssignTasks, bulkDeleteTasks,
-    addWorkflowStatus, updateWorkflowStatus, deleteWorkflowStatus, reorderStatuses, getProjectStatuses, getStatusGroup, isTaskDone,
+    addWorkflowStatus, updateWorkflowStatus, deleteWorkflowStatus, reorderStatuses, getProjectStatuses, getStatusGroup, isTaskDone, isTaskOverdue,
     setCurrentProject, addProject, updateProject, deleteProject,
     addTeam, updateTeam, deleteTeam, addTeamMember, removeTeamMember, setTeamLead,
     addUser,

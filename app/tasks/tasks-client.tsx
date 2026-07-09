@@ -101,7 +101,7 @@ const defaultColumns: ColumnConfig[] = [
 ];
 
 export default function TasksClient() {
-  const { tasks, projects, openModal, currentUser, selectTask, selectedTasks, selectAllTasks, clearSelectedTasks, addTask, showToast, isTaskDone, getStatusGroup, workflowStatuses, getProjectStatuses } = useApp();
+  const { tasks, projects, openModal, currentUser, selectTask, selectedTasks, selectAllTasks, clearSelectedTasks, addTask, showToast, isTaskDone, isTaskOverdue, getStatusGroup, workflowStatuses, getProjectStatuses } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
@@ -586,7 +586,7 @@ export default function TasksClient() {
                   {parentTasks.length > 0 ? (
                     parentTasks.map(task => {
                       const project = projects.find((p: any) => p.id === task.projectId);
-                      const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && !isTaskDone(task);
+                      const isOverdue = isTaskOverdue(task);
                       const isSelected = selectedTasks.includes(task.id);
                       const isCreatingSubtask = inlineSubtaskParent === task.id;
                       const taskSubtasks = subtaskMap.get(task.id) || [];
@@ -599,7 +599,8 @@ export default function TasksClient() {
                           <TableRow
                             className={cn(
                               'cursor-pointer hover:bg-muted/50 group',
-                              isSelected && 'bg-primary/5'
+                              isSelected && 'bg-primary/5',
+                              isOverdue && 'bg-destructive/5 hover:bg-destructive/10 dark:bg-destructive/10 dark:hover:bg-destructive/20'
                             )}
                             onClick={() => openModal('task-detail', { taskId: task.id })}
                           >
@@ -762,7 +763,7 @@ export default function TasksClient() {
                           {/* Render Subtasks when expanded */}
                           {isExpanded && taskSubtasks.map((subtask) => {
                             const subtaskProject = projects.find((p: any) => p.id === subtask.projectId);
-                            const isSubtaskOverdue = subtask.dueDate && new Date(subtask.dueDate) < new Date() && !isTaskDone(subtask);
+                            const isSubtaskOverdue = isTaskOverdue(subtask);
                             const isSubtaskSelected = selectedTasks.includes(subtask.id);
 
                             return (
@@ -770,7 +771,8 @@ export default function TasksClient() {
                                 key={subtask.id}
                                 className={cn(
                                   'cursor-pointer hover:bg-muted/50 group bg-muted/20',
-                                  isSubtaskSelected && 'bg-primary/5'
+                                  isSubtaskSelected && 'bg-primary/5',
+                                  isSubtaskOverdue && 'bg-destructive/5 hover:bg-destructive/10 dark:bg-destructive/10 dark:hover:bg-destructive/20'
                                 )}
                                 onClick={() => openModal('task-detail', { taskId: subtask.id })}
                               >

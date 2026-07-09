@@ -50,6 +50,7 @@ import {
   Package,
   Filter,
   Check,
+  Eye,
 } from "lucide-react";
 // import { currentUser as mockUser } from '@/lib/mock-data';
 
@@ -496,6 +497,51 @@ export function AppSidebar() {
               })()}
             </div>
           )}
+
+          {/* My Watchlist */}
+          {(() => {
+            const watchedCount = appTasks.filter((t: Task) => t.isWatching).length;
+            const isActive = pathname === '/watchlist';
+            const WatchlistLink = (
+              <Link
+                href="/watchlist"
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                  isActive
+                    ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent",
+                  collapsed && "justify-center px-2",
+                )}
+              >
+                <Eye className="size-5" />
+                {!collapsed && (
+                  <>
+                    <span className="flex-1">My Watchlist</span>
+                    {watchedCount > 0 && (
+                      <Badge
+                        variant="secondary"
+                        className="size-5 p-0 justify-center text-xs"
+                      >
+                        {watchedCount}
+                      </Badge>
+                    )}
+                  </>
+                )}
+              </Link>
+            );
+
+            if (collapsed) {
+              return (
+                <Tooltip>
+                  <TooltipTrigger asChild>{WatchlistLink}</TooltipTrigger>
+                  <TooltipContent side="right">
+                    <p>My Watchlist ({watchedCount})</p>
+                  </TooltipContent>
+                </Tooltip>
+              );
+            }
+            return WatchlistLink;
+          })()}
 
           {/* Remaining Main Navigation */}
           {mainNav.filter((i: NavItem) => i.label !== "Dashboard").map((item: NavItem) => {
