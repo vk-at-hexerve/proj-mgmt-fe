@@ -140,17 +140,19 @@ interface KanbanCardProps {
 }
 
 function KanbanCard({ task, onDragStart, onEdit, onAssign, onDelete, onViewDetail }: KanbanCardProps) {
-  const { getStatusGroup, tasks } = useApp();
+  const { getStatusGroup, tasks, isTaskOverdue } = useApp();
   const group = getStatusGroup(task.statusId);
   const parentTask = task.parentId ? tasks.find(t => t.id === task.parentId) : null;
   const progressPct = group ? GROUP_PROGRESS_MAP[group] : 0;
   const isDone = group === 'CLOSED';
+  const isOverdue = isTaskOverdue(task);
 
   return (
     <Card
       className={cn(
         'cursor-grab active:cursor-grabbing border-l-4 hover:shadow-md transition-shadow group py-2 gap-2',
-        priorityBorder[task.priority]
+        priorityBorder[task.priority],
+        isOverdue && 'border-destructive bg-destructive/5 dark:bg-destructive/10'
       )}
       draggable
       onDragStart={(e) => onDragStart(e, task.id)}
@@ -210,7 +212,10 @@ function KanbanCard({ task, onDragStart, onEdit, onAssign, onDelete, onViewDetai
               <span className="text-xs text-muted-foreground font-medium">+{task.tags.length - 1}</span>
             )}
             {task.dueDate && (
-              <span className="flex items-center gap-1 text-xs text-muted-foreground ml-auto shrink-0 leading-none font-medium">
+              <span className={cn(
+                "flex items-center gap-1 text-xs ml-auto shrink-0 leading-none font-medium",
+                isOverdue ? "text-destructive" : "text-muted-foreground"
+              )}>
                 <Calendar className="size-3.5" />
                 {new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
               </span>

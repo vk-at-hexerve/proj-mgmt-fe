@@ -114,7 +114,7 @@ const defaultColumns: ColumnConfig[] = [
 ];
 
 export function TaskListView({ projectId }: TaskListViewProps) {
-  const { tasks: allTasks, openModal, selectTask, selectedTasks, selectAllTasks, clearSelectedTasks, addTask, updateTask, showToast, currentUser, assignTask, users, isTaskDone, getStatusGroup, workflowStatuses, getProjectStatuses, projects, getFilteredTasks, taskSort, setTaskSort, teams, taskFilters, setTaskFilters } = useApp();
+  const { tasks: allTasks, openModal, selectTask, selectedTasks, selectAllTasks, clearSelectedTasks, addTask, updateTask, showToast, currentUser, assignTask, users, isTaskDone, isTaskOverdue, getStatusGroup, workflowStatuses, getProjectStatuses, projects, getFilteredTasks, taskSort, setTaskSort, teams, taskFilters, setTaskFilters } = useApp();
   const projectTeam = React.useMemo(() => teams?.find((t: any) => t.projects.some((p: any) => p.id === projectId)) || teams?.[0], [teams, projectId]);
   const [columns, setColumns] = useState<ColumnConfig[]>(defaultColumns);
   const [editingColumn, setEditingColumn] = useState<string | null>(null);
@@ -998,7 +998,8 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                     <TableRow
                       className={cn(
                         'hover:bg-muted/30 group',
-                        isSelected && 'bg-primary/5'
+                        isSelected && 'bg-primary/5',
+                        isTaskOverdue(task) && 'bg-destructive/5 hover:bg-destructive/10 dark:bg-destructive/10 dark:hover:bg-destructive/20'
                       )}
                     >
                       <TableCell className="border-r-2 border-border/60 px-0 text-center align-middle" onClick={(e) => e.stopPropagation()}>
@@ -1315,8 +1316,11 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                               <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
                                 <Popover>
                                   <PopoverTrigger asChild>
-                                    <button className="flex items-center justify-center gap-1.5 text-sm hover:bg-muted/40 p-1.5 rounded transition-colors focus:outline-none w-full font-medium">
-                                      <Calendar className="size-3.5 text-muted-foreground shrink-0" />
+                                    <button className={cn(
+                                      "flex items-center justify-center gap-1.5 text-sm hover:bg-muted/40 p-1.5 rounded transition-colors focus:outline-none w-full font-medium",
+                                      isTaskOverdue(task) ? "text-destructive" : "text-muted-foreground"
+                                    )}>
+                                      <Calendar className={cn("size-3.5 shrink-0", isTaskOverdue(task) ? "text-destructive" : "text-muted-foreground")} />
                                       {formatDate(task.dueDate)}
                                     </button>
                                   </PopoverTrigger>
@@ -1724,7 +1728,8 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                           key={subtask.id}
                           className={cn(
                             'hover:bg-muted/30 group bg-muted/20',
-                            isSubtaskSelected && 'bg-primary/5'
+                            isSubtaskSelected && 'bg-primary/5',
+                            isTaskOverdue(subtask) && 'bg-destructive/5 hover:bg-destructive/10 dark:bg-destructive/10 dark:hover:bg-destructive/20'
                           )}
                         >
                           <TableCell className="border-r-2 border-border/60 px-0 text-center align-middle relative" onClick={(e) => e.stopPropagation()}>
@@ -2003,8 +2008,11 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                   <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
                                     <Popover>
                                       <PopoverTrigger asChild>
-                                        <button className="flex items-center justify-center gap-1.5 text-sm hover:bg-muted/40 p-1.5 rounded transition-colors focus:outline-none w-full font-medium">
-                                          <Calendar className="size-3.5 text-muted-foreground shrink-0" />
+                                        <button className={cn(
+                                          "flex items-center justify-center gap-1.5 text-sm hover:bg-muted/40 p-1.5 rounded transition-colors focus:outline-none w-full font-medium",
+                                          isTaskOverdue(subtask) ? "text-destructive" : "text-muted-foreground"
+                                        )}>
+                                          <Calendar className={cn("size-3.5 shrink-0", isTaskOverdue(subtask) ? "text-destructive" : "text-muted-foreground")} />
                                           {formatDate(subtask.dueDate)}
                                         </button>
                                       </PopoverTrigger>

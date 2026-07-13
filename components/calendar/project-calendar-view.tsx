@@ -42,6 +42,7 @@ interface CalendarEvent {
   sprint?: Sprint;
   priority?: string;
   statusId?: string;
+  isOverdue?: boolean;
 }
 
 interface DayCell {
@@ -135,7 +136,7 @@ function EventBanner({
       onClick={(e) => { e.stopPropagation(); onClick(); }}
       className={cn(
         'w-full h-5 flex items-center gap-1 px-1.5 text-[10px] font-medium text-white truncate transition-opacity hover:opacity-80 cursor-pointer',
-        colors.bg,
+        event.isOverdue ? 'bg-destructive' : colors.bg,
         isStart && 'rounded-l-sm',
         isEnd && 'rounded-r-sm',
         !isStart && 'pl-0',
@@ -271,6 +272,11 @@ function EventDetailPopover({
                   {getStatusName(workflowStatuses, event.statusId)}
                 </Badge>
               )}
+              {event.isOverdue && (
+                <Badge variant="destructive" className="text-[10px] uppercase font-bold animate-pulse">
+                  Overdue
+                </Badge>
+              )}
             </div>
           </div>
         </div>
@@ -339,7 +345,7 @@ interface ProjectCalendarViewProps {
 }
 
 export function ProjectCalendarView({ projectId }: ProjectCalendarViewProps) {
-  const { sprints: allSprints, projects, getFilteredTasks } = useApp();
+  const { sprints: allSprints, projects, getFilteredTasks, isTaskOverdue } = useApp();
   const project = projects.find(p => p.id === projectId);
 
   // ── Month navigation ─────────────────────────────────────────────────────
@@ -399,6 +405,7 @@ export function ProjectCalendarView({ projectId }: ProjectCalendarViewProps) {
         const safeEnd = end < start ? start : end;
 
         const colors = TASK_COLORS[task.type] ?? TASK_COLORS.task;
+        const isOverdue = isTaskOverdue(task);
         result.push({
           id: task.id,
           title: `${task.key}: ${task.title}`,
@@ -410,6 +417,7 @@ export function ProjectCalendarView({ projectId }: ProjectCalendarViewProps) {
           task,
           priority: task.priority,
           statusId: task.statusId,
+          isOverdue,
         });
       });
 

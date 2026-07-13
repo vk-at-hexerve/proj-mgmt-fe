@@ -130,6 +130,7 @@ export function mapBackendTask(backendTask: BackendTask): Task {
     })),
     watcherCount: backendTask.watcher_count || 0,
     isWatching: backendTask.is_watching || false,
+    watchers: backendTask.watchers || [],
   };
 }
 
@@ -559,3 +560,41 @@ function mapBackendEmailConfig(data: any): import('./types').EmailConfig {
     updatedAt: data.updated_at,
   };
 }
+
+export async function assignTaskWatcher(taskId: string, userId: string) {
+    return fetchAPI(`/tasks/${taskId}/watchers`, {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId }),
+    });
+  }
+
+  export async function removeTaskWatcher(taskId: string, userId: string) {
+    return fetchAPI(`/tasks/${taskId}/watchers/${userId}`, { method: "DELETE" });
+  }
+
+  // ── Analytics API helpers ─────────────────────────────────────────
+
+  export async function fetchTasksPerUser(projectId?: string) {
+    const params = new URLSearchParams();
+    if (projectId) params.set('project_id', projectId);
+    params.set('include_unassigned', 'true');
+    const qs = params.toString();
+    return fetchAPI(`/analytics/tasks-per-user${qs ? `?${qs}` : ''}`);
+  }
+
+  export async function fetchTasksPerProject() {
+    return fetchAPI('/analytics/tasks-per-project');
+  }
+
+  export async function fetchTasksByDueDate(date: string) {
+    return fetchAPI(`/analytics/tasks-by-due-date?date=${date}`);
+  }
+
+  export async function fetchUserWorkload(projectId?: string) {
+    const params = projectId ? `?project_id=${projectId}` : '';
+    return fetchAPI(`/analytics/user-workload${params}`);
+  }
+
+  export async function fetchAnalyticsSummary() {
+    return fetchAPI('/analytics/summary');
+  }

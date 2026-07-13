@@ -1,20 +1,47 @@
 'use client';
 
+import React, { useState, useMemo } from "react"
+
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Calendar, Target, TrendingUp, Clock } from 'lucide-react';
 import { useApp } from '@/lib/app-context';
+import type { TaskFilters, TaskSort, CustomFilter } from '@/lib/types';
+import { applyTaskFilters } from "@/lib/filter-utils";
+import { TaskFilterPanel } from "@/components/filters/task-filter-panel";
 
 export function SprintProgress() {
-  const { sprints, tasks, isTaskDone } = useApp();
+  const { sprints, tasks, isTaskDone, workflowStatuses, customFilters } = useApp();
+  
+  const [widgetFilters, setWidgetFilters] = useState<TaskFilters>({});
+  const [widgetSort, setWidgetSort] = useState<TaskSort>({ field: 'createdAt', direction: 'desc' });
+  const [activeCustomFilterId, setActiveCustomFilterId] = useState<string | null>(null);
+
   const activeSprint = sprints.find((s) => s.status === 'active');
-  const sprintTasks = tasks.filter((t) => t.sprintId === activeSprint?.id);
+  
+  const sprintTasks = useMemo(() => {
+    const filteredTasks = applyTaskFilters(tasks, widgetFilters, widgetSort, workflowStatuses);
+    return filteredTasks.filter((t) => t.sprintId === activeSprint?.id);
+  }, [tasks, widgetFilters, widgetSort, workflowStatuses, activeSprint?.id]);
+
   const completedTasks = sprintTasks.filter((t) => isTaskDone(t)).length;
   const totalPoints = sprintTasks.reduce((acc, t) => acc + (t.storyPoints || 0), 0);
   const completedPoints = sprintTasks
     .filter((t) => isTaskDone(t))
     .reduce((acc, t) => acc + (t.storyPoints || 0), 0);
+    
+  const handleApplyCustomFilter = (filter: CustomFilter | null) => {
+    if (filter) {
+      setWidgetFilters(filter.filters);
+      setWidgetSort(filter.sort);
+      setActiveCustomFilterId(filter.id);
+    } else {
+      setWidgetFilters({});
+      setWidgetSort({ field: 'createdAt', direction: 'desc' });
+      setActiveCustomFilterId(null);
+    }
+  };
   
   const progress = totalPoints > 0 ? Math.round((completedPoints / totalPoints) * 100) : 0;
   
@@ -48,7 +75,18 @@ export function SprintProgress() {
             <CardTitle className="text-base">{activeSprint.name}</CardTitle>
             <p className="text-xs text-muted-foreground">{activeSprint.goal}</p>
           </div>
-          <Badge variant="default" className="bg-primary">Active</Badge>
+          <div className="flex items-center gap-2">
+            <TaskFilterPanel
+              filters={widgetFilters}
+              setFilters={setWidgetFilters}
+              sort={widgetSort}
+              setSort={setWidgetSort}
+              customFilters={customFilters}
+              activeCustomFilterId={activeCustomFilterId}
+              onApplyCustomFilter={handleApplyCustomFilter}
+            />
+            <Badge variant="default" className="bg-primary">Active</Badge>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="p-4 pt-0 space-y-4">
