@@ -486,3 +486,50 @@ export interface NotificationPreferenceUpdateItem {
   event_type: string;
   email_enabled: boolean;
 }
+
+// Email Configuration (SMTP)
+export interface EmailConfig {
+  id: string;
+  senderEmail: string;
+  senderName: string;
+  smtpHost: string;
+  smtpPort: number;
+  smtpUsername: string | null;
+  smtpPassword: string;
+  encryptionType: 'TLS' | 'SSL' | 'NONE';
+  isEnabled: boolean;
+  isActive: boolean;
+  lastTestedAt: string | null;
+  lastTestStatus: string | null;
+  lastTestError: string | null;
+  configuredByName: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface EmailConfigUpdate {
+  sender_email: string;
+  sender_name: string;
+  smtp_host: string;
+  smtp_port: number;
+  smtp_username: string | null;
+  smtp_password: string | null;
+  encryption_type: 'TLS' | 'SSL' | 'NONE';
+  is_enabled: boolean;
+}
+
+export interface EmailConfigTestRequest {
+  sender_email: string;
+  sender_name: string;
+  smtp_host: string;
+  smtp_port: number;
+  smtp_username: string | null;
+  smtp_password: string | null;
+  encryption_type: 'TLS' | 'SSL' | 'NONE';
+  test_recipient: string;
+}
+
+export interface EmailConfigTestResult {
+  success: boolean;
+  message: string;
+}
