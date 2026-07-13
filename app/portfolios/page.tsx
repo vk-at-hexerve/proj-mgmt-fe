@@ -28,6 +28,7 @@ import {
   Sparkles,
   ArrowUpRight,
 } from 'lucide-react';
+import { PermissionGate } from '@/lib/permission-guard';
 import { Portfolio, Program, Project } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -74,10 +75,12 @@ export default function PortfoliosPage() {
         <main className="flex-1 overflow-auto">
           <div className="p-6">
             <div className="flex justify-end mb-4">
+            <PermissionGate permission="portfolios:create">
               <Button size="sm" className="gap-1" onClick={() => openModal('create-portfolio')}>
                 <Plus className="size-4" />
                 Create Portfolio
               </Button>
+            </PermissionGate>
             </div>
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
