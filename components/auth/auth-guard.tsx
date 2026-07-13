@@ -12,7 +12,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isAuthInitialized) return;
 
-    const publicPaths = ['/login', '/signup'];
+    const publicPaths = ['/login', '/signup', '/forgot-password', '/reset-password'];
     const isPublicPath = publicPaths.includes(pathname);
 
     if (!isAuthenticated && !isPublicPath) {
