@@ -1,4 +1,4 @@
-import { BackendProject, BackendTask, BackendTeam, BackendUser, Project, Task, Team, ProjectStatus, TaskPriority, UserRole, WorkflowStatus, BackendCustomFilter, CustomFilter } from './types';
+import { BackendProject, BackendTask, BackendTeam, BackendUser, Project, Task, Team, ProjectStatus, TaskPriority, UserRole, WorkflowStatus, BackendCustomFilter, CustomFilter, UserPermissions } from './types';
 import type { LoginResponse } from './auth';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8100/api/v1";
 
@@ -464,40 +464,137 @@ export async function getWatchStatus(taskId: string) {
   return fetchAPI(`/tasks/${taskId}/watch/status`);
 }
 
-export async function assignTaskWatcher(taskId: string, userId: string) {
-  return fetchAPI(`/tasks/${taskId}/watchers`, {
+// ── RBAC API helpers ───────────────────────────────────────────
+
+export async function getMyPermissions(): Promise<UserPermissions> {
+  const data = await fetchAPI("/roles/me/permissions");
+  return {
+    userId: data.user_id,
+    permissions: data.permissions || [],
+    roles: (data.roles || []).map((r: any) => ({
+      id: r.id,
+      roleId: r.role_id,
+      roleName: r.role_name,
+      roleSlug: r.role_slug,
+      scopeType: r.scope_type,
+      scopeId: r.scope_id
+    }))
+  };
+}
+
+// ── Admin: User & Role Management ────────────────────────────────
+
+export async function getUsers() {
+  return fetchAPI("/users/");
+}
+
+export async function createUser(data: any) {
+  return fetchAPI("/users/", {
     method: "POST",
-    body: JSON.stringify({ user_id: userId }),
+    body: JSON.stringify(data),
   });
 }
 
-export async function removeTaskWatcher(taskId: string, userId: string) {
-  return fetchAPI(`/tasks/${taskId}/watchers/${userId}`, { method: "DELETE" });
+export async function getRoles() {
+  return fetchAPI("/roles/");
 }
 
-// ── Analytics API helpers ─────────────────────────────────────────
-
-export async function fetchTasksPerUser(projectId?: string) {
-  const params = new URLSearchParams();
-  if (projectId) params.set('project_id', projectId);
-  params.set('include_unassigned', 'true');
-  const qs = params.toString();
-  return fetchAPI(`/analytics/tasks-per-user${qs ? `?${qs}` : ''}`);
+export async function getPermissions() {
+  return fetchAPI("/roles/permissions");
 }
 
-export async function fetchTasksPerProject() {
-  return fetchAPI('/analytics/tasks-per-project');
+export async function createRole(data: any) {
+  return fetchAPI("/roles/", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
 }
 
-export async function fetchTasksByDueDate(date: string) {
-  return fetchAPI(`/analytics/tasks-by-due-date?date=${date}`);
+// ── Email Configuration API helpers ────────────────────────────
+
+export async function getEmailConfig() {
+  const data = await fetchAPI("/settings/email-config");
+  return mapBackendEmailConfig(data);
 }
 
-export async function fetchUserWorkload(projectId?: string) {
-  const params = projectId ? `?project_id=${projectId}` : '';
-  return fetchAPI(`/analytics/user-workload${params}`);
+export async function updateEmailConfig(config: import('./types').EmailConfigUpdate) {
+  const data = await fetchAPI("/settings/email-config", {
+    method: "PUT",
+    body: JSON.stringify(config),
+  });
+  return mapBackendEmailConfig(data);
 }
 
-export async function fetchAnalyticsSummary() {
-  return fetchAPI('/analytics/summary');
+export async function testEmailConfig(config: import('./types').EmailConfigTestRequest): Promise<import('./types').EmailConfigTestResult> {
+  return fetchAPI("/settings/email-config/test", {
+    method: "POST",
+    body: JSON.stringify(config),
+  });
 }
+
+export async function toggleEmailService(enabled: boolean) {
+  const data = await fetchAPI("/settings/email-config/toggle", {
+    method: "PATCH",
+    body: JSON.stringify({ is_enabled: enabled }),
+  });
+  return mapBackendEmailConfig(data);
+}
+
+function mapBackendEmailConfig(data: any): import('./types').EmailConfig {
+  return {
+    id: data.id,
+    senderEmail: data.sender_email,
+    senderName: data.sender_name,
+    smtpHost: data.smtp_host,
+    smtpPort: data.smtp_port,
+    smtpUsername: data.smtp_username,
+    smtpPassword: data.smtp_password,
+    encryptionType: data.encryption_type,
+    isEnabled: data.is_enabled,
+    isActive: data.is_active,
+    lastTestedAt: data.last_tested_at,
+    lastTestStatus: data.last_test_status,
+    lastTestError: data.last_test_error,
+    configuredByName: data.configured_by_name,
+    createdAt: data.created_at,
+    updatedAt: data.updated_at,
+  };
+}
+
+export async function assignTaskWatcher(taskId: string, userId: string) {
+    return fetchAPI(`/tasks/${taskId}/watchers`, {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId }),
+    });
+  }
+
+  export async function removeTaskWatcher(taskId: string, userId: string) {
+    return fetchAPI(`/tasks/${taskId}/watchers/${userId}`, { method: "DELETE" });
+  }
+
+  // ── Analytics API helpers ─────────────────────────────────────────
+
+  export async function fetchTasksPerUser(projectId?: string) {
+    const params = new URLSearchParams();
+    if (projectId) params.set('project_id', projectId);
+    params.set('include_unassigned', 'true');
+    const qs = params.toString();
+    return fetchAPI(`/analytics/tasks-per-user${qs ? `?${qs}` : ''}`);
+  }
+
+  export async function fetchTasksPerProject() {
+    return fetchAPI('/analytics/tasks-per-project');
+  }
+
+  export async function fetchTasksByDueDate(date: string) {
+    return fetchAPI(`/analytics/tasks-by-due-date?date=${date}`);
+  }
+
+  export async function fetchUserWorkload(projectId?: string) {
+    const params = projectId ? `?project_id=${projectId}` : '';
+    return fetchAPI(`/analytics/user-workload${params}`);
+  }
+
+  export async function fetchAnalyticsSummary() {
+    return fetchAPI('/analytics/summary');
+  }

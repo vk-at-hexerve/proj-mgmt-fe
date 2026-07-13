@@ -38,7 +38,7 @@ export function ProjectsOverview() {
 
   return (
     <Card className="h-full">
-      <CardHeader className="pb-3">
+      <CardHeader className="p-4 pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base">Active Projects</CardTitle>
           <Button variant="ghost" size="sm" className="text-primary">
@@ -47,14 +47,14 @@ export function ProjectsOverview() {
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="p-4 pt-0 space-y-3">
         {projects.length > 0 ? (
           projects.map((project) => (
             <div
               key={project.id}
-              className="p-4 rounded-lg border border-border bg-card hover:bg-muted/50 transition-colors cursor-pointer"
+              className="p-3 rounded-lg border border-border bg-card hover:bg-muted/50 transition-colors cursor-pointer"
             >
-              <div className="flex items-start justify-between mb-3">
+              <div className="flex items-start justify-between mb-2">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className="font-mono text-xs">
@@ -76,7 +76,7 @@ export function ProjectsOverview() {
               </div>
 
               {/* Progress */}
-              <div className="space-y-1.5 mb-3">
+              <div className="space-y-1.5 mb-2">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Progress</span>
                   <span className="font-medium">{project.progress}%</span>
@@ -125,7 +125,7 @@ export function ProjectsOverview() {
           ))
         ) : (
           <div className="text-center py-12 text-muted-foreground">
-            <FolderKanban className="size-12 mx-auto mb-3 opacity-50" />
+            <FolderKanban className="size-10 mx-auto mb-3 opacity-50" />
             <p className="font-medium">No active projects</p>
             <p className="text-xs">Start by creating your first project</p>
           </div>

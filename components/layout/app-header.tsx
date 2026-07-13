@@ -3,6 +3,7 @@
 import React from "react"
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/lib/app-context';
+import { PermissionGate } from '@/lib/permission-guard';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -110,13 +111,15 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
                   </DropdownMenuItem>
                 ))}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="gap-2"
-                  onClick={() => openModal("create-project")}
-                >
-                  <Plus className="size-4" />
-                  Create new project
-                </DropdownMenuItem>
+                <PermissionGate permission="projects:create">
+                  <DropdownMenuItem
+                    className="gap-2"
+                    onClick={() => openModal("create-project")}
+                  >
+                    <Plus className="size-4" />
+                    Create new project
+                  </DropdownMenuItem>
+                </PermissionGate>
               </DropdownMenuContent>
             </DropdownMenu>
             {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
@@ -206,9 +209,15 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => openModal('create-task')}>New Task</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => openModal('create-project')}>New Project</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => openModal('create-sprint')}>New Sprint</DropdownMenuItem>
+            <PermissionGate permission="tasks:create">
+              <DropdownMenuItem onClick={() => openModal('create-task')}>New Task</DropdownMenuItem>
+            </PermissionGate>
+            <PermissionGate permission="projects:create">
+              <DropdownMenuItem onClick={() => openModal('create-project')}>New Project</DropdownMenuItem>
+            </PermissionGate>
+            <PermissionGate permission="sprints:create">
+              <DropdownMenuItem onClick={() => openModal('create-sprint')}>New Sprint</DropdownMenuItem>
+            </PermissionGate>
 
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => showToast({ title: 'Import feature', description: 'Jira import coming soon', type: 'info' })}>Import from Jira</DropdownMenuItem>

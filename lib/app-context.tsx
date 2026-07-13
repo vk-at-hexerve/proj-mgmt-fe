@@ -25,6 +25,7 @@ import type {
   TaskFilters,
   TaskSort,
   CustomFilter,
+  RoleAssignment,
 } from "./types";
 import { GROUP_PROGRESS_MAP } from "./status-utils";
 import { applyTaskFilters } from "./filter-utils";
@@ -33,8 +34,9 @@ export type { TimeEntry, ResourceAllocation };
 
 // User Roles & Permissions
 export interface UserWithRole extends User {
-  systemRole: UserRole;
+  systemRole: string;
   permissions: string[];
+  roles?: RoleAssignment[];
 }
 
 export const rolePermissions: Record<UserRole, string[]> = {
@@ -283,8 +285,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     name: "Loading...",
     email: "",
     role: "viewer" as UserRole,
-    systemRole: "viewer" as UserRole,
+    systemRole: "viewer",
     permissions: rolePermissions["viewer"],
+    roles: [],
   });
   const [token, setToken] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -388,6 +391,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           mapBackendSprint,
           mapBackendClient,
           mapBackendWorkflowStatus,
+          getMyPermissions,
         } = await import("./api");
 
         const [
@@ -401,6 +405,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           usersData,
           meData,
           sprintsData,
+          myPermissions,
         ] = await Promise.all([
           fetchAPI("/projects").catch(() => []),
           fetchAPI("/tasks").catch(() => []),
@@ -412,6 +417,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           fetchAPI("/users").catch(() => []),
           fetchAPI("/users/me").catch(() => null),
           fetchAPI("/sprints").catch(() => []),
+          getMyPermissions().catch(() => null),
         ]);
 
         const mappedProjects = Array.isArray(projectsData) ? projectsData.map(mapBackendProject) : [];
@@ -444,7 +450,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setCurrentUser({
             ...meData,
             systemRole: meData.role || "project-manager",
-            permissions: rolePermissions[(meData.role as UserRole) || "project-manager"] || rolePermissions["project-manager"],
+            permissions: myPermissions?.permissions || rolePermissions[(meData.role as UserRole) || "project-manager"] || rolePermissions["project-manager"],
+            roles: myPermissions?.roles || [],
           });
         }
       } catch (error) {
