@@ -60,6 +60,7 @@ interface NavItem {
   href: string;
   icon: React.ReactNode;
   badge?: string | number;
+  permission?: string;
 }
 
 const mainNav: NavItem[] = [
@@ -78,6 +79,7 @@ const mainNav: NavItem[] = [
     label: "Reports",
     href: "/reports",
     icon: <BarChart3 className="size-5" />,
+    permission: "analytics:read",
   },
 ];
 
@@ -91,9 +93,10 @@ const managementNav: NavItem[] = [
     label: "Portfolios",
     href: "/portfolios",
     icon: <Layers className="size-5" />,
+    permission: "portfolios:read",
   },
-  { label: "Programs", href: "/programs", icon: <Target className="size-5" /> },
-  { label: "Teams", href: "/teams", icon: <Users className="size-5" /> },
+  { label: "Programs", href: "/programs", icon: <Target className="size-5" />, permission: "programs:read" },
+  { label: "Teams", href: "/teams", icon: <Users className="size-5" />, permission: "teams:read" },
   {
     label: "Resources",
     href: "/resources",
@@ -111,11 +114,13 @@ const financeNav: NavItem[] = [
     label: "Clients",
     href: "/clients",
     icon: <UserCircle className="size-5" />,
+    permission: "clients:read",
   },
   {
     label: "Invoices",
     href: "/invoices",
     icon: <Receipt className="size-5" />,
+    permission: "invoices:read",
   },
   {
     label: "Products",
@@ -126,6 +131,7 @@ const financeNav: NavItem[] = [
     label: "Settings",
     href: "/settings",
     icon: <Settings className="size-5" />,
+    permission: "settings:read",
   },
 ];
 
@@ -293,17 +299,23 @@ export function AppSidebar() {
                 {!collapsed && <span className="flex-1">{item.label}</span>}
               </Link>
             );
-            if (collapsed) {
+            const content = collapsed ? (
+              <Tooltip key={item.href}>
+                <TooltipTrigger asChild>{NavLink}</TooltipTrigger>
+                <TooltipContent side="right">
+                  <p>{item.label}</p>
+                </TooltipContent>
+              </Tooltip>
+            ) : NavLink;
+
+            if (item.permission) {
               return (
-                <Tooltip key={item.href}>
-                  <TooltipTrigger asChild>{NavLink}</TooltipTrigger>
-                  <TooltipContent side="right">
-                    <p>{item.label}</p>
-                  </TooltipContent>
-                </Tooltip>
+                <PermissionGate key={item.href} permission={item.permission}>
+                  {content}
+                </PermissionGate>
               );
             }
-            return NavLink;
+            return content;
           })}
 
           {/* Expandable Project Menu */}
@@ -384,7 +396,6 @@ export function AppSidebar() {
                   </button>
                   ))}
                 </div>
-
                 <div className="border-t border-slate-100 p-1.5 bg-slate-50/50">
                   {!showAllProjects && projects.length > 3 && (
                     <button
@@ -580,17 +591,23 @@ export function AppSidebar() {
               </Link>
             );
 
-            if (collapsed) {
+            const content = collapsed ? (
+              <Tooltip key={item.href}>
+                <TooltipTrigger asChild>{NavLink}</TooltipTrigger>
+                <TooltipContent side="right">
+                  <p>{item.label}</p>
+                </TooltipContent>
+              </Tooltip>
+            ) : NavLink;
+
+            if (item.permission) {
               return (
-                <Tooltip key={item.href}>
-                  <TooltipTrigger asChild>{NavLink}</TooltipTrigger>
-                  <TooltipContent side="right">
-                    <p>{item.label}</p>
-                  </TooltipContent>
-                </Tooltip>
+                <PermissionGate key={item.href} permission={item.permission}>
+                  {content}
+                </PermissionGate>
               );
             }
-            return NavLink;
+            return content;
           })}
 
           {/* Management Section */}
@@ -622,17 +639,23 @@ export function AppSidebar() {
               </Link>
             );
 
-            if (collapsed) {
+            const content = collapsed ? (
+              <Tooltip key={item.href}>
+                <TooltipTrigger asChild>{NavLink}</TooltipTrigger>
+                <TooltipContent side="right">
+                  <p>{item.label}</p>
+                </TooltipContent>
+              </Tooltip>
+            ) : NavLink;
+
+            if (item.permission) {
               return (
-                <Tooltip key={item.href}>
-                  <TooltipTrigger asChild>{NavLink}</TooltipTrigger>
-                  <TooltipContent side="right">
-                    <p>{item.label}</p>
-                  </TooltipContent>
-                </Tooltip>
+                <PermissionGate key={item.href} permission={item.permission}>
+                  {content}
+                </PermissionGate>
               );
             }
-            return NavLink;
+            return content;
           })}
 
           {/* Finance Section */}
@@ -664,17 +687,23 @@ export function AppSidebar() {
               </Link>
             );
 
-            if (collapsed) {
+            const content = collapsed ? (
+              <Tooltip key={item.href}>
+                <TooltipTrigger asChild>{NavLink}</TooltipTrigger>
+                <TooltipContent side="right">
+                  <p>{item.label}</p>
+                </TooltipContent>
+              </Tooltip>
+            ) : NavLink;
+
+            if (item.permission) {
               return (
-                <Tooltip key={item.href}>
-                  <TooltipTrigger asChild>{NavLink}</TooltipTrigger>
-                  <TooltipContent side="right">
-                    <p>{item.label}</p>
-                  </TooltipContent>
-                </Tooltip>
+                <PermissionGate key={item.href} permission={item.permission}>
+                  {content}
+                </PermissionGate>
               );
             }
-            return NavLink;
+            return content;
           })}
         </nav>
 
