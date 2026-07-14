@@ -8,6 +8,7 @@ import { useApp } from '@/lib/app-context';
 import { UsersPanel } from '@/components/settings/users-panel';
 import { RolesPanel } from '@/components/settings/roles-panel';
 import { EmailConfigPanel } from '@/components/settings/email-config-panel';
+import { PermissionGate } from '@/lib/permission-guard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -395,9 +396,15 @@ export default function SettingsPage() {
                 <TabsTrigger value="tags">Tags</TabsTrigger>
                 <TabsTrigger value="types">Types</TabsTrigger>
                 <TabsTrigger value="groups">Groups</TabsTrigger>
-                <TabsTrigger value="users">Users</TabsTrigger>
-                <TabsTrigger value="roles">Roles</TabsTrigger>
-                <TabsTrigger value="email">Email</TabsTrigger>
+                <PermissionGate permission="users:read">
+                  <TabsTrigger value="users">Users</TabsTrigger>
+                </PermissionGate>
+                <PermissionGate permission="roles:read">
+                  <TabsTrigger value="roles">Roles</TabsTrigger>
+                </PermissionGate>
+                <PermissionGate permission="settings:read">
+                  <TabsTrigger value="email">Email</TabsTrigger>
+                </PermissionGate>
                 <TabsTrigger value="notifications" onClick={() => {
                   if (notifPreferences.length === 0) loadNotifPreferences();
                 }}>

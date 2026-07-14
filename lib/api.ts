@@ -510,6 +510,62 @@ export async function createRole(data: any) {
   });
 }
 
+export async function getUser(userId: string) {
+  return fetchAPI(`/users/${userId}`);
+}
+
+export async function updateUser(userId: string, data: any) {
+  return fetchAPI(`/users/${userId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteUser(userId: string) {
+  return fetchAPI(`/users/${userId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function updateRole(roleId: string, data: any) {
+  return fetchAPI(`/roles/${roleId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteRole(roleId: string) {
+  return fetchAPI(`/roles/${roleId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getRoleDetail(roleId: string) {
+  return fetchAPI(`/roles/${roleId}`);
+}
+
+export async function assignUserRole(userId: string, data: { role_id: string, scope_type?: string, scope_id?: string, expires_at?: string }) {
+  return fetchAPI(`/roles/users/${userId}/roles`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function revokeUserRole(userId: string, roleId: string) {
+  return fetchAPI(`/roles/users/${userId}/roles/${roleId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getUserRoles(userId: string) {
+  return fetchAPI(`/roles/users/${userId}/roles`);
+}
+
+export async function getAuditLog(limit = 50, offset = 0) {
+  return fetchAPI(`/roles/audit-log?limit=${limit}&offset=${offset}`);
+}
+
+
 // ── Email Configuration API helpers ────────────────────────────
 
 export async function getEmailConfig() {
