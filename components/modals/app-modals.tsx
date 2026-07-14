@@ -525,16 +525,6 @@ function CreateTaskModal({
       return;
     }
 
-    if (isPastDate(startDate)) {
-      setStartDateError("Please select today's date or a future start date.");
-      return;
-    }
-
-    if (isPastDate(dueDate)) {
-      setDueDateError("Please select today's date or a future due date.");
-      return;
-    }
-
     if (startDate && dueDate && new Date(startDate) > new Date(dueDate)) {
       setDueDateError("Due date cannot be before the start date.");
       return;
@@ -741,15 +731,10 @@ function CreateTaskModal({
                 <Input
                   type="date"
                   value={startDate}
-                  min={getTodayDateInputValue()}
                   onChange={(e) => {
                     const nextValue = e.target.value;
                     setStartDate(nextValue);
-                    setStartDateError(
-                      isPastDate(nextValue)
-                        ? "Please select today's date or a future start date."
-                        : "",
-                    );
+                    setStartDateError("");
                     if (dueDate && new Date(nextValue) > new Date(dueDate)) {
                       setDueDateError(
                         "Due date cannot be before the start date.",
@@ -773,15 +758,11 @@ function CreateTaskModal({
                 <Input
                   type="date"
                   value={dueDate}
-                  min={startDate || getTodayDateInputValue()}
+                  min={startDate || undefined}
                   onChange={(e) => {
                     const nextValue = e.target.value;
                     setDueDate(nextValue);
-                    if (isPastDate(nextValue)) {
-                      setDueDateError(
-                        "Please select today's date or a future due date.",
-                      );
-                    } else if (
+                    if (
                       startDate &&
                       new Date(nextValue) < new Date(startDate)
                     ) {
@@ -1155,11 +1136,6 @@ function EditTaskModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
-
-    if (isPastDate(dueDate)) {
-      setDueDateError("Please select today's date or a future due date.");
-      return;
-    }
 
     const selectedUser = users.find((u) => u.id === assignee);
     const selectedTagObjects = projectLabels.filter((t) =>
@@ -1538,15 +1514,10 @@ function EditTaskModal({
                   <Input
                     type="date"
                     value={dueDate}
-                    min={getTodayDateInputValue()}
                     onChange={(e) => {
                       const nextValue = e.target.value;
                       setDueDate(nextValue);
-                      setDueDateError(
-                        isPastDate(nextValue)
-                          ? "Please select today's date or a future due date."
-                          : "",
-                      );
+                      setDueDateError("");
                     }}
                     aria-invalid={!!dueDateError}
                   />

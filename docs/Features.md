@@ -215,7 +215,7 @@ The Projects page supports **5 view modes** via tabs:
 | **Backlog** | Sprint backlog management |
 
 ### 4.2 Project Header
-
+Up
 - Project name, key badge, description
 - Toolbar: View mode tabs, filters (status, priority, assignee, type), search input
 - **Save Custom Filter**: Users can save their current complex filter combinations for quick reuse.
@@ -988,7 +988,9 @@ Gradient background card at top showing:
 
 ### 17.1 Tab Layout
 
-4 tabs across full width: **Statuses** | **Tags** | **Types** | **Groups**
+Tabs across full width: **Statuses** | **Tags** | **Types** | **Groups** | **Users** | **Roles** | **Email** | **Notifications**
+
+*(Note: Users, Roles, and Email tabs are gated by RBAC permissions and hidden from non-admin roles).*
 
 ### 17.2 Statuses Tab
 
@@ -1036,9 +1038,31 @@ Table layout for task groups.
 
 **CRUD:** Modal with Name + Description.
 
-### 17.6 Settings State
+### 17.6 Users Tab (User Management)
 
-All settings are managed in **local component state** (not persisted to backend). Changes reset on page reload.
+Table layout showing all registered users in the workspace.
+**Features:**
+- Add User: Create user and assign an existing role.
+- Edit/Delete User: Modifies user data.
+- **Super Admin Protection:** The row for the designated Super Admin (`superadmin@hexerve.com`) is strictly protected. It displays as "Protected" and removes edit/delete actions, ensuring the root account cannot be tampered with. The "Super Admin" role is also hidden from the role assignment dropdowns to prevent privilege escalation.
+
+### 17.7 Roles Tab (Role Management)
+
+Table layout for managing RBAC roles.
+**Features:**
+- View Roles: Shows all system and custom roles.
+- Create Custom Role: Define a new role by selecting specific granular permissions from the matrix.
+- System Roles: Default system roles (like `project_mgr`, `developer`, `org_admin`) cannot be deleted or renamed.
+
+### 17.8 Email Config Tab
+
+Allows workspace administrators to dynamically configure the SMTP settings used for outgoing system notifications.
+- Fields: Host, Port, Username, Password, Encryption Type (TLS/SSL).
+- The backend gracefully falls back to `.env` configurations if the DB config is incomplete.
+
+### 17.9 Settings State
+
+Most frontend settings (Statuses, Tags) are managed in **local component state**, while Users, Roles, and Email configurations communicate directly with the REST API.
 
 ---
 
@@ -1155,6 +1179,23 @@ Beyond direct assignments, users can subscribe to individual tasks as "Watchers"
 
 ### 20.3 Dynamic Workflow Status Engine
 Replacing hardcoded logic, the PM Tool utilizes a `WorkflowStatus` engine configured via `Settings > Statuses`.
+
+---
+
+## 21. Role-Based Access Control (RBAC) & Security
+
+The PM Tool incorporates a granular, permission-based RBAC system that enforces security at both the UI (via `<PermissionGate>`) and the API layer (via `Depends(require_permission(...))`).
+
+### 21.1 Core Roles
+- **Super Admin**: The absolute highest level of access (`["*"]`). Locked strictly to `superadmin@hexerve.com`. Cannot be deleted, demoted, or modified by anyone.
+- **Org Admin**: Workspace administrator with full `["*"]` permissions. Can manage all settings, billing, users, and roles.
+- **Project Manager**: Operational leader. They have broad access to execute projects (tasks, sprints, financials) and can create projects/teams.
+  - **Delete Own Constraint**: Project Managers possess `projects:delete_own` and `teams:delete_own`, allowing them to safely delete entities they created, but explicitly preventing them from deleting projects/teams created by others (like the Org Admin).
+- **Developer**: Focuses on execution. Highly restricted visibility. The entire Settings page, Portfolios, and Client Data are hidden from them. They can only delete or update their own assigned tasks and time entries (`tasks:delete_own`, `time_entries:delete_own`).
+
+### 21.2 System Protections
+- **Foreign Key Tracking (`created_by_id`)**: Entities like `projects` and `teams` track the `actor_id` of the creator, allowing the backend API to dynamically enforce ownership during deletion attempts.
+- **Hidden UI Elements**: The frontend selectively hides dropdown items (e.g., hiding "Super Admin" during user creation) and restricts entire sidebar links based on the authenticated user's token claims.
 - **Customization:** Teams can define their own status names, colors, and order via drag-and-drop.
 - **Internal Grouping:** Every custom status maps to a core system group (`OPEN`, `IN_PROGRESS`, `ON_HOLD`, `CLOSED`), allowing global metrics and sprint logic to function uniformly despite customized visual pipelines.
 
