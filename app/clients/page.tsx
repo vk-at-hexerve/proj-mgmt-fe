@@ -61,6 +61,7 @@ import { cn } from '@/lib/utils';
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import { AppHeader } from '@/components/layout/app-header';
 import { AICopilot } from '@/components/ai/ai-copilot';
+import { PermissionGate } from '@/lib/permission-guard';
 
 export default function ClientsPage() {
   const { clients, addClient, updateClient, deleteClient, openModal, showToast } = useApp();
@@ -151,10 +152,12 @@ export default function ClientsPage() {
         <main className="flex-1 overflow-auto">
           <div className="p-6">
             <div className="flex justify-end mb-4">
-              <Button onClick={() => handleOpenDialog()} size="sm" className="gap-1">
-                <Plus className="size-4" />
-                Create Client
-              </Button>
+              <PermissionGate permission="clients:create">
+                <Button onClick={() => handleOpenDialog()} size="sm" className="gap-1">
+                  <Plus className="size-4" />
+                  Create Client
+                </Button>
+              </PermissionGate>
             </div>
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">

@@ -4,9 +4,11 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import { AppHeader } from '@/components/layout/app-header';
 import { AICopilot } from '@/components/ai/ai-copilot';
+import { useApp } from '@/lib/app-context';
 import { UsersPanel } from '@/components/settings/users-panel';
 import { RolesPanel } from '@/components/settings/roles-panel';
 import { EmailConfigPanel } from '@/components/settings/email-config-panel';
+import { PermissionGate } from '@/lib/permission-guard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -128,6 +130,7 @@ const CATEGORY_CONFIG: Record<string, { icon: React.ReactNode; gradient: string;
 
 
 export default function SettingsPage() {
+  const { hasPermission } = useApp();
   const [statuses, setStatuses] = useState<StatusItem[]>(initialStatuses);
   const [tags, setTags] = useState<TagItem[]>(initialTags);
   const [types, setTypes] = useState<TypeItem[]>(initialTypes);
@@ -355,6 +358,28 @@ export default function SettingsPage() {
   const enabledCount = notifPreferences.filter((p) => p.emailEnabled && p.category !== 'Comments').length;
   const totalCount = notifPreferences.filter((p) => p.category !== 'Comments').length;
 
+  if (!hasPermission('settings:read')) {
+    return (
+      <div className="flex h-screen bg-background">
+        <AppSidebar />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <AppHeader title="Settings" subtitle="Manage your workspace configuration" />
+          <main className="flex-1 overflow-y-auto p-6 flex items-center justify-center">
+            <div className="text-center">
+              <div className="inline-flex items-center justify-center size-16 rounded-full bg-destructive/10 text-destructive mb-4">
+                <CheckCircle2 className="size-8" />
+              </div>
+              <h2 className="text-2xl font-bold mb-2">Access Restricted</h2>
+              <p className="text-muted-foreground max-w-md mx-auto">
+                You don't have permission to view the workspace settings. Contact your administrator if you believe this is a mistake.
+              </p>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen bg-background">
       <AppSidebar />
@@ -371,9 +396,15 @@ export default function SettingsPage() {
                 <TabsTrigger value="tags">Tags</TabsTrigger>
                 <TabsTrigger value="types">Types</TabsTrigger>
                 <TabsTrigger value="groups">Groups</TabsTrigger>
-                <TabsTrigger value="users">Users</TabsTrigger>
-                <TabsTrigger value="roles">Roles</TabsTrigger>
-                <TabsTrigger value="email">Email</TabsTrigger>
+                <PermissionGate permission="users:read">
+                  <TabsTrigger value="users">Users</TabsTrigger>
+                </PermissionGate>
+                <PermissionGate permission="roles:read">
+                  <TabsTrigger value="roles">Roles</TabsTrigger>
+                </PermissionGate>
+                <PermissionGate permission="settings:read">
+                  <TabsTrigger value="email">Email</TabsTrigger>
+                </PermissionGate>
                 <TabsTrigger value="notifications" onClick={() => {
                   if (notifPreferences.length === 0) loadNotifPreferences();
                 }}>

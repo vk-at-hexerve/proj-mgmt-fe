@@ -62,6 +62,7 @@ import { cn } from '@/lib/utils';
 
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import { AppHeader } from '@/components/layout/app-header';
+import { PermissionGate } from '@/lib/permission-guard';
 
 const statusConfig: Record<InvoiceStatus, { label: string; color: string; icon: React.ReactNode }> = {
   draft: { label: 'Draft', color: 'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-800 dark:text-gray-300', icon: <FileText className="size-3.5" /> },
@@ -246,10 +247,12 @@ export default function InvoicesPage() {
         <main className="flex-1 overflow-auto">
           <div className="p-6">
             <div className="flex justify-end mb-4">
-              <Button onClick={() => handleOpenDialog()} size="sm" className="gap-1">
-                <Plus className="size-4" />
-                Create Invoice
-              </Button>
+              <PermissionGate permission="invoices:create">
+                <Button onClick={() => handleOpenDialog()} size="sm" className="gap-1">
+                  <Plus className="size-4" />
+                  Create Invoice
+                </Button>
+              </PermissionGate>
             </div>
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
