@@ -180,7 +180,7 @@ interface AppContextType extends AppState {
 
   // Project actions
   setCurrentProject: (id: string | null) => void;
-  addProject: (project: Omit<Project, "id" | "createdAt">) => Promise<void>;
+  addProject: (project: Omit<Project, "id" | "createdAt"> & { customStatuses?: any[] }) => Promise<void>;
   updateProject: (id: string, updates: Partial<Project>) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
 
@@ -535,6 +535,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
           is_milestone: task.isMilestone || false,
           task_type: task.type,
           parent_id: task.parentId || null,
+          lead_source: task.leadSource || null,
+          lead_temperature: task.leadTemperature || null,
+          lead_score: task.leadScore !== undefined ? task.leadScore : null,
+          deal_value: task.dealValue !== undefined ? task.dealValue : null,
+          deal_probability: task.dealProbability !== undefined ? task.dealProbability : null,
+          last_contact_date: task.lastContactDate || null,
+          next_followup_date: task.nextFollowUpDate || null,
         }),
       });
 
@@ -823,7 +830,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [isTaskDone]);
 
   // Project actions
-  const addProject = useCallback(async (project: Omit<Project, "id" | "createdAt">) => {
+  const addProject = useCallback(async (project: Omit<Project, "id" | "createdAt"> & { customStatuses?: any[] }) => {
     const tempId = `proj-temp-${Date.now()}`;
     const newProject: Project = { ...project, id: tempId, createdAt: new Date().toISOString() };
     setProjects((prev) => [...prev, newProject]);
@@ -842,6 +849,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           client_id: project.clientId || null,
           team_id: project.teamId || null,
           program_id: project.programId || null,
+          template_id: project.templateId || null,
+          custom_statuses: project.customStatuses || null,
         }),
       });
       setProjects((prev) => prev.map((p) => p.id === tempId ? mapBackendProject(savedProject) : p));

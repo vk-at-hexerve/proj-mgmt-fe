@@ -71,6 +71,7 @@ export function mapBackendProject(backendProject: BackendProject): Project {
     clientId: backendProject.client_id,
     teamId: backendProject.team_id,
     programId: backendProject.program_id,
+    templateId: backendProject.template_id,
     createdAt: backendProject.created_at || new Date().toISOString(),
     updatedAt: backendProject.updated_at || new Date().toISOString()
   };
@@ -131,6 +132,13 @@ export function mapBackendTask(backendTask: BackendTask): Task {
     watcherCount: backendTask.watcher_count || 0,
     isWatching: backendTask.is_watching || false,
     watchers: backendTask.watchers || [],
+    leadSource: (backendTask as any).lead_source || undefined,
+    leadTemperature: (backendTask as any).lead_temperature || undefined,
+    leadScore: (backendTask as any).lead_score ?? undefined,
+    dealValue: (backendTask as any).deal_value ? Number((backendTask as any).deal_value) : undefined,
+    dealProbability: (backendTask as any).deal_probability ?? undefined,
+    lastContactDate: (backendTask as any).last_contact_date || undefined,
+    nextFollowUpDate: (backendTask as any).next_followup_date || undefined,
   };
 }
 
@@ -147,6 +155,20 @@ export function mapBackendWorkflowStatus(backendStatus: any): WorkflowStatus {
     isDefault: backendStatus.is_default ?? false,
   };
 }
+
+export async function fetchTemplateStatuses(templateId: string) {
+  const data = await fetchAPI(`/templates/${templateId}/statuses`);
+  return data.map((s: any) => ({
+    id: String(s.id),
+    templateId: String(s.template_id),
+    name: s.name,
+    groupKey: s.group_key,
+    color: s.color || '#6B7280',
+    position: s.position ?? 0,
+    isDefault: s.is_default ?? false,
+  }));
+}
+
 
 export function mapBackendTeam(backendTeam: BackendTeam): Team {
   const defaultUser = { id: 'u1', name: 'System Admin', email: 'admin@hexerve.com', role: 'super-admin' as UserRole };

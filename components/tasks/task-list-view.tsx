@@ -94,6 +94,7 @@ const typeConfig: Record<string, { icon: React.ReactNode; color: string }> = {
   task: { icon: <CheckSquare className="size-4" />, color: 'text-blue-500' },
   subtask: { icon: <CheckSquare className="size-3" />, color: 'text-blue-400' },
   bug: { icon: <Bug className="size-4" />, color: 'text-red-500' },
+  lead: { icon: <UserCheck className="size-4" />, color: 'text-indigo-500' },
 };
 
 
@@ -113,18 +114,52 @@ const defaultColumns: ColumnConfig[] = [
   { id: 'tags', label: 'Tags', width: 160, minWidth: 100, sortable: false, visible: true },
 ];
 
+const leadDefaultColumns: ColumnConfig[] = [
+  { id: 'type', label: 'Type', width: 56, minWidth: 40, sortable: false, visible: true },
+  { id: 'key', label: 'Key', width: 100, minWidth: 80, sortable: true, visible: true },
+  { id: 'title', label: 'Lead Name', width: 260, minWidth: 150, sortable: true, visible: true },
+  { id: 'status', label: 'Stage', width: 130, minWidth: 100, sortable: true, visible: true },
+  { id: 'priority', label: 'Priority', width: 110, minWidth: 80, sortable: true, visible: true },
+  { id: 'assignee', label: 'Lead Owner', width: 160, minWidth: 100, sortable: false, visible: true },
+  { id: 'leadSource', label: 'Lead Source', width: 140, minWidth: 100, sortable: true, visible: true },
+  { id: 'leadTemperature', label: 'Lead Temp', width: 120, minWidth: 90, sortable: true, visible: true },
+  { id: 'dealValue', label: 'Expected Value', width: 140, minWidth: 100, sortable: true, visible: true },
+  { id: 'leadScore', label: 'Lead Score', width: 110, minWidth: 80, sortable: true, visible: true },
+  { id: 'dealProbability', label: 'Probability', width: 110, minWidth: 80, sortable: true, visible: true },
+  { id: 'lastContactDate', label: 'Last Contact', width: 130, minWidth: 90, sortable: true, visible: true },
+  { id: 'nextFollowupDate', label: 'Next Follow-up', width: 130, minWidth: 90, sortable: true, visible: true },
+  { id: 'dueDate', label: 'Expected Close', width: 130, minWidth: 90, sortable: true, visible: true },
+  { id: 'group', label: 'Group', width: 130, minWidth: 80, sortable: true, visible: true },
+  { id: 'tags', label: 'Tags', width: 160, minWidth: 100, sortable: false, visible: true },
+];
+
 export function TaskListView({ projectId }: TaskListViewProps) {
   const { tasks: allTasks, openModal, selectTask, selectedTasks, selectAllTasks, clearSelectedTasks, addTask, updateTask, showToast, currentUser, assignTask, users, isTaskDone, isTaskOverdue, getStatusGroup, workflowStatuses, getProjectStatuses, projects, getFilteredTasks, taskSort, setTaskSort, teams, taskFilters, setTaskFilters } = useApp();
+  const currentProject = React.useMemo(() => projects.find((p: any) => p.id === projectId), [projects, projectId]);
+  const isLeadProject = currentProject?.templateId === 'tpl-lead';
+
+  const defaultColumnsToUse = React.useMemo(() => {
+    return isLeadProject ? leadDefaultColumns : defaultColumns;
+  }, [isLeadProject]);
+
   const projectTeam = React.useMemo(() => teams?.find((t: any) => t.projects.some((p: any) => p.id === projectId)) || teams?.[0], [teams, projectId]);
-  const [columns, setColumns] = useState<ColumnConfig[]>(defaultColumns);
+  const storageKey = isLeadProject ? 'pmtool_column_config_lead' : 'pmtool_column_config';
+  const [columns, setColumns] = useState<ColumnConfig[]>(defaultColumnsToUse);
+
   const [editingColumn, setEditingColumn] = useState<string | null>(null);
   const [editingLabel, setEditingLabel] = useState('');
   const [resizing, setResizing] = useState<string | null>(null);
   const [inlineCreateOpen, setInlineCreateOpen] = useState(false);
   const [inlineSubtaskParent, setInlineSubtaskParent] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState('');
-  const [newTaskType, setNewTaskType] = useState<'task' | 'bug' | 'story'>('task');
-  const [editingField, setEditingField] = useState<{ taskId: string; field: 'title' | 'points' } | null>(null);
+  const [newTaskType, setNewTaskType] = useState<'task' | 'bug' | 'story' | 'lead'>(isLeadProject ? 'lead' : 'task');
+
+  React.useEffect(() => {
+    if (isLeadProject) {
+      setNewTaskType('lead');
+    }
+  }, [isLeadProject]);
+  const [editingField, setEditingField] = useState<{ taskId: string; field: 'title' | 'points' | 'dealValue' | 'leadScore' | 'dealProbability' } | null>(null);
   const [editingValue, setEditingValue] = useState<string>('');
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
@@ -171,12 +206,12 @@ export function TaskListView({ projectId }: TaskListViewProps) {
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem('pmtool_column_config');
+      const stored = localStorage.getItem(storageKey);
       if (stored) {
         const parsed = JSON.parse(stored) as ColumnConfig[];
         const merged = parsed
           .map(storedCol => {
-            const defCol = defaultColumns.find(c => c.id === storedCol.id);
+            const defCol = defaultColumnsToUse.find(c => c.id === storedCol.id);
             if (!defCol) return null;
             return {
               ...defCol,
@@ -188,18 +223,20 @@ export function TaskListView({ projectId }: TaskListViewProps) {
           .filter(Boolean) as ColumnConfig[];
 
         // Add any new default columns that were not in stored config
-        defaultColumns.forEach(defCol => {
+        defaultColumnsToUse.forEach(defCol => {
           if (!merged.some(c => c.id === defCol.id)) {
             merged.push(defCol);
           }
         });
 
         setColumns(merged);
+      } else {
+        setColumns(defaultColumnsToUse);
       }
     } catch (e) {
       console.error('Failed to load column config', e);
     }
-  }, []);
+  }, [storageKey, defaultColumnsToUse]);
 
   const tasks = projectId
     ? getFilteredTasks(projectId)
@@ -277,7 +314,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
           c.id === editingColumn ? { ...c, label: editingLabel.trim() } : c
         );
         try {
-          localStorage.setItem('pmtool_column_config', JSON.stringify(updated));
+          localStorage.setItem(storageKey, JSON.stringify(updated));
         } catch (e) {
           console.error(e);
         }
@@ -313,7 +350,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
 
       setColumns(prev => {
         try {
-          localStorage.setItem('pmtool_column_config', JSON.stringify(prev));
+          localStorage.setItem(storageKey, JSON.stringify(prev));
         } catch (e) {
           console.error(e);
         }
@@ -323,7 +360,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-  }, [columns]);
+  }, [columns, storageKey]);
 
   const getLocalDateString = (date?: Date) => {
     if (!date) return undefined;
@@ -456,7 +493,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
       newColumns.splice(targetIndex, 0, removed);
 
       try {
-        localStorage.setItem('pmtool_column_config', JSON.stringify(newColumns));
+        localStorage.setItem(storageKey, JSON.stringify(newColumns));
       } catch (err) {
         console.error(err);
       }
@@ -877,7 +914,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                             );
                             setColumns(updated);
                             try {
-                              localStorage.setItem('pmtool_column_config', JSON.stringify(updated));
+                              localStorage.setItem(storageKey, JSON.stringify(updated));
                             } catch (err) {
                               console.error(err);
                             }
@@ -891,9 +928,9 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                       <DropdownMenuItem
                         className="text-destructive font-medium cursor-pointer"
                         onSelect={() => {
-                          setColumns(defaultColumns);
+                          setColumns(defaultColumnsToUse);
                           try {
-                            localStorage.removeItem('pmtool_column_config');
+                            localStorage.removeItem(storageKey);
                           } catch (err) {
                             console.error(err);
                           }
@@ -919,14 +956,20 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                     if (column.id === 'type') {
                       return (
                         <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60">
-                          <Select value={newTaskType} onValueChange={(v) => setNewTaskType(v as 'task' | 'bug' | 'story')}>
-                            <SelectTrigger className="h-7 w-20 text-xs">
+                          <Select value={newTaskType} onValueChange={(v) => setNewTaskType(v as 'task' | 'bug' | 'story' | 'lead')}>
+                            <SelectTrigger className="h-7 w-20 text-xs capitalize">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="task">Task</SelectItem>
-                              <SelectItem value="bug">Bug</SelectItem>
-                              <SelectItem value="story">Story</SelectItem>
+                              {isLeadProject ? (
+                                <SelectItem value="lead">Lead</SelectItem>
+                              ) : (
+                                <>
+                                  <SelectItem value="task">Task</SelectItem>
+                                  <SelectItem value="bug">Bug</SelectItem>
+                                  <SelectItem value="story">Story</SelectItem>
+                                </>
+                              )}
                             </SelectContent>
                           </Select>
                         </TableCell>
@@ -953,7 +996,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                             <Input
                               value={newTaskTitle}
                               onChange={(e) => setNewTaskTitle(e.target.value)}
-                              placeholder="Enter task title and press Enter..."
+                              placeholder={isLeadProject ? "Enter lead name and press Enter..." : "Enter task title and press Enter..."}
                               className="h-8 flex-1"
                               autoFocus
                               onKeyDown={(e) => {
@@ -981,7 +1024,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
 
               {sortedParentTasks.map((task) => {
                 const priority = priorityConfig[task.priority];
-                const type = typeConfig[task.type];
+                const type = typeConfig[task.type] || typeConfig.task;
                 const status = workflowStatuses.find(s => s.id === task.statusId);
                 const statusColor = status?.color || '#6B7280';
                 const statusGroup = getStatusGroup(task.statusId);
@@ -1381,6 +1424,253 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                 )}
                               </TableCell>
                             );
+                          case 'leadSource':
+                            return (
+                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <button className="flex items-center justify-center cursor-pointer hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none w-full text-xs">
+                                      {task.leadSource ? (
+                                        <Badge variant="outline" className="text-xs bg-muted/30">
+                                          {task.leadSource}
+                                        </Badge>
+                                      ) : (
+                                        <span className="text-muted-foreground text-xs italic">—</span>
+                                      )}
+                                    </button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="start" className="w-40">
+                                    {['Website', 'Meta Ads', 'Google Ads', 'Referral', 'LinkedIn', 'Organic Search', 'Cold Email', 'Cold Call', 'Partner', 'Event'].map((src) => (
+                                      <DropdownMenuItem
+                                        key={src}
+                                        onClick={() => updateTask(task.id, { leadSource: src })}
+                                        className="text-xs cursor-pointer"
+                                      >
+                                        {src}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </TableCell>
+                            );
+                          case 'leadTemperature':
+                            return (
+                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <button className="flex items-center justify-center cursor-pointer hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none w-full text-xs">
+                                      {task.leadTemperature === 'Cold' && (
+                                        <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30">
+                                          Cold ❄️
+                                        </Badge>
+                                      )}
+                                      {task.leadTemperature === 'Warm' && (
+                                        <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30">
+                                          Warm 🌤️
+                                        </Badge>
+                                      )}
+                                      {task.leadTemperature === 'Hot' && (
+                                        <Badge variant="outline" className="text-xs bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30">
+                                          Hot 🔥
+                                        </Badge>
+                                      )}
+                                      {!task.leadTemperature && (
+                                        <span className="text-muted-foreground text-xs italic">—</span>
+                                      )}
+                                    </button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="start" className="w-32">
+                                    <DropdownMenuItem onClick={() => updateTask(task.id, { leadTemperature: 'Cold' })} className="text-xs text-blue-600 cursor-pointer">
+                                      Cold ❄️
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => updateTask(task.id, { leadTemperature: 'Warm' })} className="text-xs text-amber-600 cursor-pointer">
+                                      Warm 🌤️
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => updateTask(task.id, { leadTemperature: 'Hot' })} className="text-xs text-red-600 cursor-pointer">
+                                      Hot 🔥
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </TableCell>
+                            );
+                          case 'dealValue':
+                            return (
+                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
+                                {editingField?.taskId === task.id && editingField?.field === 'dealValue' ? (
+                                  <Input
+                                    type="number"
+                                    autoFocus
+                                    value={editingValue}
+                                    onChange={(e) => setEditingValue(e.target.value)}
+                                    className="h-8 py-1 px-2 text-xs w-24 text-center mx-auto"
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        const val = parseFloat(editingValue);
+                                        updateTask(task.id, { dealValue: isNaN(val) ? undefined : val });
+                                        setEditingField(null);
+                                      } else if (e.key === 'Escape') {
+                                        setEditingField(null);
+                                      }
+                                    }}
+                                    onBlur={() => {
+                                      const val = parseFloat(editingValue);
+                                      updateTask(task.id, { dealValue: isNaN(val) ? undefined : val });
+                                      setEditingField(null);
+                                    }}
+                                  />
+                                ) : (
+                                  <div
+                                    className="cursor-pointer hover:bg-muted/40 p-1 rounded transition-colors text-center w-full min-h-[1.75rem] flex items-center justify-center font-medium text-xs group/val"
+                                    onClick={() => {
+                                      setEditingField({ taskId: task.id, field: 'dealValue' });
+                                      setEditingValue(task.dealValue !== undefined && task.dealValue !== null ? String(task.dealValue) : '');
+                                    }}
+                                  >
+                                    {task.dealValue !== undefined && task.dealValue !== null ? (
+                                      <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                                        ${task.dealValue.toLocaleString()}
+                                      </span>
+                                    ) : (
+                                      <span className="text-muted-foreground opacity-30 group-hover/val:opacity-100 transition-opacity text-xs font-semibold">+$ Value</span>
+                                    )}
+                                  </div>
+                                )}
+                              </TableCell>
+                            );
+                          case 'leadScore':
+                            return (
+                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
+                                {editingField?.taskId === task.id && editingField?.field === 'leadScore' ? (
+                                  <Input
+                                    type="number"
+                                    autoFocus
+                                    value={editingValue}
+                                    onChange={(e) => setEditingValue(e.target.value)}
+                                    className="h-8 py-1 px-2 text-xs w-16 text-center mx-auto"
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        const val = parseInt(editingValue, 10);
+                                        updateTask(task.id, { leadScore: isNaN(val) ? undefined : val });
+                                        setEditingField(null);
+                                      } else if (e.key === 'Escape') {
+                                        setEditingField(null);
+                                      }
+                                    }}
+                                    onBlur={() => {
+                                      const val = parseInt(editingValue, 10);
+                                      updateTask(task.id, { leadScore: isNaN(val) ? undefined : val });
+                                      setEditingField(null);
+                                    }}
+                                  />
+                                ) : (
+                                  <div
+                                    className="cursor-pointer hover:bg-muted/40 p-1 rounded transition-colors text-center w-full min-h-[1.75rem] flex items-center justify-center font-medium text-xs group/score"
+                                    onClick={() => {
+                                      setEditingField({ taskId: task.id, field: 'leadScore' });
+                                      setEditingValue(task.leadScore !== undefined && task.leadScore !== null ? String(task.leadScore) : '');
+                                    }}
+                                  >
+                                    {task.leadScore !== undefined && task.leadScore !== null ? (
+                                      <Badge variant="secondary" className="text-xs bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                                        {task.leadScore}
+                                      </Badge>
+                                    ) : (
+                                      <span className="text-muted-foreground opacity-30 group-hover/score:opacity-100 transition-opacity text-xs font-semibold">+ Score</span>
+                                    )}
+                                  </div>
+                                )}
+                              </TableCell>
+                            );
+                          case 'dealProbability':
+                            return (
+                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
+                                {editingField?.taskId === task.id && editingField?.field === 'dealProbability' ? (
+                                  <Input
+                                    type="number"
+                                    autoFocus
+                                    value={editingValue}
+                                    onChange={(e) => setEditingValue(e.target.value)}
+                                    className="h-8 py-1 px-2 text-xs w-16 text-center mx-auto"
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        const val = parseInt(editingValue, 10);
+                                        updateTask(task.id, { dealProbability: isNaN(val) ? undefined : val });
+                                        setEditingField(null);
+                                      } else if (e.key === 'Escape') {
+                                        setEditingField(null);
+                                      }
+                                    }}
+                                    onBlur={() => {
+                                      const val = parseInt(editingValue, 10);
+                                      updateTask(task.id, { dealProbability: isNaN(val) ? undefined : val });
+                                      setEditingField(null);
+                                    }}
+                                  />
+                                ) : (
+                                  <div
+                                    className="cursor-pointer hover:bg-muted/40 p-1 rounded transition-colors text-center w-full min-h-[1.75rem] flex items-center justify-center font-medium text-xs group/prob"
+                                    onClick={() => {
+                                      setEditingField({ taskId: task.id, field: 'dealProbability' });
+                                      setEditingValue(task.dealProbability !== undefined && task.dealProbability !== null ? String(task.dealProbability) : '');
+                                    }}
+                                  >
+                                    {task.dealProbability !== undefined && task.dealProbability !== null ? (
+                                      <Badge variant="outline" className="text-xs bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30">
+                                        {task.dealProbability}%
+                                      </Badge>
+                                    ) : (
+                                      <span className="text-muted-foreground opacity-30 group-hover/prob:opacity-100 transition-opacity text-xs font-semibold">+ Prob%</span>
+                                    )}
+                                  </div>
+                                )}
+                              </TableCell>
+                            );
+                          case 'lastContactDate':
+                            return (
+                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <button className="flex items-center justify-center gap-1.5 text-xs hover:bg-muted/40 p-1.5 rounded transition-colors focus:outline-none w-full font-medium text-muted-foreground">
+                                      <Calendar className="size-3.5 text-muted-foreground shrink-0" />
+                                      {formatDate(task.lastContactDate)}
+                                    </button>
+                                  </PopoverTrigger>
+                                  <PopoverContent align="start" className="w-auto p-0">
+                                    <CalendarComponent
+                                      mode="single"
+                                      selected={task.lastContactDate ? new Date(task.lastContactDate) : undefined}
+                                      onSelect={(date) => {
+                                        updateTask(task.id, { lastContactDate: date ? getLocalDateString(date) : undefined });
+                                      }}
+                                      initialFocus
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                              </TableCell>
+                            );
+                          case 'nextFollowupDate':
+                            return (
+                              <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <button className="flex items-center justify-center gap-1.5 text-xs hover:bg-muted/40 p-1.5 rounded transition-colors focus:outline-none w-full font-medium text-muted-foreground">
+                                      <Calendar className="size-3.5 text-muted-foreground shrink-0" />
+                                      {formatDate(task.nextFollowUpDate)}
+                                    </button>
+                                  </PopoverTrigger>
+                                  <PopoverContent align="start" className="w-auto p-0">
+                                    <CalendarComponent
+                                      mode="single"
+                                      selected={task.nextFollowUpDate ? new Date(task.nextFollowUpDate) : undefined}
+                                      onSelect={(date) => {
+                                        updateTask(task.id, { nextFollowUpDate: date ? getLocalDateString(date) : undefined });
+                                      }}
+                                      initialFocus
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                              </TableCell>
+                            );
                           case 'group':
                             return (
                               <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
@@ -1694,7 +1984,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                               View Details
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleTaskAction('edit', task.id)}>
-                              Edit Task
+                              {isLeadProject ? 'Edit Lead' : 'Edit Task'}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => handleTaskAction('subtask', task.id)}>
@@ -1716,7 +2006,7 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                     {/* Render Subtasks when expanded */}
                     {isExpanded && taskSubtasks.map((subtask) => {
                       const subtaskPriority = priorityConfig[subtask.priority];
-                      const subtaskType = typeConfig[subtask.type];
+                      const subtaskType = typeConfig[subtask.type] || typeConfig.task;
                       const subtaskStatus = workflowStatuses.find(s => s.id === subtask.statusId);
                       const subtaskColor = subtaskStatus?.color || '#6B7280';
                       const isSubtaskSelected = selectedTasks.includes(subtask.id);
@@ -2071,6 +2361,253 @@ export function TaskListView({ projectId }: TaskListViewProps) {
                                         )}
                                       </div>
                                     )}
+                                  </TableCell>
+                                );
+                              case 'leadSource':
+                                return (
+                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <button className="flex items-center justify-center cursor-pointer hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none w-full text-xs">
+                                          {subtask.leadSource ? (
+                                            <Badge variant="outline" className="text-xs bg-muted/30">
+                                              {subtask.leadSource}
+                                            </Badge>
+                                          ) : (
+                                            <span className="text-muted-foreground text-xs italic">—</span>
+                                          )}
+                                        </button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="start" className="w-40">
+                                        {['Website', 'Meta Ads', 'Google Ads', 'Referral', 'LinkedIn', 'Organic Search', 'Cold Email', 'Cold Call', 'Partner', 'Event'].map((src) => (
+                                          <DropdownMenuItem
+                                            key={src}
+                                            onClick={() => updateTask(subtask.id, { leadSource: src })}
+                                            className="text-xs cursor-pointer"
+                                          >
+                                            {src}
+                                          </DropdownMenuItem>
+                                        ))}
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </TableCell>
+                                );
+                              case 'leadTemperature':
+                                return (
+                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <button className="flex items-center justify-center cursor-pointer hover:bg-muted/40 p-1 rounded transition-colors focus:outline-none w-full text-xs">
+                                          {subtask.leadTemperature === 'Cold' && (
+                                            <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30">
+                                              Cold ❄️
+                                            </Badge>
+                                          )}
+                                          {subtask.leadTemperature === 'Warm' && (
+                                            <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30">
+                                              Warm 🌤️
+                                            </Badge>
+                                          )}
+                                          {subtask.leadTemperature === 'Hot' && (
+                                            <Badge variant="outline" className="text-xs bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30">
+                                              Hot 🔥
+                                            </Badge>
+                                          )}
+                                          {!subtask.leadTemperature && (
+                                            <span className="text-muted-foreground text-xs italic">—</span>
+                                          )}
+                                        </button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="start" className="w-32">
+                                        <DropdownMenuItem onClick={() => updateTask(subtask.id, { leadTemperature: 'Cold' })} className="text-xs text-blue-600 cursor-pointer">
+                                          Cold ❄️
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => updateTask(subtask.id, { leadTemperature: 'Warm' })} className="text-xs text-amber-600 cursor-pointer">
+                                          Warm 🌤️
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => updateTask(subtask.id, { leadTemperature: 'Hot' })} className="text-xs text-red-600 cursor-pointer">
+                                          Hot 🔥
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </TableCell>
+                                );
+                              case 'dealValue':
+                                return (
+                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
+                                    {editingField?.taskId === subtask.id && editingField?.field === 'dealValue' ? (
+                                      <Input
+                                        type="number"
+                                        autoFocus
+                                        value={editingValue}
+                                        onChange={(e) => setEditingValue(e.target.value)}
+                                        className="h-8 py-1 px-2 text-xs w-24 text-center mx-auto"
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') {
+                                            const val = parseFloat(editingValue);
+                                            updateTask(subtask.id, { dealValue: isNaN(val) ? undefined : val });
+                                            setEditingField(null);
+                                          } else if (e.key === 'Escape') {
+                                            setEditingField(null);
+                                          }
+                                        }}
+                                        onBlur={() => {
+                                          const val = parseFloat(editingValue);
+                                          updateTask(subtask.id, { dealValue: isNaN(val) ? undefined : val });
+                                          setEditingField(null);
+                                        }}
+                                      />
+                                    ) : (
+                                      <div
+                                        className="cursor-pointer hover:bg-muted/40 p-1 rounded transition-colors text-center w-full min-h-[1.75rem] flex items-center justify-center font-medium text-xs group/val"
+                                        onClick={() => {
+                                          setEditingField({ taskId: subtask.id, field: 'dealValue' });
+                                          setEditingValue(subtask.dealValue !== undefined && subtask.dealValue !== null ? String(subtask.dealValue) : '');
+                                        }}
+                                      >
+                                        {subtask.dealValue !== undefined && subtask.dealValue !== null ? (
+                                          <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                                            ${subtask.dealValue.toLocaleString()}
+                                          </span>
+                                        ) : (
+                                          <span className="text-muted-foreground opacity-30 group-hover/val:opacity-100 transition-opacity text-xs font-semibold">+$ Value</span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </TableCell>
+                                );
+                              case 'leadScore':
+                                return (
+                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
+                                    {editingField?.taskId === subtask.id && editingField?.field === 'leadScore' ? (
+                                      <Input
+                                        type="number"
+                                        autoFocus
+                                        value={editingValue}
+                                        onChange={(e) => setEditingValue(e.target.value)}
+                                        className="h-8 py-1 px-2 text-xs w-16 text-center mx-auto"
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') {
+                                            const val = parseInt(editingValue, 10);
+                                            updateTask(subtask.id, { leadScore: isNaN(val) ? undefined : val });
+                                            setEditingField(null);
+                                          } else if (e.key === 'Escape') {
+                                            setEditingField(null);
+                                          }
+                                        }}
+                                        onBlur={() => {
+                                          const val = parseInt(editingValue, 10);
+                                          updateTask(subtask.id, { leadScore: isNaN(val) ? undefined : val });
+                                          setEditingField(null);
+                                        }}
+                                      />
+                                    ) : (
+                                      <div
+                                        className="cursor-pointer hover:bg-muted/40 p-1 rounded transition-colors text-center w-full min-h-[1.75rem] flex items-center justify-center font-medium text-xs group/score"
+                                        onClick={() => {
+                                          setEditingField({ taskId: subtask.id, field: 'leadScore' });
+                                          setEditingValue(subtask.leadScore !== undefined && subtask.leadScore !== null ? String(subtask.leadScore) : '');
+                                        }}
+                                      >
+                                        {subtask.leadScore !== undefined && subtask.leadScore !== null ? (
+                                          <Badge variant="secondary" className="text-xs bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                                            {subtask.leadScore}
+                                          </Badge>
+                                        ) : (
+                                          <span className="text-muted-foreground opacity-30 group-hover/score:opacity-100 transition-opacity text-xs font-semibold">+ Score</span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </TableCell>
+                                );
+                              case 'dealProbability':
+                                return (
+                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
+                                    {editingField?.taskId === subtask.id && editingField?.field === 'dealProbability' ? (
+                                      <Input
+                                        type="number"
+                                        autoFocus
+                                        value={editingValue}
+                                        onChange={(e) => setEditingValue(e.target.value)}
+                                        className="h-8 py-1 px-2 text-xs w-16 text-center mx-auto"
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') {
+                                            const val = parseInt(editingValue, 10);
+                                            updateTask(subtask.id, { dealProbability: isNaN(val) ? undefined : val });
+                                            setEditingField(null);
+                                          } else if (e.key === 'Escape') {
+                                            setEditingField(null);
+                                          }
+                                        }}
+                                        onBlur={() => {
+                                          const val = parseInt(editingValue, 10);
+                                          updateTask(subtask.id, { dealProbability: isNaN(val) ? undefined : val });
+                                          setEditingField(null);
+                                        }}
+                                      />
+                                    ) : (
+                                      <div
+                                        className="cursor-pointer hover:bg-muted/40 p-1 rounded transition-colors text-center w-full min-h-[1.75rem] flex items-center justify-center font-medium text-xs group/prob"
+                                        onClick={() => {
+                                          setEditingField({ taskId: subtask.id, field: 'dealProbability' });
+                                          setEditingValue(subtask.dealProbability !== undefined && subtask.dealProbability !== null ? String(subtask.dealProbability) : '');
+                                        }}
+                                      >
+                                        {subtask.dealProbability !== undefined && subtask.dealProbability !== null ? (
+                                          <Badge variant="outline" className="text-xs bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30">
+                                            {subtask.dealProbability}%
+                                          </Badge>
+                                        ) : (
+                                          <span className="text-muted-foreground opacity-30 group-hover/prob:opacity-100 transition-opacity text-xs font-semibold">+ Prob%</span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </TableCell>
+                                );
+                              case 'lastContactDate':
+                                return (
+                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
+                                    <Popover>
+                                      <PopoverTrigger asChild>
+                                        <button className="flex items-center justify-center gap-1.5 text-xs hover:bg-muted/40 p-1.5 rounded transition-colors focus:outline-none w-full font-medium text-muted-foreground">
+                                          <Calendar className="size-3.5 text-muted-foreground shrink-0" />
+                                          {formatDate(subtask.lastContactDate)}
+                                        </button>
+                                      </PopoverTrigger>
+                                      <PopoverContent align="start" className="w-auto p-0">
+                                        <CalendarComponent
+                                          mode="single"
+                                          selected={subtask.lastContactDate ? new Date(subtask.lastContactDate) : undefined}
+                                          onSelect={(date) => {
+                                            updateTask(subtask.id, { lastContactDate: date ? getLocalDateString(date) : undefined });
+                                          }}
+                                          initialFocus
+                                        />
+                                      </PopoverContent>
+                                    </Popover>
+                                  </TableCell>
+                                );
+                              case 'nextFollowupDate':
+                                return (
+                                  <TableCell key={column.id} style={{ width: column.width }} className="border-r-2 border-border/60 text-center align-middle" onClick={(e) => e.stopPropagation()}>
+                                    <Popover>
+                                      <PopoverTrigger asChild>
+                                        <button className="flex items-center justify-center gap-1.5 text-xs hover:bg-muted/40 p-1.5 rounded transition-colors focus:outline-none w-full font-medium text-muted-foreground">
+                                          <Calendar className="size-3.5 text-muted-foreground shrink-0" />
+                                          {formatDate(subtask.nextFollowUpDate)}
+                                        </button>
+                                      </PopoverTrigger>
+                                      <PopoverContent align="start" className="w-auto p-0">
+                                        <CalendarComponent
+                                          mode="single"
+                                          selected={subtask.nextFollowUpDate ? new Date(subtask.nextFollowUpDate) : undefined}
+                                          onSelect={(date) => {
+                                            updateTask(subtask.id, { nextFollowUpDate: date ? getLocalDateString(date) : undefined });
+                                          }}
+                                          initialFocus
+                                        />
+                                      </PopoverContent>
+                                    </Popover>
                                   </TableCell>
                                 );
                               case 'group':
@@ -2475,12 +3012,18 @@ export function TaskListView({ projectId }: TaskListViewProps) {
               {!inlineCreateOpen && !inlineSubtaskParent && (
                 <TableRow
                   className="hover:bg-muted/30 cursor-pointer border-t border-border"
-                  onClick={() => setInlineCreateOpen(true)}
+                  onClick={() => {
+                    if (isLeadProject) {
+                      openModal('create-task');
+                    } else {
+                      setInlineCreateOpen(true);
+                    }
+                  }}
                 >
                   <TableCell colSpan={columns.filter(c => c.visible).length + 2} className="py-3">
                     <div className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors">
                       <Plus className="size-4" />
-                      <span className="text-sm">Add new task...</span>
+                      <span className="text-sm">{isLeadProject ? 'Add new lead...' : 'Add new task...'}</span>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -2492,9 +3035,11 @@ export function TaskListView({ projectId }: TaskListViewProps) {
 
       {/* Footer */}
       <div className="px-4 py-2 border-t border-border bg-muted/30 flex items-center justify-between text-sm text-muted-foreground shrink-0">
-        <span>{tasks.length} tasks</span>
+        <span>{tasks.length} {isLeadProject ? 'leads' : 'tasks'}</span>
         <span>
-          Total: {tasks.reduce((sum, t) => sum + (t.storyPoints || 0), 0)} story points
+          {isLeadProject
+            ? `Total Value: $${tasks.reduce((sum, t) => sum + (t.dealValue || 0), 0).toLocaleString()}`
+            : `Total: ${tasks.reduce((sum, t) => sum + (t.storyPoints || 0), 0)} story points`}
         </span>
       </div>
     </div>

@@ -42,6 +42,7 @@ import {
   ChevronUp,
   ChevronDown,
   Inbox,
+  UserCheck,
 } from 'lucide-react';
 import type { Task, TaskPriority } from '@/lib/types';
 import { getStatusName } from '@/lib/status-utils';
@@ -61,6 +62,7 @@ const typeIcons: Record<Task['type'], React.ReactNode> = {
   task: <ListTodo className="size-4 text-muted-foreground" />,
   subtask: <ListTodo className="size-3 text-muted-foreground" />,
   bug: <Bug className="size-4 text-destructive" />,
+  lead: <UserCheck className="size-4 text-indigo-500" />,
 };
 
 type SortField = 'key' | 'title' | 'project' | 'status' | 'priority' | 'assignee' | 'updatedAt';

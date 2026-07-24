@@ -52,6 +52,7 @@ import {
   PlusCircle,
   Settings,
   Star,
+  UserCheck,
 } from 'lucide-react';
 import { useApp } from '@/lib/app-context';
 import type { Task, TaskPriority, WorkflowStatus, WorkflowGroupKey } from '@/lib/types';
@@ -126,6 +127,7 @@ const typeIcons: Record<Task['type'], React.ReactNode> = {
   task: <ListTodo className="size-4 text-muted-foreground" />,
   subtask: <ListTodo className="size-4 text-muted-foreground" />,
   bug: <Bug className="size-4 text-destructive" />,
+  lead: <UserCheck className="size-4 text-indigo-500" />,
 };
 
 // ─── Components ─────────────────────────────────────────────────────────────
@@ -264,6 +266,7 @@ interface KanbanColumnProps {
   status: WorkflowStatus;
   tasks: Task[];
   isFullscreen: boolean;
+  isLeadProject?: boolean;
   onDragStart: (e: React.DragEvent, taskId: string) => void;
   onDragOver: (e: React.DragEvent) => void;
   onDrop: (e: React.DragEvent, statusId: string) => void;
@@ -279,6 +282,7 @@ function KanbanColumn({
   status,
   tasks,
   isFullscreen,
+  isLeadProject,
   onDragStart,
   onDragOver,
   onDrop,
@@ -321,9 +325,18 @@ function KanbanColumn({
             >
               {tasks.length}
             </Badge>
-            <Button variant="ghost" size="icon" className="size-7" onClick={onAddTask}>
-              <Plus className="size-4" />
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="size-7" onClick={onAddTask}>
+                    <Plus className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">
+                  {isLeadProject ? 'Add Lead' : 'Add Task'}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
       </CardHeader>
@@ -346,7 +359,7 @@ function KanbanColumn({
         ))}
         {tasks.length === 0 && (
           <div className="flex items-center justify-center h-20 border-2 border-dashed border-muted-foreground/20 rounded-lg">
-            <p className="text-sm text-muted-foreground">Drop tasks here</p>
+            <p className="text-sm text-muted-foreground">{isLeadProject ? 'Drop leads here' : 'Drop tasks here'}</p>
           </div>
         )}
       </div>
@@ -478,6 +491,7 @@ export function KanbanBoard({
   setIsFullscreen: propSetIsFullscreen,
 }: KanbanBoardProps) {
   const {
+    projects,
     tasks,
     updateTaskStatus,
     openModal,
@@ -587,6 +601,9 @@ export function KanbanBoard({
     );
   }
 
+  const currentProject = projects.find((p) => p.id === projectId);
+  const isLeadProject = currentProject?.templateId === "tpl-lead";
+
   return (
     <div
       className={cn(
@@ -634,6 +651,7 @@ export function KanbanBoard({
                   status={status}
                   tasks={filteredTasks.filter((t) => t.statusId === status.id)}
                   isFullscreen={isFullscreen}
+                  isLeadProject={isLeadProject}
                   onDragStart={handleDragStart}
                   onDragOver={handleDragOver}
                   onDrop={handleDrop}

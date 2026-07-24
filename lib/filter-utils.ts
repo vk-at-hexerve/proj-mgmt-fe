@@ -44,6 +44,12 @@ export function applyTaskFilters(
     if (taskFilters.endDateBefore) {
       result = result.filter(t => t.dueDate && t.dueDate <= taskFilters.endDateBefore!);
     }
+    if (taskFilters.leadSources && taskFilters.leadSources.length > 0) {
+      result = result.filter(t => t.leadSource && taskFilters.leadSources!.includes(t.leadSource));
+    }
+    if (taskFilters.leadTemperatures && taskFilters.leadTemperatures.length > 0) {
+      result = result.filter(t => t.leadTemperature && taskFilters.leadTemperatures!.includes(t.leadTemperature));
+    }
   }
 
   // Apply Sort
@@ -75,6 +81,13 @@ export function applyTaskFilters(
       case 'dueDate': comp = (a.dueDate || 'zzzz').localeCompare(b.dueDate || 'zzzz'); break;
       case 'createdAt': comp = (a.createdAt || 'zzzz').localeCompare(b.createdAt || 'zzzz'); break;
       case 'storyPoints': comp = (a.storyPoints || 0) - (b.storyPoints || 0); break;
+      case 'leadSource': comp = (a.leadSource || 'zzzz').localeCompare(b.leadSource || 'zzzz'); break;
+      case 'leadTemperature': comp = (a.leadTemperature || 'zzzz').localeCompare(b.leadTemperature || 'zzzz'); break;
+      case 'dealValue': comp = (a.dealValue || 0) - (b.dealValue || 0); break;
+      case 'leadScore': comp = (a.leadScore || 0) - (b.leadScore || 0); break;
+      case 'dealProbability': comp = (a.dealProbability || 0) - (b.dealProbability || 0); break;
+      case 'lastContactDate': comp = (a.lastContactDate || 'zzzz').localeCompare(b.lastContactDate || 'zzzz'); break;
+      case 'nextFollowUpDate': comp = (a.nextFollowUpDate || 'zzzz').localeCompare(b.nextFollowUpDate || 'zzzz'); break;
     }
     return taskSort.direction === 'asc' ? comp : -comp;
   });

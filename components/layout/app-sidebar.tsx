@@ -161,6 +161,11 @@ export function AppSidebar() {
   const [projectsExpanded, setProjectsExpanded] = useState(false);
   const [showAllProjects, setShowAllProjects] = useState(false);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [leadsExpanded, setLeadsExpanded] = useState(false);
+  const [showAllLeads, setShowAllLeads] = useState(false);
+
+  const regularProjects = projects.filter((p: Project) => p.templateId !== 'tpl-lead');
+  const leadTrackingProjects = projects.filter((p: Project) => p.templateId === 'tpl-lead');
 
   const assignedTaskCount = appTasks.filter(
     (task: Task) => task.assignee?.id === currentUser?.id,
@@ -368,7 +373,7 @@ export function AppSidebar() {
                     <span className="truncate tracking-tight font-semibold">View All Projects</span>
                   </button>
                   <div className="h-px bg-slate-100 my-1 mx-2" />
-                  {(showAllProjects ? projects : projects.slice(0, 3)).map((project: Project) => (<button
+                  {(showAllProjects ? regularProjects : regularProjects.slice(0, 3)).map((project: Project) => (<button
                     key={project.id}
                     onClick={() => {
                       setCurrentProject(project.id);
@@ -397,7 +402,7 @@ export function AppSidebar() {
                   ))}
                 </div>
                 <div className="border-t border-slate-100 p-1.5 bg-slate-50/50">
-                  {!showAllProjects && projects.length > 3 && (
+                  {!showAllProjects && regularProjects.length > 3 && (
                     <button
                       onClick={() => setShowAllProjects(true)}
                       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-500 hover:text-slate-900 hover:bg-slate-200/60 transition-all"
@@ -417,7 +422,7 @@ export function AppSidebar() {
                   )}
                   <PermissionGate permission="projects:create">
                     <button
-                      onClick={() => openModal("create-project")}
+                      onClick={() => openModal("create-project", { defaultTemplate: "tpl-blank" })}
                       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-200/60 hover:text-slate-900 transition-all whitespace-nowrap"
                     >
                       <Plus className="size-4" />
@@ -429,6 +434,101 @@ export function AppSidebar() {
             )}
 
 
+          </div>
+
+          {/* Expandable Lead Tracking Menu */}
+          <div className="space-y-1">
+            <button
+              onClick={() => setLeadsExpanded(!leadsExpanded)}
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                leadsExpanded
+                  ? "bg-sidebar-accent text-sidebar-foreground"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent",
+                collapsed && "justify-center px-2",
+              )}
+            >
+              <Target className="size-5" />
+              {!collapsed && (
+                <>
+                  <span className="flex-1 text-left">Lead Tracking</span>
+                  <ChevronDown
+                    className={cn(
+                      "size-4 transition-transform duration-200",
+                      leadsExpanded && "rotate-180",
+                    )}
+                  />
+                </>
+              )}
+            </button>
+
+            {!collapsed && leadsExpanded && (
+              <div className="mt-1 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden transition-all animate-in slide-in-from-top-2 duration-300">
+                <div
+                  className={cn(
+                    "p-1 space-y-0.5",
+                    showAllLeads && "max-h-60 overflow-y-auto custom-scrollbar"
+                  )}
+                >
+                  {(showAllLeads ? leadTrackingProjects : leadTrackingProjects.slice(0, 3)).map((project: Project) => (<button
+                    key={project.id}
+                    onClick={() => {
+                      setCurrentProject(project.id);
+                      router.push("/projects");
+                    }}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all text-left group",
+                      currentProject === project.id
+                        ? "bg-[#6366F1] text-white shadow-md"
+                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 hover:shadow-sm",
+                    )}
+                  >
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "px-2 py-0.5 h-6 text-[10px] font-bold font-mono shrink-0 transition-colors",
+                        currentProject === project.id
+                          ? "bg-white/20 border-white/30 text-white shadow-none"
+                          : "bg-white border-slate-200 text-slate-700 shadow-sm group-hover:border-slate-400"
+                      )}
+                    >
+                      {project.key}
+                    </Badge>
+                    <span className="truncate tracking-tight font-semibold">{project.name}</span>
+                  </button>
+                  ))}
+                </div>
+                <div className="border-t border-slate-100 p-1.5 bg-slate-50/50">
+                  {!showAllLeads && leadTrackingProjects.length > 3 && (
+                    <button
+                      onClick={() => setShowAllLeads(true)}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-500 hover:text-slate-900 hover:bg-slate-200/60 transition-all"
+                    >
+                      <Layers className="size-4 opacity-70" />
+                      View All Leads
+                    </button>
+                  )}
+                  {showAllLeads && (
+                    <button
+                      onClick={() => setShowAllLeads(false)}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-500 hover:text-slate-900 hover:bg-slate-200/60 transition-all"
+                    >
+                      <ChevronDown className="size-4 rotate-180 opacity-70" />
+                      Show Less
+                    </button>
+                  )}
+                  <PermissionGate permission="projects:create">
+                    <button
+                      onClick={() => openModal("create-project", { defaultTemplate: "tpl-lead" })}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-200/60 hover:text-slate-900 transition-all whitespace-nowrap"
+                    >
+                      <Plus className="size-4" />
+                      Create New Lead Project
+                    </button>
+                  </PermissionGate>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Project Specific - Filters */}

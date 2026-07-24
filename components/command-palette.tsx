@@ -30,6 +30,7 @@ import {
   BookOpen,
   Zap,
   Settings,
+  UserCheck,
 } from 'lucide-react';
 
 export function CommandPalette() {
@@ -75,12 +76,13 @@ export function CommandPalette() {
     command();
   };
 
-  const typeIcons = {
+  const typeIcons: Record<string, React.ReactNode> = {
     epic: <Zap className="size-4 text-primary" />,
     story: <BookOpen className="size-4 text-accent" />,
     task: <ListTodo className="size-4 text-muted-foreground" />,
     subtask: <ListTodo className="size-3 text-muted-foreground" />,
     bug: <Bug className="size-4 text-destructive" />,
+    lead: <UserCheck className="size-4 text-indigo-500" />,
   };
 
   if (!isMounted) return null;

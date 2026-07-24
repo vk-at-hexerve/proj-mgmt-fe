@@ -2,6 +2,16 @@
 
 export type WorkflowGroupKey = 'OPEN' | 'IN_PROGRESS' | 'ON_HOLD' | 'CLOSED';
 
+export interface TemplateStatus {
+  id: string;
+  templateId: string;
+  name: string;
+  groupKey: WorkflowGroupKey;
+  color: string;
+  position: number;
+  isDefault: boolean;
+}
+
 export interface WorkflowStatus {
   id: string;
   projectId: string;
@@ -86,7 +96,7 @@ export interface Task {
   description?: string;
   statusId: string;
   priority: TaskPriority;
-  type: 'epic' | 'story' | 'task' | 'subtask' | 'bug';
+  type: 'epic' | 'story' | 'task' | 'subtask' | 'bug' | 'lead';
   assignee?: User;
   reporter: User;
   tags: Tag[];
@@ -108,6 +118,15 @@ export interface Task {
   watcherCount?: number;
   isWatching?: boolean;
   watchers?: TaskWatcher[];
+
+  // Lead fields
+  leadSource?: string;
+  leadTemperature?: string;
+  leadScore?: number;
+  dealValue?: number;
+  dealProbability?: number;
+  lastContactDate?: string;
+  nextFollowUpDate?: string;
 }
 
 export interface TaskWatcher {
@@ -127,10 +146,12 @@ export interface TaskFilters {
   isMilestone?: boolean | null;
   startDateAfter?: string;
   endDateBefore?: string;
+  leadSources?: string[];
+  leadTemperatures?: string[];
 }
 
 export interface TaskSort {
-  field: 'key' | 'title' | 'status' | 'progress' | 'priority' | 'startDate' | 'dueDate' | 'storyPoints' | 'createdAt';
+  field: 'key' | 'title' | 'status' | 'progress' | 'priority' | 'startDate' | 'dueDate' | 'storyPoints' | 'createdAt' | 'leadSource' | 'leadTemperature' | 'dealValue' | 'leadScore' | 'dealProbability' | 'lastContactDate' | 'nextFollowUpDate';
   direction: 'asc' | 'desc';
 }
 
@@ -179,6 +200,9 @@ export interface Project {
   teamId?: string; // Internal team
   templateId?: string; // Template used to create the project
   taskCount: number;
+  // Lead Tracking Specific Fields
+  leadSource?: string;
+  leadScore?: number;
   createdAt: string;
   updatedAt?: string;
 }
@@ -274,6 +298,7 @@ export type TemplateCategory =
   | 'ads-management'
   | 'marketing'
   | 'operations'
+  | 'sales'
   | 'custom';
 
 export interface ProjectTemplate {
@@ -387,6 +412,7 @@ export interface BackendProject {
   client_id?: string;
   team_id?: string;
   program_id?: string;
+  template_id?: string;
   created_at?: string;
   updated_at?: string;
 }

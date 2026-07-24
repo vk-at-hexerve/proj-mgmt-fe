@@ -48,10 +48,13 @@ export function TaskFilterPanel({
   onApplyCustomFilter,
   onApply
 }: TaskFilterPanelProps) {
-  const { workflowStatuses, teams, tasks, users, showToast } = useApp();
+  const { workflowStatuses, teams, tasks, users, showToast, projects } = useApp();
 
   const [open, setOpen] = React.useState(false);
   const [assigneeSearch, setAssigneeSearch] = React.useState('');
+
+  const currentProject = useMemo(() => projectId ? projects.find(p => p.id === projectId) : null, [projects, projectId]);
+  const isLeadProject = currentProject?.templateId === 'tpl-lead';
 
   // Compute active filters count
   const activeFiltersCount =
@@ -61,7 +64,9 @@ export function TaskFilterPanel({
     (filters.statuses?.length || 0) +
     (filters.isMilestone !== undefined && filters.isMilestone !== null ? 1 : 0) +
     (filters.startDateAfter ? 1 : 0) +
-    (filters.endDateBefore ? 1 : 0);
+    (filters.endDateBefore ? 1 : 0) +
+    (filters.leadSources?.length || 0) +
+    (filters.leadTemperatures?.length || 0);
 
   const clearFilters = () => {
     if (onApplyCustomFilter && activeCustomFilterId) {
@@ -202,13 +207,20 @@ export function TaskFilterPanel({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="key">Key</SelectItem>
-                    <SelectItem value="title">Title</SelectItem>
-                    <SelectItem value="status">Status</SelectItem>
+                    <SelectItem value="title">{isLeadProject ? 'Lead Name' : 'Title'}</SelectItem>
+                    <SelectItem value="status">{isLeadProject ? 'Stage' : 'Status'}</SelectItem>
                     <SelectItem value="priority">Priority</SelectItem>
-                    <SelectItem value="progress">% Complete</SelectItem>
-                    <SelectItem value="startDate">Start Date</SelectItem>
-                    <SelectItem value="dueDate">Due Date</SelectItem>
-                    <SelectItem value="storyPoints">Story Points</SelectItem>
+                    {!isLeadProject && <SelectItem value="progress">% Complete</SelectItem>}
+                    {!isLeadProject && <SelectItem value="startDate">Start Date</SelectItem>}
+                    {!isLeadProject && <SelectItem value="storyPoints">Story Points</SelectItem>}
+                    <SelectItem value="dueDate">{isLeadProject ? 'Expected Close' : 'Due Date'}</SelectItem>
+                    {isLeadProject && <SelectItem value="dealValue">Expected Value</SelectItem>}
+                    {isLeadProject && <SelectItem value="leadScore">Lead Score</SelectItem>}
+                    {isLeadProject && <SelectItem value="dealProbability">Probability</SelectItem>}
+                    {isLeadProject && <SelectItem value="leadTemperature">Lead Temp</SelectItem>}
+                    {isLeadProject && <SelectItem value="leadSource">Lead Source</SelectItem>}
+                    {isLeadProject && <SelectItem value="lastContactDate">Last Contact</SelectItem>}
+                    {isLeadProject && <SelectItem value="nextFollowUpDate">Next Follow-up</SelectItem>}
                   </SelectContent>
                 </Select>
                 <Button
@@ -230,7 +242,7 @@ export function TaskFilterPanel({
               {relevantTeamMembers.length > 0 && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs font-medium">Assignees</Label>
+                    <Label className="text-xs font-medium">{isLeadProject ? 'Lead Owner' : 'Assignees'}</Label>
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
@@ -283,7 +295,7 @@ export function TaskFilterPanel({
 
               {/* Status Filter */}
               <div className="space-y-2">
-                <Label className="text-xs font-medium">Status</Label>
+                <Label className="text-xs font-medium">{isLeadProject ? 'Stage' : 'Status'}</Label>
                 <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto pr-1">
                   {relevantStatuses.map((status) => (
                     <label key={status.id} className="flex items-center gap-2 cursor-pointer">
@@ -314,48 +326,88 @@ export function TaskFilterPanel({
               </div>
 
               {/* Type Filter */}
-              <div className="space-y-2">
-                <Label className="text-xs font-medium">Type</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {['epic', 'story', 'task', 'subtask', 'bug'].map((type) => (
-                    <label key={type} className="flex items-center gap-2 cursor-pointer">
-                      <Checkbox
-                        checked={(filters.types || []).includes(type)}
-                        onCheckedChange={() => toggleArrayFilter('types', type)}
-                      />
-                      <span className="text-sm capitalize">{type}</span>
-                    </label>
-                  ))}
+              {!isLeadProject && (
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">Type</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {['epic', 'story', 'task', 'subtask', 'bug'].map((type) => (
+                      <label key={type} className="flex items-center gap-2 cursor-pointer">
+                        <Checkbox
+                          checked={(filters.types || []).includes(type)}
+                          onCheckedChange={() => toggleArrayFilter('types', type)}
+                        />
+                        <span className="text-sm capitalize">{type}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Special Attributes */}
-              <div className="space-y-2">
-                <Label className="text-xs font-medium">Attributes</Label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <Checkbox
-                    checked={filters.isMilestone === true}
-                    onCheckedChange={(checked) => setFilters(prev => ({ ...prev, isMilestone: checked ? true : undefined }))}
-                  />
-                  <span className="text-sm">Milestone Only</span>
-                </label>
-              </div>
+              {!isLeadProject && (
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">Attributes</Label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      checked={filters.isMilestone === true}
+                      onCheckedChange={(checked) => setFilters(prev => ({ ...prev, isMilestone: checked ? true : undefined }))}
+                    />
+                    <span className="text-sm">Milestone Only</span>
+                  </label>
+                </div>
+              )}
+
+              {/* Lead Specific Filters */}
+              {isLeadProject && (
+                <>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium">Lead Source</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {['Website', 'Referral', 'Social Media', 'Cold Call', 'Event', 'Other'].map((source) => (
+                        <label key={source} className="flex items-center gap-2 cursor-pointer">
+                          <Checkbox
+                            checked={(filters.leadSources || []).includes(source)}
+                            onCheckedChange={() => toggleArrayFilter('leadSources', source)}
+                          />
+                          <span className="text-sm truncate">{source}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium">Lead Temperature</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {['Cold', 'Warm', 'Hot'].map((temp) => (
+                        <label key={temp} className="flex items-center gap-2 cursor-pointer">
+                          <Checkbox
+                            checked={(filters.leadTemperatures || []).includes(temp)}
+                            onCheckedChange={() => toggleArrayFilter('leadTemperatures', temp)}
+                          />
+                          <span className="text-sm truncate">{temp}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
 
               {/* Date Filters */}
               <div className="space-y-2">
                 <Label className="text-xs font-medium">Dates</Label>
                 <div className="grid grid-cols-2 gap-2">
+                  {!isLeadProject && (
+                    <div>
+                      <Label className="text-[10px] text-muted-foreground">Start After</Label>
+                      <Input
+                        type="date"
+                        className="h-8 text-xs"
+                        value={filters.startDateAfter || ''}
+                        onChange={e => setFilters(prev => ({ ...prev, startDateAfter: e.target.value || undefined }))}
+                      />
+                    </div>
+                  )}
                   <div>
-                    <Label className="text-[10px] text-muted-foreground">Start After</Label>
-                    <Input
-                      type="date"
-                      className="h-8 text-xs"
-                      value={filters.startDateAfter || ''}
-                      onChange={e => setFilters(prev => ({ ...prev, startDateAfter: e.target.value || undefined }))}
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-[10px] text-muted-foreground">Due Before</Label>
+                    <Label className="text-[10px] text-muted-foreground">{isLeadProject ? 'Expected Close Before' : 'Due Before'}</Label>
                     <Input
                       type="date"
                       className="h-8 text-xs"
