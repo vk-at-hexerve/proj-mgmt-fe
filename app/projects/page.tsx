@@ -236,6 +236,11 @@ export default function ProjectsPage() {
     );
   }
 
+  const isLeadProject = currentProject?.templateId === 'tpl-lead';
+  const availableViewOptions = isLeadProject
+    ? viewOptions.filter(v => v.id !== 'backlog')
+    : viewOptions;
+
   return (
     <div className="flex h-screen bg-background">
       <AppSidebar />
@@ -252,7 +257,7 @@ export default function ProjectsPage() {
 
             {/* View Toggle — icon + label */}
             <div className="flex items-center rounded-md border border-border bg-muted/50 p-0.5 gap-0.5 shrink-0 h-8">
-              {viewOptions.map(v => (
+              {availableViewOptions.map(v => (
                 <Button
                   key={v.id}
                   variant={currentView === v.id ? 'default' : 'ghost'}
@@ -268,46 +273,48 @@ export default function ProjectsPage() {
             </div>
 
             {/* Sprint Selector + Create Sprint */}
-            <div className="flex items-center gap-1.5 shrink-0">
-              <Select defaultValue={activeSprint?.id}>
-                <SelectTrigger size="sm" className="w-[150px] text-sm font-medium rounded-md">
-                  <SelectValue placeholder="Select sprint" />
-                </SelectTrigger>
-                <SelectContent>
-                  {sprints.map((sprint) => (
-                    <SelectItem key={sprint.id} value={sprint.id}>
+            {!isLeadProject && (
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Select defaultValue={activeSprint?.id}>
+                  <SelectTrigger size="sm" className="w-[150px] text-sm font-medium rounded-md">
+                    <SelectValue placeholder="Select sprint" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sprints.map((sprint) => (
+                      <SelectItem key={sprint.id} value={sprint.id}>
+                        <div className="flex items-center gap-2">
+                          {sprint.name}
+                          {sprint.status === 'active' && (
+                            <Badge variant="default" className="text-xs">Active</Badge>
+                          )}
+                          {sprint.status === 'planning' && (
+                            <Badge variant="outline" className="text-xs">Planning</Badge>
+                          )}
+                          {sprint.status === 'completed' && (
+                            <Badge variant="secondary" className="text-xs">Done</Badge>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="backlog">
                       <div className="flex items-center gap-2">
-                        {sprint.name}
-                        {sprint.status === 'active' && (
-                          <Badge variant="default" className="text-xs">Active</Badge>
-                        )}
-                        {sprint.status === 'planning' && (
-                          <Badge variant="outline" className="text-xs">Planning</Badge>
-                        )}
-                        {sprint.status === 'completed' && (
-                          <Badge variant="secondary" className="text-xs">Done</Badge>
-                        )}
+                        <Archive className="size-3.5" />
+                        Backlog
                       </div>
                     </SelectItem>
-                  ))}
-                  <SelectItem value="backlog">
-                    <div className="flex items-center gap-2">
-                      <Archive className="size-3.5" />
-                      Backlog
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 px-3 gap-1.5 bg-transparent text-sm font-medium rounded-md border-border"
-                onClick={() => setSprintDialogOpen(true)}
-              >
-                <Plus className="size-3.5" />
-                New Sprint
-              </Button>
-            </div>
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-3 gap-1.5 bg-transparent text-sm font-medium rounded-md border-border"
+                  onClick={() => setSprintDialogOpen(true)}
+                >
+                  <Plus className="size-3.5" />
+                  New Sprint
+                </Button>
+              </div>
+            )}
 
             {/* Filter */}
             <ProjectFilter projectId={currentProject.id} />

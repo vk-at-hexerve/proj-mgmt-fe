@@ -80,6 +80,7 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
   const warningInsightsCount = liveInsights.filter((i) => i.severity === 'warning').length;
 
   const activeProj = projects.find(p => p.id === currentProject || p.name === title);
+  const isLeadProject = activeProj?.templateId === 'tpl-lead';
   const isProjectPage = activeProj && (title === activeProj.name || title === `Project - ${activeProj.name}`);
 
   return (
@@ -198,8 +199,6 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-
-
         {/* Quick Add */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -210,18 +209,19 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <PermissionGate permission="tasks:create">
-              <DropdownMenuItem onClick={() => openModal('create-task')}>New Task</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => openModal('create-task', activeProj ? { projectId: activeProj.id } : undefined)}>
+                {isLeadProject ? 'New Lead' : 'New Task'}
+              </DropdownMenuItem>
             </PermissionGate>
             <PermissionGate permission="projects:create">
               <DropdownMenuItem onClick={() => openModal('create-project')}>New Project</DropdownMenuItem>
             </PermissionGate>
-            <PermissionGate permission="sprints:create">
-              <DropdownMenuItem onClick={() => openModal('create-sprint')}>New Sprint</DropdownMenuItem>
-            </PermissionGate>
+            {!isLeadProject && (
+              <PermissionGate permission="sprints:create">
+                <DropdownMenuItem onClick={() => openModal('create-sprint')}>New Sprint</DropdownMenuItem>
+              </PermissionGate>
+            )}
 
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => showToast({ title: 'Import feature', description: 'Jira import coming soon', type: 'info' })}>Import from Jira</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => showToast({ title: 'Import feature', description: 'ClickUp import coming soon', type: 'info' })}>Import from ClickUp</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 

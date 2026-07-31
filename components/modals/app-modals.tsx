@@ -231,12 +231,14 @@ export function AppModals() {
   if (modal.type === "create-task") {
     const requestedProjectId = modal.data?.projectId as string | undefined;
     const routeProjectId = pathname === "/projects" ? currentProject ?? undefined : undefined;
+    const initialStatusId = modal.data?.initialStatusId as string | undefined;
 
     return (
       <CreateTaskModal
         onClose={closeModal}
         onSubmit={addTask}
         projectId={requestedProjectId || routeProjectId}
+        initialStatusId={initialStatusId}
       />
     );
   }
@@ -347,7 +349,7 @@ export function AppModals() {
 
   // Create Project Modal
   if (modal.type === "create-project") {
-    return <CreateProjectModal onClose={closeModal} onSubmit={addProject} />;
+    return <CreateProjectModal onClose={closeModal} onSubmit={addProject} defaultTemplate={modal.data?.defaultTemplate as string} />;
   }
 
   // Edit Project Modal
@@ -435,10 +437,12 @@ function CreateTaskModal({
   onClose,
   onSubmit,
   projectId,
+  initialStatusId,
 }: {
   onClose: () => void;
   onSubmit: (task: Parameters<ReturnType<typeof useApp>["addTask"]>[0]) => void;
   projectId?: string;
+  initialStatusId?: string;
 }) {
   const { projects, users, sprints, workflowStatuses } = useApp();
   const [sprint, setSprint] = useState<string>("no-sprint");
@@ -462,6 +466,18 @@ function CreateTaskModal({
   const [projectLabels, setProjectLabels] = useState<{ id: string; name: string; color: string; }[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [showCreateGroup, setShowCreateGroup] = useState(false);
+
+  // Lead tracking states
+  const [leadSource, setLeadSource] = useState<string>("Website");
+  const [leadTemperature, setLeadTemperature] = useState<string>("Warm");
+  const [leadScore, setLeadScore] = useState<string>("85");
+  const [dealProbability, setDealProbability] = useState<string>("50");
+  const [expectedValue, setExpectedValue] = useState<string>("100000");
+  const [lastContactDate, setLastContactDate] = useState<string>("");
+  const [nextFollowUpDate, setNextFollowUpDate] = useState<string>("");
+
+  const selectedProj = projects.find((p) => p.id === project);
+  const isLeadProject = selectedProj?.templateId === "tpl-lead";
 
   // Helpers to persist project-level groups/labels in localStorage as a fallback
   const groupsKey = (projId: string) => `pmtool:project:${projId}:groups`;
@@ -538,9 +554,10 @@ function CreateTaskModal({
     onSubmit({
       title: title.trim(),
       description: description.trim(),
-      type,
+      type: isLeadProject ? "lead" : type,
       priority,
       statusId:
+        initialStatusId ||
         workflowStatuses.find(
           (s) => s.projectId === project && s.groupKey === "OPEN",
         )?.id ||
@@ -554,12 +571,19 @@ function CreateTaskModal({
       projectId: project,
       assignee: selectedUser,
       reporter: users[0],
-      storyPoints: storyPoints ? parseInt(storyPoints) : undefined,
-      startDate: startDate || undefined,
+      storyPoints: !isLeadProject && storyPoints ? parseInt(storyPoints) : undefined,
+      startDate: !isLeadProject ? (startDate || undefined) : undefined,
       dueDate: dueDate || undefined,
-      sprintId: sprint === "no-sprint" ? undefined : sprint,
+      sprintId: !isLeadProject && sprint !== "no-sprint" ? sprint : undefined,
       tags: selectedTagObjects,
       group: selectedGroup,
+      leadSource: isLeadProject ? leadSource : undefined,
+      leadTemperature: isLeadProject ? leadTemperature : undefined,
+      leadScore: isLeadProject && leadScore ? parseInt(leadScore) : undefined,
+      dealValue: isLeadProject && expectedValue ? parseFloat(expectedValue) : undefined,
+      dealProbability: isLeadProject && dealProbability ? parseInt(dealProbability) : undefined,
+      lastContactDate: isLeadProject && lastContactDate ? lastContactDate : undefined,
+      nextFollowUpDate: isLeadProject && nextFollowUpDate ? nextFollowUpDate : undefined,
     });
     onClose();
   };
@@ -569,25 +593,27 @@ function CreateTaskModal({
       <DialogContent className="max-w-2xl max-h-[92vh] p-0 overflow-hidden flex flex-col">
         <DialogHeader className="p-6 pb-2 shrink-0 bg-slate-50/50 flex flex-row items-start justify-between">
           <div>
-            <DialogTitle>Create Task</DialogTitle>
-            <DialogDescription>Create a new task</DialogDescription>
+            <DialogTitle>{isLeadProject ? "Create New Lead" : "Create Task"}</DialogTitle>
+            <DialogDescription>
+              {isLeadProject ? "Add a new lead to track" : "Create a new task"}
+            </DialogDescription>
           </div>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
           <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-5 custom-scrollbar">
             <div className="space-y-2">
-              <Label htmlFor="title">Title *</Label>
+              <Label htmlFor="title">{isLeadProject ? "Lead Name *" : "Title *"}</Label>
               <Input
                 id="title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Enter task title"
+                placeholder={isLeadProject ? "e.g. Acme Corp Deal" : "Enter task title"}
                 autoFocus
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description">{isLeadProject ? "Lead Description" : "Description"}</Label>
               <Textarea
                 id="description"
                 value={description}
@@ -597,189 +623,370 @@ function CreateTaskModal({
               />
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Project</Label>
-                <Select
-                  value={project}
-                  onValueChange={(value) => {
-                    setProject(value);
-                    setProjectError("");
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select project" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects.map((p: Project) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        <span className="flex items-center gap-2">
-                          <Badge
-                            variant="outline"
-                            className="font-mono text-xs"
-                          >
-                            {p.key}
-                          </Badge>
-                          {p.name}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {projectError && (
-                  <p className="text-sm text-destructive">{projectError}</p>
-                )}
-              </div>
+            {isLeadProject && (
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Lead Source</Label>
+                  <Select value={leadSource} onValueChange={setLeadSource}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select source..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Website">Website</SelectItem>
+                      <SelectItem value="Meta Ads">Meta Ads</SelectItem>
+                      <SelectItem value="Google Ads">Google Ads</SelectItem>
+                      <SelectItem value="Referral">Referral</SelectItem>
+                      <SelectItem value="LinkedIn">LinkedIn</SelectItem>
+                      <SelectItem value="Organic Search">Organic Search</SelectItem>
+                      <SelectItem value="Cold Email">Cold Email</SelectItem>
+                      <SelectItem value="Cold Call">Cold Call</SelectItem>
+                      <SelectItem value="Partner">Partner</SelectItem>
+                      <SelectItem value="Event">Event</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="space-y-2">
-                <Label>Sprint</Label>
-                <Select value={sprint} onValueChange={setSprint}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Backlog / No Sprint" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="no-sprint">
-                      Backlog / No Sprint
-                    </SelectItem>
-                    {sprints
-                      .filter(
-                        (s: Sprint) =>
-                          s.status === "active" &&
-                          (!s.projectId || s.projectId === project),
-                      )
-                      .map((s: Sprint) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.name}
+                <div className="space-y-2">
+                  <Label>Lead Temperature</Label>
+                  <Select value={leadTemperature} onValueChange={setLeadTemperature}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select temperature..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Cold">Cold</SelectItem>
+                      <SelectItem value="Warm">Warm</SelectItem>
+                      <SelectItem value="Hot">Hot</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Expected Lead Value ($)</Label>
+                  <Input
+                    type="number"
+                    value={expectedValue}
+                    onChange={(e) => setExpectedValue(e.target.value)}
+                    placeholder="100000"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Lead Score (0-100)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={leadScore}
+                    onChange={(e) => setLeadScore(e.target.value)}
+                    placeholder="85"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Deal Probability (0-100%)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={dealProbability}
+                    onChange={(e) => setDealProbability(e.target.value)}
+                    placeholder="50"
+                  />
+                </div>
+              </div>
+            )}
+
+            {isLeadProject ? (
+              <>
+                <div className="space-y-2">
+                  <Label>Project</Label>
+                  <Select
+                    value={project}
+                    onValueChange={(value) => {
+                      setProject(value);
+                      setProjectError("");
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {projects.map((p: Project) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          <span className="flex items-center gap-2">
+                            <Badge
+                              variant="outline"
+                              className="font-mono text-xs"
+                            >
+                              {p.key}
+                            </Badge>
+                            {p.name}
+                          </span>
                         </SelectItem>
                       ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                    </SelectContent>
+                  </Select>
+                  {projectError && (
+                    <p className="text-sm text-destructive">{projectError}</p>
+                  )}
+                </div>
 
-              <div className="space-y-2">
-                <Label>Type</Label>
-                <Select
-                  value={type}
-                  onValueChange={(v) => setType(v as typeof type)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="task">Task</SelectItem>
-                    <SelectItem value="bug">Bug</SelectItem>
-                    <SelectItem value="story">Story</SelectItem>
-                    <SelectItem value="epic">Epic</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Assign Lead Owner</Label>
+                    <Select value={assignee} onValueChange={setAssignee}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Unassigned" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unassigned">Unassigned</SelectItem>
+                        {users.map((user: User) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            <span className="flex items-center gap-2">
+                              <UserAvatar user={user} size="xs" />
+                              {user.name}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              <div className="space-y-2">
-                <Label>Priority</Label>
-                <Select
-                  value={priority}
-                  onValueChange={(v) => setPriority(v as TaskPriority)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="critical">Critical</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="low">Low</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                  <div className="space-y-2">
+                    <Label>Priority</Label>
+                    <Select
+                      value={priority}
+                      onValueChange={(v) => setPriority(v as TaskPriority)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="critical">Critical</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="low">Low</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Project</Label>
+                  <Select
+                    value={project}
+                    onValueChange={(value) => {
+                      setProject(value);
+                      setProjectError("");
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {projects.map((p: Project) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          <span className="flex items-center gap-2">
+                            <Badge
+                              variant="outline"
+                              className="font-mono text-xs"
+                            >
+                              {p.key}
+                            </Badge>
+                            {p.name}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {projectError && (
+                    <p className="text-sm text-destructive">{projectError}</p>
+                  )}
+                </div>
 
-              <div className="space-y-2">
-                <Label>Assignee</Label>
-                <Select value={assignee} onValueChange={setAssignee}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Unassigned" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="unassigned">Unassigned</SelectItem>
-                    {users.map((user: User) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        <span className="flex items-center gap-2">
-                          <UserAvatar user={user} size="xs" />
-                          {user.name}
-                        </span>
+                <div className="space-y-2">
+                  <Label>Sprint</Label>
+                  <Select value={sprint} onValueChange={setSprint}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Backlog / No Sprint" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="no-sprint">
+                        Backlog / No Sprint
                       </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                      {sprints
+                        .filter(
+                          (s: Sprint) =>
+                            s.status === "active" &&
+                            (!s.projectId || s.projectId === project),
+                        )
+                        .map((s: Sprint) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="space-y-2">
-                <Label>Story Points</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  max="21"
-                  value={storyPoints}
-                  onChange={(e) => setStoryPoints(e.target.value)}
-                  placeholder="Points"
-                />
-              </div>
-            </div>
+                <div className="space-y-2">
+                  <Label>Type</Label>
+                  <Select
+                    value={type}
+                    onValueChange={(v) => setType(v as typeof type)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="task">Task</SelectItem>
+                      <SelectItem value="bug">Bug</SelectItem>
+                      <SelectItem value="story">Story</SelectItem>
+                      <SelectItem value="epic">Epic</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Start Date</Label>
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => {
-                    const nextValue = e.target.value;
-                    setStartDate(nextValue);
-                    setStartDateError("");
-                    if (dueDate && new Date(nextValue) > new Date(dueDate)) {
-                      setDueDateError(
-                        "Due date cannot be before the start date.",
-                      );
-                    } else if (
-                      dueDateError ===
-                      "Due date cannot be before the start date."
-                    ) {
-                      setDueDateError("");
-                    }
-                  }}
-                  aria-invalid={!!startDateError}
-                />
-                {startDateError && (
-                  <p className="text-sm text-destructive">{startDateError}</p>
-                )}
-              </div>
+                <div className="space-y-2">
+                  <Label>Priority</Label>
+                  <Select
+                    value={priority}
+                    onValueChange={(v) => setPriority(v as TaskPriority)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="critical">Critical</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="low">Low</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="space-y-2">
-                <Label>Due Date</Label>
-                <Input
-                  type="date"
-                  value={dueDate}
-                  min={startDate || undefined}
-                  onChange={(e) => {
-                    const nextValue = e.target.value;
-                    setDueDate(nextValue);
-                    if (
-                      startDate &&
-                      new Date(nextValue) < new Date(startDate)
-                    ) {
-                      setDueDateError(
-                        "Due date cannot be before the start date.",
-                      );
-                    } else {
-                      setDueDateError("");
-                    }
-                  }}
-                  aria-invalid={!!dueDateError}
-                />
-                {dueDateError && (
-                  <p className="text-sm text-destructive">{dueDateError}</p>
-                )}
+                <div className="space-y-2">
+                  <Label>Assignee</Label>
+                  <Select value={assignee} onValueChange={setAssignee}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Unassigned" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unassigned">Unassigned</SelectItem>
+                      {users.map((user: User) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          <span className="flex items-center gap-2">
+                            <UserAvatar user={user} size="xs" />
+                            {user.name}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Story Points</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="21"
+                    value={storyPoints}
+                    onChange={(e) => setStoryPoints(e.target.value)}
+                    placeholder="Points"
+                  />
+                </div>
               </div>
-            </div>
+            )}
+
+            {isLeadProject ? (
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label>Last Contact Date</Label>
+                  <Input
+                    type="date"
+                    value={lastContactDate}
+                    onChange={(e) => setLastContactDate(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Next Follow-up Date</Label>
+                  <Input
+                    type="date"
+                    value={nextFollowUpDate}
+                    onChange={(e) => setNextFollowUpDate(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Expected Close Date</Label>
+                  <Input
+                    type="date"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Start Date</Label>
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => {
+                      const nextValue = e.target.value;
+                      setStartDate(nextValue);
+                      setStartDateError("");
+                      if (dueDate && new Date(nextValue) > new Date(dueDate)) {
+                        setDueDateError(
+                          "Due date cannot be before the start date.",
+                        );
+                      } else if (
+                        dueDateError ===
+                        "Due date cannot be before the start date."
+                      ) {
+                        setDueDateError("");
+                      }
+                    }}
+                    aria-invalid={!!startDateError}
+                  />
+                  {startDateError && (
+                    <p className="text-sm text-destructive">{startDateError}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Due Date</Label>
+                  <Input
+                    type="date"
+                    value={dueDate}
+                    min={startDate || undefined}
+                    onChange={(e) => {
+                      const nextValue = e.target.value;
+                      setDueDate(nextValue);
+                      if (
+                        startDate &&
+                        new Date(nextValue) < new Date(startDate)
+                      ) {
+                        setDueDateError(
+                          "Due date cannot be before the start date.",
+                        );
+                      } else {
+                        setDueDateError("");
+                      }
+                    }}
+                    aria-invalid={!!dueDateError}
+                  />
+                  {dueDateError && (
+                    <p className="text-sm text-destructive">{dueDateError}</p>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
@@ -897,7 +1104,7 @@ function CreateTaskModal({
               type="submit"
               disabled={!title.trim() || !project || !!dueDateError || !!startDateError}
             >
-              Create Task
+              {isLeadProject ? "Create Lead" : "Create Task"}
             </Button>
           </DialogFooter>
         </form>
@@ -933,7 +1140,7 @@ function EditTaskModal({
   const [title, setTitle] = useState(task?.title || "");
   const [description, setDescription] = useState(task?.description || "");
   const [type, setType] = useState<
-    "task" | "bug" | "story" | "epic" | "subtask"
+    "task" | "bug" | "story" | "epic" | "subtask" | "lead"
   >(task?.type || "task");
   const [priority, setPriority] = useState<TaskPriority>(
     task?.priority || "medium",
@@ -957,6 +1164,17 @@ function EditTaskModal({
   const [selectedTags, setSelectedTags] = useState<string[]>(
     task?.tags?.map((t: any) => t.id) || [],
   );
+
+  const isLeadProject = project?.templateId === "tpl-lead";
+
+  // Lead tracking states
+  const [leadSource, setLeadSource] = useState<string>(task?.leadSource || "Website");
+  const [leadTemperature, setLeadTemperature] = useState<string>(task?.leadTemperature || "Warm");
+  const [leadScore, setLeadScore] = useState<string>(task?.leadScore?.toString() || "");
+  const [dealProbability, setDealProbability] = useState<string>(task?.dealProbability?.toString() || "");
+  const [expectedValue, setExpectedValue] = useState<string>(task?.dealValue?.toString() || "");
+  const [lastContactDate, setLastContactDate] = useState<string>(toDateInputValue(task?.lastContactDate));
+  const [nextFollowUpDate, setNextFollowUpDate] = useState<string>(toDateInputValue(task?.nextFollowUpDate));
 
   // Group state
   const [selectedGroup, setSelectedGroup] = useState<string | undefined>(
@@ -1145,11 +1363,11 @@ function EditTaskModal({
     onSubmit({
       title: title.trim(),
       description: description.trim(),
-      type,
+      type: isLeadProject ? "lead" : type,
       priority,
       statusId,
-      storyPoints: storyPoints ? parseInt(storyPoints) : undefined,
-      startDate: startDate || undefined,
+      storyPoints: !isLeadProject && storyPoints ? parseInt(storyPoints) : undefined,
+      startDate: !isLeadProject ? (startDate || undefined) : undefined,
       dueDate: dueDate || undefined,
       assignee: selectedUser,
       tags: selectedTagObjects,
@@ -1157,6 +1375,13 @@ function EditTaskModal({
       attachments,
       linkedTasks,
       group: selectedGroup,
+      leadSource: isLeadProject ? leadSource : undefined,
+      leadTemperature: isLeadProject ? leadTemperature : undefined,
+      leadScore: isLeadProject && leadScore ? parseInt(leadScore) : undefined,
+      dealValue: isLeadProject && expectedValue ? parseFloat(expectedValue) : undefined,
+      dealProbability: isLeadProject && dealProbability ? parseInt(dealProbability) : undefined,
+      lastContactDate: isLeadProject && lastContactDate ? lastContactDate : undefined,
+      nextFollowUpDate: isLeadProject && nextFollowUpDate ? nextFollowUpDate : undefined,
     });
     onClose();
   };
@@ -1341,7 +1566,7 @@ function EditTaskModal({
               <ExternalLink className="size-4" />
             </Link>
           </div>
-          <DialogTitle>Edit Task</DialogTitle>
+          <DialogTitle>{isLeadProject ? "Edit Lead" : "Edit Task"}</DialogTitle>
         </DialogHeader>
 
         <Tabs
@@ -1368,17 +1593,17 @@ function EditTaskModal({
             {/* Details Tab */}
             <TabsContent value="details" className="space-y-4 pr-4 py-4 m-0">
               <div className="space-y-2">
-                <Label htmlFor="edit-title">Title *</Label>
+                <Label htmlFor="edit-title">{isLeadProject ? "Lead Name *" : "Title *"}</Label>
                 <Input
                   id="edit-title"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Enter task title"
+                  placeholder={isLeadProject ? "e.g. Acme Corp Deal" : "Enter task title"}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="edit-description">Description</Label>
+                <Label htmlFor="edit-description">{isLeadProject ? "Lead Description" : "Description"}</Label>
                 <Textarea
                   id="edit-description"
                   value={description}
@@ -1388,9 +1613,101 @@ function EditTaskModal({
                 />
               </div>
 
+              {isLeadProject && (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Lead Source</Label>
+                    <Select value={leadSource} onValueChange={setLeadSource}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select source..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Website">Website</SelectItem>
+                        <SelectItem value="Meta Ads">Meta Ads</SelectItem>
+                        <SelectItem value="Google Ads">Google Ads</SelectItem>
+                        <SelectItem value="Referral">Referral</SelectItem>
+                        <SelectItem value="LinkedIn">LinkedIn</SelectItem>
+                        <SelectItem value="Organic Search">Organic Search</SelectItem>
+                        <SelectItem value="Cold Email">Cold Email</SelectItem>
+                        <SelectItem value="Cold Call">Cold Call</SelectItem>
+                        <SelectItem value="Partner">Partner</SelectItem>
+                        <SelectItem value="Event">Event</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Lead Temperature</Label>
+                    <Select value={leadTemperature} onValueChange={setLeadTemperature}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select temperature..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Cold">Cold</SelectItem>
+                        <SelectItem value="Warm">Warm</SelectItem>
+                        <SelectItem value="Hot">Hot</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Expected Lead Value ($)</Label>
+                    <Input
+                      type="number"
+                      value={expectedValue}
+                      onChange={(e) => setExpectedValue(e.target.value)}
+                      placeholder="100000"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Lead Score (0-100)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={leadScore}
+                      onChange={(e) => setLeadScore(e.target.value)}
+                      placeholder="85"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Deal Probability (0-100%)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={dealProbability}
+                      onChange={(e) => setDealProbability(e.target.value)}
+                      placeholder="50"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Last Contact Date</Label>
+                    <Input
+                      type="date"
+                      value={lastContactDate}
+                      onChange={(e) => setLastContactDate(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Next Follow-up Date</Label>
+                    <Input
+                      type="date"
+                      value={nextFollowUpDate}
+                      onChange={(e) => setNextFollowUpDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Type</Label>
+                {!isLeadProject && (
+                  <div className="space-y-2">
+                    <Label>Type</Label>
                   <Select
                     value={type}
                     onValueChange={(v) => setType(v as typeof type)}
@@ -1412,9 +1729,10 @@ function EditTaskModal({
                     </SelectContent>
                   </Select>
                 </div>
+                )}
 
                 <div className="space-y-2">
-                  <Label>Status</Label>
+                  <Label>{isLeadProject ? "Stage" : "Status"}</Label>
                   <Select
                     value={statusId}
                     onValueChange={(v) => setStatusId(v)}
@@ -1467,7 +1785,7 @@ function EditTaskModal({
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Assignee</Label>
+                  <Label>{isLeadProject ? "Lead Owner" : "Assignee"}</Label>
                   <Select value={assignee} onValueChange={setAssignee}>
                     <SelectTrigger>
                       <SelectValue placeholder="Unassigned" />
@@ -1488,29 +1806,33 @@ function EditTaskModal({
               </div>
 
               <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Story Points</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    max="21"
-                    value={storyPoints}
-                    onChange={(e) => setStoryPoints(e.target.value)}
-                    placeholder="Points"
-                  />
-                </div>
+                {!isLeadProject && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Story Points</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        max="21"
+                        value={storyPoints}
+                        onChange={(e) => setStoryPoints(e.target.value)}
+                        placeholder="Points"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Start Date</Label>
+                      <Input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                      />
+                    </div>
+                  </>
+                )}
 
                 <div className="space-y-2">
-                  <Label>Start Date</Label>
-                  <Input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Due Date</Label>
+                  <Label>{isLeadProject ? "Expected Close" : "Due Date"}</Label>
                   <Input
                     type="date"
                     value={dueDate}
@@ -2588,20 +2910,35 @@ const templateIconMap: Record<string, React.ReactNode> = {
 function CreateProjectModal({
   onClose,
   onSubmit,
+  defaultTemplate,
 }: {
   onClose: () => void;
   onSubmit: (
     project: Parameters<ReturnType<typeof useApp>["addProject"]>[0],
   ) => void;
+  defaultTemplate?: string;
 }) {
   const { users, clients, teams, programs, addClient, addTeam, addProgram } =
     useApp();
-  const [step, setStep] = useState<"template" | "details">("template");
+  const [step, setStep] = useState<"template" | "statuses" | "details">("template");
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+
+  const [templateStatuses, setTemplateStatuses] = useState<any[]>([]);
+  const [editedStatuses, setEditedStatuses] = useState<Record<string, { included: boolean; name: string }>>({});
+  const [isLoadingStatuses, setIsLoadingStatuses] = useState(false);
   const [name, setName] = useState("");
   const [key, setKey] = useState("");
   const [isKeyManual, setIsKeyManual] = useState(false);
-  const [description, setDescription] = useState("");
+  const [description, setDescription] = useState(() => {
+    if (defaultTemplate === 'tpl-lead') {
+      return "This project is for tracking and managing potential leads.";
+    }
+    if (defaultTemplate) {
+      const tpl = projectTemplates.find(t => t.id === defaultTemplate);
+      return tpl ? tpl.description : "";
+    }
+    return "";
+  });
   const [type, setType] = useState<
     "agile-scrum" | "agile-kanban" | "waterfall" | "hybrid"
   >("agile-scrum");
@@ -2610,6 +2947,8 @@ function CreateProjectModal({
   const [startDateError, setStartDateError] = useState("");
   const [dueDateError, setDueDateError] = useState("");
   const [budget, setBudget] = useState("");
+  const [leadSource, setLeadSource] = useState("");
+  const [leadScore, setLeadScore] = useState("");
   const [clientId, setClientId] = useState<string>("");
   const [teamId, setTeamId] = useState<string>("");
   const [stakeholderType, setStakeholderType] = useState<"client" | "team">(
@@ -2660,30 +2999,54 @@ function CreateProjectModal({
   const selectedClient = clients.find((c) => c.id === clientId);
   const selectedTeamData = teams.find((t) => t.id === teamId);
 
-  const blankProjectTemplate: ProjectTemplate = {
-    id: "blank",
-    name: "Blank Project",
-    description: "Start from scratch with a custom setup",
-    category: "custom",
-    icon: "FolderPlus",
-    color: "#64748b",
-    projectType: "agile-scrum",
-    defaultTasks: [],
-    suggestedTags: [],
-  };
-
-  const allTemplates = [blankProjectTemplate, ...projectTemplates];
+  const allTemplates = projectTemplates;
   const template = allTemplates.find((t) => t.id === selectedTemplate);
+  const isLeadTracking = selectedTemplate === 'tpl-lead';
 
-  const handleSelectTemplate = (templateId: string) => {
+  const handleSelectTemplate = async (templateId: string) => {
     setSelectedTemplate(templateId);
     const tpl = allTemplates.find((t) => t.id === templateId);
     if (tpl) {
       setType(tpl.projectType as any);
-      setDescription(tpl.description);
+      if (templateId === 'tpl-lead') {
+        setDescription("This project is for tracking and managing potential leads.");
+      } else {
+        setDescription(tpl.description);
+      }
     }
-    setStep("details");
+    if (templateId === 'tpl-blank') {
+      setStep("details");
+      return;
+    }
+
+    setIsLoadingStatuses(true);
+    setStep("statuses");
+    try {
+      const { fetchTemplateStatuses } = await import("@/lib/api");
+      const statuses = await fetchTemplateStatuses(templateId);
+      if (statuses && statuses.length > 0) {
+        setTemplateStatuses(statuses);
+        const initialEdited: Record<string, { included: boolean; name: string }> = {};
+        statuses.forEach((s: any) => {
+          initialEdited[s.id] = { included: true, name: s.name };
+        });
+        setEditedStatuses(initialEdited);
+      } else {
+        setStep("details");
+      }
+    } catch (error) {
+      console.error("Failed to fetch template statuses:", error);
+      setStep("details");
+    } finally {
+      setIsLoadingStatuses(false);
+    }
   };
+
+  useEffect(() => {
+    if (defaultTemplate) {
+      handleSelectTemplate(defaultTemplate);
+    }
+  }, [defaultTemplate]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -2704,6 +3067,17 @@ function CreateProjectModal({
       setDueDateError("End date cannot be before the start date.");
       return;
     }
+
+    const customStatuses = templateStatuses
+      .filter((s) => editedStatuses[s.id]?.included)
+      .map((s) => ({
+        name: editedStatuses[s.id]?.name || s.name,
+        group_key: s.groupKey,
+        color: s.color,
+        position: s.position,
+        is_default: s.isDefault,
+        template_status_id: s.id,
+      }));
 
     onSubmit({
       name: name.trim(),
@@ -2728,6 +3102,9 @@ function CreateProjectModal({
       programId: programId && programId !== "none" ? programId : undefined,
       templateId: selectedTemplate || undefined,
       taskCount: 0,
+      leadSource: isLeadTracking ? leadSource : undefined,
+      leadScore: isLeadTracking && leadScore ? parseInt(leadScore) : undefined,
+      customStatuses: customStatuses.length > 0 ? customStatuses : undefined,
     });
     onClose();
   };
@@ -2735,14 +3112,16 @@ function CreateProjectModal({
   if (step === "template") {
     return (
       <Dialog open onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle>Choose a Template</DialogTitle>
-            <DialogDescription>
-              Start with a template or create a blank project
-            </DialogDescription>
+        <DialogContent className="max-w-3xl max-h-[92vh] p-0 overflow-hidden flex flex-col">
+          <DialogHeader className="p-6 pb-2 shrink-0 bg-slate-50/50 flex flex-row items-start justify-between">
+            <div>
+              <DialogTitle>Choose a Template</DialogTitle>
+              <DialogDescription>
+                Start with a template or create a blank project
+              </DialogDescription>
+            </div>
           </DialogHeader>
-          <ScrollArea className="flex-1 pr-4">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 custom-scrollbar">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pb-4">
               {allTemplates.map((tpl: any) => (
                 <button
@@ -2780,7 +3159,107 @@ function CreateProjectModal({
                 </button>
               ))}
             </div>
-          </ScrollArea>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  if (step === "statuses") {
+    return (
+      <Dialog open onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="max-w-xl p-0 overflow-hidden flex flex-col max-h-[90vh]">
+          <DialogHeader className="p-6 pb-2 shrink-0 bg-slate-50/50 border-b">
+            <div>
+              <DialogTitle>Select Your Statuses</DialogTitle>
+              <DialogDescription>
+                Customize the workflow statuses for {template?.name || "this project"}
+              </DialogDescription>
+            </div>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+            {isLoadingStatuses ? (
+              <div className="flex flex-col items-center justify-center py-8">
+                <Loader2 className="size-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground mt-4">Loading statuses...</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {['OPEN', 'IN_PROGRESS', 'ON_HOLD', 'CLOSED'].map((groupKey) => {
+                  const groupStatuses = templateStatuses.filter((s) => s.groupKey === groupKey);
+                  if (groupStatuses.length === 0) return null;
+                  
+                  return (
+                    <div key={groupKey} className="space-y-2">
+                      <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        {groupKey.replace('_', ' ')}
+                      </h4>
+                      <div className="space-y-2">
+                        {groupStatuses.map((status) => {
+                          const isIncluded = editedStatuses[status.id]?.included;
+                          return (
+                            <div
+                              key={status.id}
+                              className={cn(
+                                "flex items-center gap-3 p-3 rounded-lg border transition-colors",
+                                isIncluded ? "border-primary/20 bg-primary/5" : "border-border bg-muted/30 opacity-60"
+                              )}
+                            >
+                              <div
+                                className="size-3 rounded-full shrink-0"
+                                style={{ backgroundColor: status.color }}
+                              />
+                              <div className="flex-1">
+                                <Input
+                                  value={editedStatuses[status.id]?.name || ""}
+                                  onChange={(e) => {
+                                    setEditedStatuses(prev => ({
+                                      ...prev,
+                                      [status.id]: { ...prev[status.id], name: e.target.value }
+                                    }));
+                                  }}
+                                  disabled={!isIncluded}
+                                  className={cn(
+                                    "h-8 text-sm focus-visible:ring-1 bg-transparent border-transparent px-2",
+                                    !isIncluded && "opacity-50 line-through text-muted-foreground"
+                                  )}
+                                />
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className={cn("size-8 shrink-0", isIncluded ? "text-destructive hover:text-destructive hover:bg-destructive/10" : "text-primary hover:text-primary hover:bg-primary/10")}
+                                onClick={() => {
+                                  setEditedStatuses(prev => ({
+                                    ...prev,
+                                    [status.id]: { ...prev[status.id], included: !prev[status.id].included }
+                                  }));
+                                }}
+                              >
+                                {isIncluded ? <X className="size-4" /> : <PlusCircle className="size-4" />}
+                              </Button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
+            <Button variant="outline" onClick={() => setStep("template")}>
+              Back
+            </Button>
+            <Button
+              onClick={() => setStep("details")}
+              disabled={isLoadingStatuses || Object.keys(editedStatuses).length > 0 && Object.values(editedStatuses).every(s => !s.included)}
+            >
+              Continue
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     );
@@ -2800,17 +3279,19 @@ function CreateProjectModal({
                 {template.name}
               </Badge>
             )}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 text-xs"
-              onClick={() => setStep("template")}
-            >
-              Change template
-            </Button>
+            {!defaultTemplate && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-xs"
+                onClick={() => setStep("template")}
+              >
+                Change template
+              </Button>
+            )}
           </div>
-          <DialogTitle>Create New Project</DialogTitle>
-          <DialogDescription>Set up your project details</DialogDescription>
+          <DialogTitle>{isLeadTracking ? "Create Lead Tracking Project" : "Create New Project"}</DialogTitle>
+          <DialogDescription>{isLeadTracking ? "Set up your lead tracking details" : "Set up your project details"}</DialogDescription>
         </DialogHeader>
 
         <form
@@ -2820,7 +3301,7 @@ function CreateProjectModal({
           <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-4 custom-scrollbar">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="project-name">Project Name *</Label>
+                <Label htmlFor="project-name">{isLeadTracking ? "Lead Project Name *" : "Project Name *"}</Label>
                 <Input
                   id="project-name"
                   value={name}
@@ -2853,7 +3334,7 @@ function CreateProjectModal({
                 )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="project-key">Project Key *</Label>
+                <Label htmlFor="project-key">{isLeadTracking ? "Lead Project Key *" : "Project Key *"}</Label>
                 <Input
                   id="project-key"
                   value={key}
@@ -3193,62 +3674,64 @@ function CreateProjectModal({
               </Tabs>
             </div>
 
-            <div className="space-y-2">
-              <Label>Strategic Program (Optional)</Label>
-              <Select
-                value={programId}
-                onValueChange={(v) => {
-                  if (v === "create-new") {
-                    setShowFullCreateProgram(true);
-                  } else {
-                    setProgramId(v);
-                  }
-                }}
-              >
-                <SelectTrigger>
-                  <div className="flex items-center gap-2">
-                    <Target className="size-4 text-accent" />
-                    <SelectValue placeholder="Select a program..." />
-                  </div>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">
-                    <span className="text-muted-foreground">
-                      No program (Independent)
-                    </span>
-                  </SelectItem>
-                  <SelectItem
-                    value="create-new"
-                    className="text-primary font-semibold border-b rounded-none mb-1"
-                  >
+            {!isLeadTracking && (
+              <div className="space-y-2">
+                <Label>Strategic Program (Optional)</Label>
+                <Select
+                  value={programId}
+                  onValueChange={(v) => {
+                    if (v === "create-new") {
+                      setShowFullCreateProgram(true);
+                    } else {
+                      setProgramId(v);
+                    }
+                  }}
+                >
+                  <SelectTrigger>
                     <div className="flex items-center gap-2">
-                      <PlusCircle className="size-3.5" />
-                      Create New Program
+                      <Target className="size-4 text-accent" />
+                      <SelectValue placeholder="Select a program..." />
                     </div>
-                  </SelectItem>
-                  {programs.length === 0 ? (
-                    <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-                      No programs available
-                    </div>
-                  ) : (
-                    programs.map((prog: any) => (
-                      <SelectItem key={prog.id} value={prog.id}>
-                        <div className="flex items-center gap-2">
-                          <Target className="size-3.5 text-accent" />
-                          <span>{prog.name}</span>
-                          <Badge
-                            variant="outline"
-                            className="ml-2 text-[10px] scale-90 origin-left"
-                          >
-                            {prog.status || "Active"}
-                          </Badge>
-                        </div>
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">
+                      <span className="text-muted-foreground">
+                        No program (Independent)
+                      </span>
+                    </SelectItem>
+                    <SelectItem
+                      value="create-new"
+                      className="text-primary font-semibold border-b rounded-none mb-1"
+                    >
+                      <div className="flex items-center gap-2">
+                        <PlusCircle className="size-3.5" />
+                        Create New Program
+                      </div>
+                    </SelectItem>
+                    {programs.length === 0 ? (
+                      <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                        No programs available
+                      </div>
+                    ) : (
+                      programs.map((prog: any) => (
+                        <SelectItem key={prog.id} value={prog.id}>
+                          <div className="flex items-center gap-2">
+                            <Target className="size-3.5 text-accent" />
+                            <span>{prog.name}</span>
+                            <Badge
+                              variant="outline"
+                              className="ml-2 text-[10px] scale-90 origin-left"
+                            >
+                              {prog.status || "Active"}
+                            </Badge>
+                          </div>
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Methodology</Label>
@@ -3268,72 +3751,113 @@ function CreateProjectModal({
               </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Start Date</Label>
-                <Input
-                  type="date"
-                  value={startDate}
-                  min={getTodayDateInputValue()}
-                  onChange={(e) => {
-                    const nextValue = e.target.value;
-                    setStartDate(nextValue);
-                    setStartDateError(
-                      isPastDate(nextValue)
-                        ? "Please select today's date or a future start date."
-                        : "",
-                    );
-                    if (dueDate && new Date(nextValue) > new Date(dueDate)) {
-                      setDueDateError(
-                        "End date cannot be before the start date.",
+            {!isLeadTracking && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Start Date</Label>
+                  <Input
+                    type="date"
+                    value={startDate}
+                    min={getTodayDateInputValue()}
+                    onChange={(e) => {
+                      const nextValue = e.target.value;
+                      setStartDate(nextValue);
+                      setStartDateError(
+                        isPastDate(nextValue)
+                          ? "Please select today's date or a future start date."
+                          : "",
                       );
-                    } else if (
-                      dueDateError ===
-                      "End date cannot be before the start date."
-                    ) {
-                      setDueDateError("");
-                    }
-                  }}
-                  aria-invalid={!!startDateError}
-                />
-                {startDateError && (
-                  <p className="text-sm text-destructive">{startDateError}</p>
-                )}
+                      if (dueDate && new Date(nextValue) > new Date(dueDate)) {
+                        setDueDateError(
+                          "End date cannot be before the start date.",
+                        );
+                      } else if (
+                        dueDateError ===
+                        "End date cannot be before the start date."
+                      ) {
+                        setDueDateError("");
+                      }
+                    }}
+                    aria-invalid={!!startDateError}
+                  />
+                  {startDateError && (
+                    <p className="text-sm text-destructive">{startDateError}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label>End Date</Label>
+                  <Input
+                    type="date"
+                    value={dueDate}
+                    min={startDate || getTodayDateInputValue()}
+                    onChange={(e) => {
+                      const nextValue = e.target.value;
+                      setDueDate(nextValue);
+                      if (isPastDate(nextValue)) {
+                        setDueDateError(
+                          "Please select today's date or a future due date.",
+                        );
+                      } else if (
+                        startDate &&
+                        new Date(nextValue) < new Date(startDate)
+                      ) {
+                        setDueDateError(
+                          "End date cannot be before the start date.",
+                        );
+                      } else {
+                        setDueDateError("");
+                      }
+                    }}
+                    aria-invalid={!!dueDateError}
+                  />
+                  {dueDateError && (
+                    <p className="text-sm text-destructive">{dueDateError}</p>
+                  )}
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>End Date</Label>
-                <Input
-                  type="date"
-                  value={dueDate}
-                  min={startDate || getTodayDateInputValue()}
-                  onChange={(e) => {
-                    const nextValue = e.target.value;
-                    setDueDate(nextValue);
-                    if (isPastDate(nextValue)) {
-                      setDueDateError(
-                        "Please select today's date or a future due date.",
-                      );
-                    } else if (
-                      startDate &&
-                      new Date(nextValue) < new Date(startDate)
-                    ) {
-                      setDueDateError(
-                        "End date cannot be before the start date.",
-                      );
-                    } else {
-                      setDueDateError("");
-                    }
-                  }}
-                  aria-invalid={!!dueDateError}
-                />
-                {dueDateError && (
-                  <p className="text-sm text-destructive">{dueDateError}</p>
-                )}
+            )}
+
+            {isLeadTracking && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Lead Source</Label>
+                  <Select
+                    value={leadSource}
+                    onValueChange={(v) => setLeadSource(v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select source..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Website">Website</SelectItem>
+                      <SelectItem value="Meta Ads">Meta Ads</SelectItem>
+                      <SelectItem value="Google Ads">Google Ads</SelectItem>
+                      <SelectItem value="Referral">Referral</SelectItem>
+                      <SelectItem value="LinkedIn">LinkedIn</SelectItem>
+                      <SelectItem value="Organic Search">Organic Search</SelectItem>
+                      <SelectItem value="Cold Email">Cold Email</SelectItem>
+                      <SelectItem value="Cold Call">Cold Call</SelectItem>
+                      <SelectItem value="Partner">Partner</SelectItem>
+                      <SelectItem value="Event">Event</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Lead Score (0-100)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={leadScore}
+                    onChange={(e) => setLeadScore(e.target.value)}
+                    placeholder="85"
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="space-y-2">
-              <Label>Budget ($)</Label>
+              <Label>{isLeadTracking ? "Expected Lead Value ($)" : "Budget ($)"}</Label>
               <Input
                 type="number"
                 value={budget}
@@ -3391,6 +3915,8 @@ function CreateProjectModal({
                   <Loader2 className="mr-2 size-4 animate-spin" />
                   Validating...
                 </>
+              ) : isLeadTracking ? (
+                "Create Lead Project"
               ) : (
                 "Create Project"
               )}

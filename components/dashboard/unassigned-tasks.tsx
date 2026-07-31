@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ArrowRight, Bug, BookOpen, Zap, ListTodo, UserX } from 'lucide-react';
+import { ArrowRight, Bug, BookOpen, Zap, ListTodo, UserX, UserCheck } from 'lucide-react';
 import { useApp } from '@/lib/app-context';
 import type { Task, TaskPriority } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -27,6 +27,7 @@ const typeIcons: Record<Task['type'], React.ReactNode> = {
   task: <ListTodo className="size-4" />,
   subtask: <ListTodo className="size-3" />,
   bug: <Bug className="size-4" />,
+  lead: <UserCheck className="size-4 text-indigo-500" />,
 };
 
 export function UnassignedTasks() {

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { UserAvatar } from '@/components/ui/user-avatar';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ArrowRight, Bug, BookOpen, Zap, ListTodo } from 'lucide-react';
+import { ArrowRight, Bug, BookOpen, Zap, ListTodo, UserCheck } from 'lucide-react';
 import { useApp } from '@/lib/app-context';
 import type { Task, TaskPriority, TaskFilters, TaskSort, CustomFilter } from '@/lib/types';
 import { getStatusName } from '@/lib/status-utils';
@@ -30,6 +30,7 @@ const typeIcons: Record<Task['type'], React.ReactNode> = {
   task: <ListTodo className="size-4" />,
   subtask: <ListTodo className="size-3" />,
   bug: <Bug className="size-4" />,
+  lead: <UserCheck className="size-4 text-indigo-500" />,
 };
 
 export function RecentTasks() {
