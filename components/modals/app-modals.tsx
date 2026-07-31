@@ -146,6 +146,12 @@ import {
   Layout,
   Save,
   Download,
+  Handshake,
+  Receipt,
+  UserCheck,
+  Wrench,
+  Bot,
+  HeartPulse,
 } from "lucide-react";
 import {
   getStatusName,
@@ -2904,6 +2910,13 @@ const templateIconMap: Record<string, React.ReactNode> = {
   TrendingUp: <TrendingUp className="size-5" />,
   Settings: <Settings className="size-5" />,
   FolderPlus: <FolderPlus className="size-5" />,
+  Target: <Target className="size-5" />,
+  Handshake: <Handshake className="size-5" />,
+  Receipt: <Receipt className="size-5" />,
+  UserCheck: <UserCheck className="size-5" />,
+  Wrench: <Wrench className="size-5" />,
+  Bot: <Bot className="size-5" />,
+  HeartPulse: <HeartPulse className="size-5" />,
 };
 
 // Create Project Modal Component with Template Selection and Client Tagging
@@ -2925,6 +2938,7 @@ function CreateProjectModal({
 
   const [templateStatuses, setTemplateStatuses] = useState<any[]>([]);
   const [editedStatuses, setEditedStatuses] = useState<Record<string, { included: boolean; name: string }>>({});
+  const [mappingMode, setMappingMode] = useState<Record<string, boolean>>({});
   const [isLoadingStatuses, setIsLoadingStatuses] = useState(false);
   const [name, setName] = useState("");
   const [key, setKey] = useState("");
@@ -3197,48 +3211,112 @@ function CreateProjectModal({
                       <div className="space-y-2">
                         {groupStatuses.map((status) => {
                           const isIncluded = editedStatuses[status.id]?.included;
+                          const isMapping = mappingMode[status.id];
+                          const originalName = status.name;
+                          const customName = editedStatuses[status.id]?.name || originalName;
+                          const hasCustomName = customName !== originalName;
+
                           return (
                             <div
                               key={status.id}
                               className={cn(
-                                "flex items-center gap-3 p-3 rounded-lg border transition-colors",
+                                "flex flex-col gap-2 p-3 rounded-lg border transition-all duration-300",
                                 isIncluded ? "border-primary/20 bg-primary/5" : "border-border bg-muted/30 opacity-60"
                               )}
                             >
-                              <div
-                                className="size-3 rounded-full shrink-0"
-                                style={{ backgroundColor: status.color }}
-                              />
-                              <div className="flex-1">
-                                <Input
-                                  value={editedStatuses[status.id]?.name || ""}
-                                  onChange={(e) => {
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className="size-3 rounded-full shrink-0"
+                                  style={{ backgroundColor: status.color }}
+                                />
+                                
+                                {!isMapping ? (
+                                  <>
+                                    <div className="flex-1 flex items-center gap-2">
+                                      <span className={cn(
+                                        "text-sm font-medium",
+                                        !isIncluded && "opacity-50 line-through text-muted-foreground"
+                                      )}>
+                                        {hasCustomName ? customName : originalName}
+                                      </span>
+                                      {hasCustomName && isIncluded && (
+                                        <Badge variant="outline" className="text-[10px] text-muted-foreground h-5 px-1.5 font-normal">
+                                          Maps to: {originalName}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    {isIncluded && (
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 text-xs bg-background"
+                                        onClick={() => {
+                                          setMappingMode(prev => ({ ...prev, [status.id]: true }));
+                                        }}
+                                      >
+                                        Refer To As
+                                      </Button>
+                                    )}
+                                  </>
+                                ) : (
+                                  <div className="flex-1 flex items-center gap-2 animate-in fade-in duration-300">
+                                    <Input
+                                      value={originalName}
+                                      disabled
+                                      className="h-8 text-sm bg-muted/50 border-border/50 text-muted-foreground cursor-not-allowed"
+                                    />
+                                    <span className="text-muted-foreground shrink-0 font-medium px-1">→</span>
+                                    <Input
+                                      value={editedStatuses[status.id]?.name || ""}
+                                      autoFocus
+                                      onChange={(e) => {
+                                        setEditedStatuses(prev => ({
+                                          ...prev,
+                                          [status.id]: { ...prev[status.id], name: e.target.value }
+                                        }));
+                                      }}
+                                      placeholder={originalName}
+                                      className="h-8 text-sm bg-background"
+                                    />
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 px-2 text-primary hover:text-primary hover:bg-primary/10"
+                                      onClick={() => {
+                                        setMappingMode(prev => ({ ...prev, [status.id]: false }));
+                                        if ((editedStatuses[status.id]?.name || "").trim() === "") {
+                                          setEditedStatuses(prev => ({
+                                            ...prev,
+                                            [status.id]: { ...prev[status.id], name: originalName }
+                                          }));
+                                        }
+                                      }}
+                                    >
+                                      Done
+                                    </Button>
+                                  </div>
+                                )}
+
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className={cn("size-8 shrink-0", isIncluded ? "text-destructive hover:text-destructive hover:bg-destructive/10" : "text-primary hover:text-primary hover:bg-primary/10")}
+                                  onClick={() => {
                                     setEditedStatuses(prev => ({
                                       ...prev,
-                                      [status.id]: { ...prev[status.id], name: e.target.value }
+                                      [status.id]: { ...prev[status.id], included: !prev[status.id].included }
                                     }));
+                                    if (isIncluded) {
+                                      setMappingMode(prev => ({ ...prev, [status.id]: false }));
+                                    }
                                   }}
-                                  disabled={!isIncluded}
-                                  className={cn(
-                                    "h-8 text-sm focus-visible:ring-1 bg-transparent border-transparent px-2",
-                                    !isIncluded && "opacity-50 line-through text-muted-foreground"
-                                  )}
-                                />
+                                >
+                                  {isIncluded ? <X className="size-4" /> : <PlusCircle className="size-4" />}
+                                </Button>
                               </div>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className={cn("size-8 shrink-0", isIncluded ? "text-destructive hover:text-destructive hover:bg-destructive/10" : "text-primary hover:text-primary hover:bg-primary/10")}
-                                onClick={() => {
-                                  setEditedStatuses(prev => ({
-                                    ...prev,
-                                    [status.id]: { ...prev[status.id], included: !prev[status.id].included }
-                                  }));
-                                }}
-                              >
-                                {isIncluded ? <X className="size-4" /> : <PlusCircle className="size-4" />}
-                              </Button>
                             </div>
                           );
                         })}

@@ -299,6 +299,11 @@ export type TemplateCategory =
   | 'marketing'
   | 'operations'
   | 'sales'
+  | 'finance'
+  | 'onboarding'
+  | 'services'
+  | 'ai'
+  | 'customer-success'
   | 'custom';
 
 export interface ProjectTemplate {
